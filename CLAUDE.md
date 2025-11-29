@@ -70,6 +70,9 @@ npm run clean            # Remove dist directory
 | `src/server/lib/ticket.ts` | Core ticket operations (create, reply, update) |
 | `src/server/lib/config.ts` | Environment variable loading and validation |
 | `src/server/workers/email-daemon.ts` | IMAP polling for incoming emails |
+| `src/server/lib/email-sender.ts` | SMTP email sending |
+| `src/server/lib/webhook.ts` | Outgoing webhook notifications |
+| `src/server/lib/errors.ts` | Custom error classes |
 
 ### Frontend
 
@@ -94,12 +97,95 @@ The PostgreSQL schema is defined in `src/server/lib/database-pg.ts`. Key tables:
 - **drafts**: Auto-saved reply drafts
 - **email_opens**: Email open tracking
 
+## Email Flow Architecture
+
+### Incoming Messages (Customer → Support)
+1. Customer sends email to your support address (e.g., `support@yourcompany.com`)
+2. Support Inbox polls your email via IMAP every 30 seconds
+3. New emails automatically become tickets in the system
+4. Replies to existing tickets add messages to the conversation thread
+5. Attachments are uploaded to S3/local storage and linked to messages
+6. Team members see new tickets instantly via real-time updates
+
+### Outgoing Replies (Support → Customer)
+1. Agent writes a reply in the rich text editor
+2. Message is saved to the database and sent via SMTP
+3. Email includes proper threading headers so replies stay organized
+4. Customer receives a normal email and can reply directly
+5. Their reply comes back as a new message on the same ticket
+
 ## API Authentication
 
 Two authentication methods:
 
 1. **JWT Token** (for UI): `Authorization: Bearer <token>`
 2. **API Key** (for automation): `X-API-Key: <key>`
+
+### API Key Setup
+```bash
+# Generate a secure key
+openssl rand -base64 32
+
+# Add to .env
+INTERNAL_API_KEY=sk_internal_your-secure-random-key
+```
+
+## REST API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/tickets` | List tickets with filters |
+| `POST` | `/tickets` | Create new ticket |
+| `GET` | `/tickets/:id` | Get ticket details |
+| `PATCH` | `/tickets/:id` | Update ticket (status, priority, assignee) |
+| `POST` | `/tickets/:id/reply` | Send reply to customer |
+| `POST` | `/tickets/:id/internal-note` | Add internal note |
+
+## Webhook Events
+
+Configure `WEBHOOK_URL` in `.env` to receive POST requests:
+
+### `new_ticket`
+```json
+{
+  "event": "new_ticket",
+  "ticket": {
+    "id": 123,
+    "subject": "Need help with order",
+    "customer_email": "customer@example.com",
+    "customer_name": "Jane Doe",
+    "status": "new",
+    "priority": "normal",
+    "assignee_id": null,
+    "created_at": "2025-01-15T10:30:00Z"
+  },
+  "message": {
+    "id": 456,
+    "sender_email": "customer@example.com",
+    "body": "Message content...",
+    "type": "email"
+  }
+}
+```
+
+### `customer_reply`
+Triggered when a customer replies to an existing ticket.
+
+### `new_reply`
+Triggered when an agent sends a reply.
+
+### `ticket_update`
+```json
+{
+  "event": "ticket_update",
+  "ticket": { /* updated ticket details */ },
+  "changes": {
+    "status": "resolved",
+    "assignee_id": 5
+  },
+  "updated_by": "agent@example.com"
+}
+```
 
 ## Real-Time Updates (SSE)
 
@@ -109,6 +195,32 @@ The frontend connects to `/api/events` for live updates:
 - `ticket-update`: Status/priority/assignee changed
 - `new-message`: New message added
 - `viewer-joined` / `viewer-left`: Presence tracking
+
+## Configuration
+
+All config is via environment variables. See `.env.example` for full list:
+
+**Required:**
+- `POSTGRES_*`: Database connection
+- `JWT_SECRET`: Token signing
+
+**Email (for full functionality):**
+- `IMAP_*`: Inbound email polling
+- `SMTP_*`: Outbound email sending
+
+**Optional:**
+- `S3_*`: Cloud file storage (falls back to local)
+- `WEBHOOK_URL`: External notifications
+- `AI_RESPONSE_API_URL`: AI-generated response suggestions
+- `CUSTOMER_INFO_API_URL`: External customer data lookup
+
+### Default Admin Account
+
+Configure in `.env` before first run:
+- `DEFAULT_ADMIN_EMAIL`: Admin email (default: `admin@example.com`)
+- `DEFAULT_ADMIN_PASSWORD`: Admin password (default: `admin123`)
+
+The default admin account is created automatically when the database is empty.
 
 ## Development Guidelines
 
@@ -138,24 +250,6 @@ The frontend connects to `/api/events` for live updates:
 - Fastify error handler returns consistent JSON responses
 - Frontend shows toast notifications via Sonner
 
-## Configuration
-
-All config is via environment variables. See `.env.example` for full list:
-
-**Required:**
-- `POSTGRES_*`: Database connection
-- `JWT_SECRET`: Token signing
-
-**Email (for full functionality):**
-- `IMAP_*`: Inbound email polling
-- `SMTP_*`: Outbound email sending
-
-**Optional:**
-- `S3_*`: Cloud file storage (falls back to local)
-- `WEBHOOK_URL`: External notifications
-- `AI_RESPONSE_API_URL`: AI-generated response suggestions
-- `CUSTOMER_INFO_API_URL`: External customer data lookup
-
 ## Debugging Tips
 
 1. **Check compiled output** - Read `dist/server/*.js` to verify changes
@@ -183,3 +277,62 @@ All config is via environment variables. See `.env.example` for full list:
 1. Update schema in `initializeDatabase()` in `database-pg.ts`
 2. Add migration SQL in `migrations/` folder
 3. Update TypeScript types to match
+
+## Automation Use Cases
+
+### Auto-Assignment with n8n/Zapier
+- Assign urgent tickets to senior agents automatically
+- Route tickets by keyword to specialized teams
+- Balance workload across available agents
+
+### AI-Powered Responses
+- Generate draft responses with your own AI workflows (OpenAI, Claude, Gemini)
+- Use `AI_RESPONSE_API_URL` to integrate your custom AI endpoint
+- Analyze sentiment and suggest appropriate tone
+- Auto-generate responses based on knowledge base
+
+### Smart Tagging & Categorization
+- Analyze ticket content with AI to auto-tag by category
+- Set priority based on urgency detection
+- Route to specialized teams based on topic classification
+
+### External Integrations
+- Create Slack notifications for urgent tickets
+- Log tickets to Google Sheets or Airtable
+- Sync with CRM systems (Salesforce, HubSpot)
+- Create tasks in project management tools
+
+## Deployment
+
+### Production with systemd
+
+Create `/etc/systemd/system/support-inbox.service`:
+```ini
+[Unit]
+Description=Support Inbox
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/support-inbox
+ExecStart=/usr/bin/npm start
+Restart=always
+Environment="NODE_ENV=production"
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+```bash
+sudo systemctl enable support-inbox
+sudo systemctl start support-inbox
+sudo systemctl status support-inbox
+```
+
+## Data Backup
+
+- **PostgreSQL**: Use `pg_dump` for database backups
+- **Local attachments**: Back up the `data/` folder
+- **S3 attachments**: Already backed up in the cloud

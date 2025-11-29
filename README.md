@@ -1,240 +1,132 @@
-# Support Inbox
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" />
+  <img src="https://img.shields.io/badge/node-20%2B-brightgreen.svg" alt="Node.js" />
+  <img src="https://img.shields.io/badge/TypeScript-5.0-blue.svg" alt="TypeScript" />
+</p>
 
-A modern, lightweight email-based customer support system with real-time collaboration features. Built to be fast, efficient, and easy to deploy.
+<h1 align="center">Support Inbox</h1>
 
 <p align="center">
-  <strong>🚀 Single executable • 📧 Email integration • ⚡ Real-time updates • 💼 Professional UI</strong>
+  <strong>Open-source customer support platform for email-first teams</strong><br/>
+  A self-hosted alternative to Intercom, Zendesk, and Help Scout
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#deployment">Deployment</a> •
+  <a href="#api--webhooks">API & Webhooks</a> •
+  <a href="#managed-services">Managed Services</a> •
+  <a href="#contributing">Contributing</a>
 </p>
 
 ---
 
-## What is Support Inbox?
+## Why Support Inbox?
 
-Support Inbox is a self-hosted customer support platform that turns your email into a powerful shared inbox. Perfect for small teams who want professional support tools without the complexity and cost of SaaS platforms like Intercom or Zendesk.
+Most customer support tools are **expensive**, **complex**, and **overkill** for small teams. Support Inbox is different:
 
-### Key Benefits
-
-- **Easy Setup**: No complex infrastructure. Just email credentials and you're running.
-- **Lightweight**: Uses ~100-200MB RAM - perfect for small VPS or even Raspberry Pi
-- **Real-Time**: See updates instantly with Server-Sent Events - no constant page refreshing
-- **Professional**: Beautiful modern UI with rich text editing, drafts, and internal notes
-- **Self-Contained**: Single executable with embedded database - no separate database server needed
-- **Email-First**: Works with your existing email (IMAP/SMTP) - no migration required
+- **Free & Open Source** — No per-seat pricing, no feature gates
+- **Email-First** — Works with your existing inbox (Gmail, Outlook, any IMAP/SMTP)
+- **Lightweight** — Runs on ~100-200MB RAM, perfect for a $5/month VPS
+- **Self-Hosted** — Your data stays on your servers
+- **Modern Stack** — React, TypeScript, Tailwind, real-time updates
 
 ---
 
 ## Features
 
-### Core Support Features
+### 📧 Email Integration
 
-- **📥 Email Integration**: Automatically converts incoming emails into support tickets
-- **📤 HTML Replies**: Send professional formatted responses directly from the interface
-- **🎨 Rich Text Editor**: Format replies with bold, italic, lists, quotes, and code blocks
-- **💬 Threaded Conversations**: All messages organized in a clean timeline view
-- **📝 Internal Notes**: Add private notes that aren't sent to customers
-- **💾 Auto-Save Drafts**: Never lose your work - drafts save automatically as you type
-- **🏷️ Status Management**: Track tickets as New, Open, Awaiting Customer, or Resolved
-- **⚡ Priority Levels**: Flag urgent issues with Low, Normal, High, and Urgent priorities
-- **👤 Assignment**: Assign tickets to team members for clear ownership
+Turn your support email into a powerful shared inbox. Customers email you normally, agents respond through a beautiful interface.
 
-### Real-Time Collaboration
+### ⚡ Real-Time Collaboration
 
-- **⚡ Live Updates**: See new tickets and messages instantly without refreshing
-- **👥 Customer Sidebar**: Quick view of customer info and ticket history
-- **🔔 Instant Notifications**: Know immediately when customers respond
+See new tickets instantly. Know when teammates are viewing the same ticket. No more page refreshing.
 
-### Modern User Experience
+### 📝 Rich Text Editor
 
-- **🎯 Clean Interface**: Built with React and shadcn/ui components
-- **📱 Responsive Design**: Works great on desktop, tablet, and mobile
-- **🎨 Color-Coded Messages**: Easily distinguish between customer, agent, and internal messages
-- **⌨️ Fast Navigation**: Keyboard-friendly interface for power users
+Compose professional responses with formatting, lists, code blocks, and more. Auto-saving drafts ensure you never lose work.
 
----
+### 🏷️ Ticket Management
 
-## How It Works
+- **Status tracking** — New, Open, Awaiting Customer, Resolved
+- **Priority levels** — Low, Normal, High, Urgent
+- **Assignment** — Clear ownership for every conversation
+- **Tags** — Organize and filter tickets your way
 
-### Email Flow
+### 💬 Internal Notes
 
-**Incoming Messages (Customer → Support)**
-1. Customer sends email to your support address (e.g., `support@yourcompany.com`)
-2. Support Inbox polls your email via IMAP every 30 seconds
-3. New emails automatically become tickets in the system
-4. Replies to existing tickets add messages to the conversation thread
-5. Attachments are uploaded to S3 and linked to messages
-6. Team members see new tickets instantly via real-time updates
+Add private notes that customers never see. Perfect for team handoffs and context sharing.
 
-**Outgoing Replies (Support → Customer)**
-1. Agent writes a reply in the rich text editor
-2. Message is saved to the database and sent via SMTP
-3. Email includes proper threading headers so replies stay organized
-4. Customer receives a normal email and can reply directly
-5. Their reply comes back as a new message on the same ticket
+### 📎 Attachments
 
-**Internal Collaboration**
-- Agents can add internal notes that customers never see
-- Drafts save automatically and persist across browser sessions
-- Status updates (New → Open → Resolved) track ticket progress
-- Assignment ensures clear ownership of each conversation
+Upload files with replies. Supports local storage or AWS S3 for cloud hosting.
+
+### 🔌 Integrations
+
+- **Webhooks** for automation (n8n, Zapier, Make.com)
+- **REST API** for custom integrations
+- **AI-ready** — Bring your own AI for response suggestions
+
+### 👤 Customer Context Panel
+
+Display rich customer information alongside every conversation. Connect to your ERP, CRM, or any data source to show order history, account details, subscription status, and more.
+
+> **Need help integrating?** [Blue Leaf LLC](https://www.blle.co/box) builds custom integrations to pull data from your existing systems.
 
 ---
 
-## Requirements
-
-### System Requirements
-- **Node.js 20+** for running the application
-- **IMAP/SMTP Email Account** (Gmail, Outlook, Dreamhost, etc.)
-- **AWS S3 Bucket** (optional, for attachments)
-- **~100-200MB RAM** (very lightweight!)
-- **~50-200MB Disk Space** depending on ticket volume
-
-### Email Provider Compatibility
-Works with any email provider supporting IMAP/SMTP:
-- ✅ Gmail (app-specific passwords required)
-- ✅ Microsoft 365 / Outlook.com
-- ✅ Dreamhost / cPanel hosting
-- ✅ ProtonMail Bridge
-- ✅ FastMail, Mailbox.org, etc.
-
----
-
-## Tech Stack
-
-Built with modern, production-ready technologies:
-
-- **Backend**: Node.js, Fastify, TypeScript
-- **Database**: SQLite (embedded, no separate server needed)
-- **Frontend**: React 18, TypeScript, Tailwind CSS, shadcn/ui
-- **Rich Text**: TipTap Editor
-- **Email**: Nodemailer (SMTP), imap-simple (IMAP)
-- **Real-Time**: Server-Sent Events (SSE)
-- **File Storage**: Local file system or AWS S3 (auto-detects based on configuration)
-
----
-
-## Getting Started
-
-### Installation
+## Quick Start
 
 ```bash
-# 1. Clone the repository
+# Clone the repository
 git clone https://github.com/bookatechie/support-inbox.git
 cd support-inbox
 
-# 2. Install dependencies
+# Install dependencies
 npm install
 cd src/client && npm install && cd ../..
 
-# 3. Copy environment template
+# Configure your environment
 cp .env.example .env
+# Edit .env with your email credentials (IMAP/SMTP)
 
-# 4. Edit .env with your email credentials
-nano .env
+# Start development servers
+npm run dev          # Backend (Terminal 1)
+npm run dev:client   # Frontend (Terminal 2)
+
+# Open http://localhost:3000
 ```
 
-### Configuration
-
-Edit the `.env` file with your email credentials and settings. See `.env.example` for all available configuration options and detailed comments.
-
-**Key settings you'll need:**
-- Email credentials (IMAP/SMTP)
-- JWT secret for authentication
-- Optional: S3 credentials for cloud storage (auto-enables when configured)
-- Optional: API key for integrations
-- Optional: Webhook URLs for external services
-
-### Running the Application
-
-**Development Mode (with hot reload):**
-```bash
-# Terminal 1: Start backend
-npm run dev
-
-# Terminal 2: Start frontend
-npm run dev:client
-
-# Open http://localhost:3000 in your browser
-```
-
-**Production Mode:**
-```bash
-# Build once
-npm run build
-
-# Start the server
-npm start
-
-# Open http://localhost:3001 in your browser
-```
-
-**Default Login:**
-- Email: `admin@example.com` (or your `DEFAULT_ADMIN_EMAIL`)
-- Password: `admin123` (or your `DEFAULT_ADMIN_PASSWORD`)
-
-> ⚠️ **Security Note**: Configure `DEFAULT_ADMIN_EMAIL` and `DEFAULT_ADMIN_PASSWORD` in your `.env` file before first run. The default admin account is created automatically when the database is empty. For production, you must change these from the defaults!
-
-### Managing Users
-
-Use the built-in Admin section to:
-- Create new agent accounts
-- Manage user roles (agent/admin)
-- Set agent signatures
-- Configure AI profiles
-
----
-
-## Usage Guide
-
-### Basic Workflow
-
-1. **Incoming Emails**: Customers email your support address → Automatically become tickets
-2. **View Tickets**: See all tickets in the main inbox view with status filters
-3. **Reply to Customer**: Click a ticket, type your reply, send (customer gets email)
-4. **Add Internal Notes**: Use the "Add Note" button for private team communication
-5. **Manage Status**: Update ticket status as you work (New → Open → Resolved)
-6. **Assign Tickets**: Assign to specific agents for clear ownership
-
-### Key Features Explained
-
-**🎨 Rich Text Editing**
-- Bold, italic, lists, quotes, and code formatting
-- Compose professional responses with ease
-
-**📎 Attachments**
-- Upload files with replies (stored in local file system or AWS S3)
-- Automatic UUID-based filenames for security
-- Download customer attachments from the interface
-- Public URLs blocked when using S3 (private access only)
-
-**💾 Auto-Save Drafts**
-- Drafts save automatically while you type
-- Come back later and continue where you left off
-
-**📝 Internal Notes**
-- Add private notes visible only to your team
-- Never accidentally sent to customers
-
-**🔔 Real-Time Updates**
-- See new tickets instantly without refreshing
-- Live indicators when teammates view tickets
-
-**⚡ Canned Responses**
-- Create templates for common responses
-- Save time with frequently-used replies
+**Default login:** `admin@example.com` / `admin123` (configure in `.env` before first run)
 
 ---
 
 ## Deployment
 
-### Simple Deployment (Development/Testing)
+### Production Build
+
 ```bash
 npm run build
 npm start
-# Access at http://your-server:3001
+# Available at http://localhost:3001
 ```
 
-### Production Deployment with systemd
-Create `/etc/systemd/system/support-inbox.service`:
+### Cloud Hosting
+
+Deploy to any Node.js-compatible platform:
+
+- **DigitalOcean App Platform** — Connect your repo, auto-deploy on push
+- **Railway** — Zero-config Node.js hosting
+- **Render** — Free tier available for small teams
+- **Fly.io** — Edge deployment with global distribution
+- **Any VPS** — Ubuntu/Debian with Node.js 20+
+
+> **Want us to handle deployment?** [Blue Leaf LLC](https://www.blle.co/box) provides fully managed hosting with security hardening, automatic backups, and ongoing maintenance.
+
+### Systemd Service (VPS)
+
 ```ini
 [Unit]
 Description=Support Inbox
@@ -252,185 +144,132 @@ Environment="NODE_ENV=production"
 WantedBy=multi-user.target
 ```
 
-Enable and start:
-```bash
-sudo systemctl enable support-inbox
-sudo systemctl start support-inbox
-sudo systemctl status support-inbox
-```
-
-## Webhooks & Automation
-
-Support Inbox can send webhook notifications for ticket events, enabling powerful automation workflows with tools like n8n, Zapier, Make.com, or custom scripts.
-
-### Webhook Events
-
-Configure `WEBHOOK_URL` in your `.env` file to receive POST requests for these events:
-
-**1. `new_ticket`** - Triggered when a new ticket is created
-```json
-{
-  "event": "new_ticket",
-  "ticket": {
-    "id": 123,
-    "subject": "Need help with order",
-    "customer_email": "customer@example.com",
-    "customer_name": "Jane Doe",
-    "status": "new",
-    "priority": "normal",
-    "assignee_id": null,
-    "created_at": "2025-01-15T10:30:00Z"
-  },
-  "message": {
-    "id": 456,
-    "sender_email": "customer@example.com",
-    "body": "Message content...",
-    "type": "email"
-  }
-}
-```
-
-**2. `customer_reply`** - Triggered when a customer replies to an existing ticket
-```json
-{
-  "event": "customer_reply",
-  "ticket": { /* ticket details */ },
-  "message": { /* new message details */ }
-}
-```
-
-**3. `new_reply`** - Triggered when an agent sends a reply
-```json
-{
-  "event": "new_reply",
-  "ticket": { /* ticket details */ },
-  "message": { /* reply message details */ }
-}
-```
-
-**4. `ticket_update`** - Triggered when ticket status, priority, or assignee changes
-```json
-{
-  "event": "ticket_update",
-  "ticket": { /* updated ticket details */ },
-  "changes": {
-    "status": "resolved",
-    "assignee_id": 5
-  },
-  "updated_by": "agent@example.com"
-}
-```
-
-### Automation Use Cases
-
-**Auto-Assignment with n8n/Zapier:**
-- Assign urgent tickets to senior agents automatically
-- Route tickets by keyword to specialized teams
-- Balance workload across available agents
-
-**AI-Powered Responses:**
-- Generate draft responses with your own AI workflows (OpenAI, Claude, Gemini)
-- Use `AI_RESPONSE_API_URL` to integrate your custom AI endpoint
-- Or build your own with n8n/Zapier + AI providers
-- **Not locked into any provider** - bring your own AI service
-- Analyze sentiment and suggest appropriate tone
-- Auto-generate responses based on knowledge base
-
-**Smart Tagging & Categorization:**
-- Analyze ticket content with AI to auto-tag by category
-- Set priority based on urgency detection
-- Route to specialized teams based on topic classification
-- Customer tier detection (VIP, standard, etc.)
-
-**External Integrations:**
-- Create Slack notifications for urgent tickets
-- Log tickets to Google Sheets or Airtable
-- Sync with CRM systems (Salesforce, HubSpot)
-- Create tasks in project management tools
-
-**Example n8n AI Workflow:**
-1. Webhook receives `new_ticket` event
-2. Send ticket content to OpenAI/Claude API
-3. AI analyzes: urgency, category, suggested response
-4. If urgent → set priority to "high" and notify Slack
-5. If billing-related → auto-assign to billing agent
-6. Generate draft response and save to Support Inbox
-7. Agent reviews and sends (or auto-send for simple cases)
-
 ---
 
-## API Integration
+## API & Webhooks
 
-Support Inbox includes a REST API for integrations and automation.
+### REST API
 
-### API Authentication
+Generate a secure API key and add it to your `.env` file:
 
-**API Key Method** (recommended for automation):
 ```bash
-# 1. Generate a secure key
+# Generate a secure key
 openssl rand -base64 32
 
-# 2. Add to your .env file
-INTERNAL_API_KEY=sk_internal_your-secure-random-key
-
-# 3. Use in API requests
-curl http://localhost:3001/tickets \
-  -H "X-API-Key: sk_internal_your-secure-random-key"
+# Add to .env
+INTERNAL_API_KEY=your-generated-key-here
 ```
 
-### Example: Create Ticket via API
+Then authenticate requests with the `X-API-Key` header:
+
 ```bash
+# Create a ticket
 curl -X POST http://localhost:3001/tickets \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
-  -d '{
-    "subject": "Automated ticket",
-    "customer_email": "customer@example.com",
-    "message_body": "Created by automation"
-  }'
+  -d '{"subject": "Hello", "customer_email": "customer@example.com", "message_body": "Hi there"}'
 ```
 
-### Common Endpoints
-- `GET /tickets` - List tickets with filters
-- `POST /tickets` - Create new ticket
-- `GET /tickets/:id` - Get ticket details
-- `POST /tickets/:id/reply` - Send reply
-- `PATCH /tickets/:id` - Update ticket (status, priority, assignee)
-- `POST /tickets/:id/internal-note` - Add internal note
+### Webhooks
 
-Full API documentation available in the codebase at `src/server/api/routes.ts`.
+Configure `WEBHOOK_URL` to receive events:
+
+- `new_ticket` — New ticket created
+- `customer_reply` — Customer replied
+- `new_reply` — Agent replied
+- `ticket_update` — Status/priority/assignee changed
+
+Build powerful automations with n8n, Zapier, or custom scripts.
+
+> **Need automation expertise?** [Blue Leaf LLC](https://www.blle.co/box) builds custom workflows for auto-assignment, intelligent tagging, priority detection, and automated draft generation.
+
+---
+
+## Email Providers
+
+Works with any IMAP/SMTP provider:
+
+| Provider                | Status                       |
+| ----------------------- | ---------------------------- |
+| Gmail                   | ✅ Supported (app passwords) |
+| Microsoft 365 / Outlook | ✅ Supported                 |
+| Dreamhost / cPanel      | ✅ Supported                 |
+| ProtonMail Bridge       | ✅ Supported                 |
+| FastMail                | ✅ Supported                 |
+| Any IMAP/SMTP           | ✅ Supported                 |
+
+---
+
+## Tech Stack
+
+| Layer     | Technology                            |
+| --------- | ------------------------------------- |
+| Backend   | Node.js, Fastify, TypeScript          |
+| Database  | PostgreSQL                            |
+| Frontend  | React 19, Tailwind CSS, shadcn/ui     |
+| Real-Time | Server-Sent Events (SSE)              |
+| Email     | Nodemailer (SMTP), imap-simple (IMAP) |
+
+---
+
+## Managed Services
+
+Don't want to manage infrastructure yourself? [Blue Leaf LLC](https://www.blle.co/box) offers complete Support Inbox implementation and hosting:
+
+### 🚀 Deployment & Hosting
+
+- Secure cloud deployment with SSL and backups
+- Managed PostgreSQL database
+- Ongoing maintenance and security updates
+- 99.9% uptime SLA
+
+### 🤖 AI-Powered Responses
+
+- Connect to your FAQ and knowledge base for intelligent draft suggestions
+- Customer context-aware responses using your CRM/ERP data
+- Sentiment analysis and tone recommendations
+- Works with OpenAI, Claude, or your preferred AI provider
+
+### ⚙️ Automation & Workflows
+
+- Auto-assignment rules based on ticket content, customer tier, or workload
+- Intelligent tagging and categorization
+- Priority detection for urgent issues
+- Automated draft generation for common inquiries
+
+### 🔗 Custom Integrations
+
+- ERP/CRM data in the customer sidebar (order history, account status, etc.)
+- Slack/Teams notifications for new tickets
+- Two-way sync with your existing tools
+- Custom API development
+
+[View Pricing & Plans →](https://www.blle.co/box)
 
 ---
 
 ## FAQ
 
-**Q: Can I use this with my existing email?**
-A: Yes! Works with any IMAP/SMTP email provider. Your existing emails are not affected.
+**Is this production-ready?**
+Currently in active development. Core features work well, but expect updates.
 
-**Q: Do I need a separate database server?**
-A: No, SQLite is embedded. Everything runs in one process.
+**Do I need a separate database?**
+Yes, PostgreSQL is required. We recommend managed database services (like DigitalOcean Managed Databases) for automatic backups and maintenance-free operation.
 
-**Q: How do I backup my data?**
-A: Copy the `data/` folder (contains database and attachments if using local storage). If using S3, your attachments are already backed up in the cloud.
+**How do I backup my data?**
+Back up your PostgreSQL database and the `data/` folder (for local attachments).
 
-**Q: Can I customize the UI?**
-A: Yes! The frontend is built with React and Tailwind CSS, easy to customize.
-
-**Q: Is this production-ready?**
-A: Currently in active development. Basic features work well, but expect updates.
-
-**Q: How much does it cost?**
-A: It's open source and free to use. Only costs are your email provider and server hosting.
+**How much does it cost?**
+Free and open source. Your only costs are hosting and email provider.
 
 ---
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
-## Support
-
-- **Issues**: Report bugs or request features via GitHub Issues
-- **Contributing**: Pull requests welcome!
+<p align="center">
+  <strong>Built for teams who value simplicity and ownership.</strong>
+</p>
