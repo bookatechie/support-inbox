@@ -1615,21 +1615,34 @@ export default async function routes(fastify: FastifyInstance) {
 
   /**
    * POST /api/tickets/:id/tags
-   * Add tag to ticket
+   * Add tag to ticket (by tag_id or tag_name, creates tag if name doesn't exist)
    */
   fastify.post<{
     Params: { id: string };
-    Body: { tag_id: number };
+    Body: { tag_id?: number; tag_name?: string };
   }>('/tickets/:id/tags', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const ticketId = parseInt(request.params.id);
-    const { tag_id } = request.body;
+    const { tag_id, tag_name } = request.body;
 
-    if (!tag_id) {
-      return reply.code(400).send({ error: 'tag_id required' });
+    if (!tag_id && !tag_name) {
+      return reply.code(400).send({ error: 'tag_id or tag_name required' });
     }
 
     try {
-      await ticketTagQueries.addTagToTicket(ticketId, tag_id);
+      let resolvedTagId = tag_id;
+
+      // Resolve tag_name to tag_id, creating if necessary
+      if (!resolvedTagId && tag_name) {
+        const trimmedName = tag_name.trim();
+        let tag = await tagQueries.getByName(trimmedName);
+        if (!tag) {
+          const newTagId = await tagQueries.create(trimmedName);
+          tag = await tagQueries.getById(newTagId);
+        }
+        resolvedTagId = tag!.id;
+      }
+
+      await ticketTagQueries.addTagToTicket(ticketId, resolvedTagId!);
       const tags = await ticketTagQueries.getByTicketId(ticketId);
 
       // Emit SSE event
