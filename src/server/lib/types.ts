@@ -197,6 +197,7 @@ export interface UpdateTicketRequest {
   status?: TicketStatus;
   priority?: TicketPriority;
   assignee_id?: number | null;
+  assignee_email?: string | null;  // Alternative to assignee_id - will be resolved to user ID
   customer_email?: string;
   customer_name?: string;
   follow_up_at?: string | null;

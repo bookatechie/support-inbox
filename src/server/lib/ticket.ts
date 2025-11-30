@@ -629,6 +629,19 @@ export async function updateTicket(ticketId: number, request: UpdateTicketReques
     throw new Error('Ticket not found');
   }
 
+  // Resolve assignee_email to assignee_id if provided
+  if (request.assignee_email !== undefined && request.assignee_id === undefined) {
+    if (request.assignee_email === null) {
+      request.assignee_id = null;
+    } else {
+      const assignee = await userQueries.getByEmail(request.assignee_email);
+      if (!assignee) {
+        throw new Error(`User not found with email: ${request.assignee_email}`);
+      }
+      request.assignee_id = assignee.id;
+    }
+  }
+
   // Track changes for webhook
   const changes: { status?: string; priority?: string; assignee_id?: number | null; customer_email?: string; customer_name?: string; follow_up_at?: string | null } = {};
 
