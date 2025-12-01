@@ -134,7 +134,10 @@ export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger,
     email.messageId,
     email.bodyHtml,
     email.bodyHtmlStripped,
-    emailMetadata
+    emailMetadata,
+    null,  // scheduledAt
+    email.to,  // toEmails
+    email.cc   // ccEmails
   );
 
   // Save attachments if any
@@ -194,7 +197,10 @@ export async function addMessageToTicket(ticketId: number, email: ParsedEmail): 
     email.messageId,
     email.bodyHtml,
     email.bodyHtmlStripped,
-    emailMetadata
+    emailMetadata,
+    null,  // scheduledAt
+    email.to,  // toEmails
+    email.cc   // ccEmails
   );
 
   // Save attachments if any
@@ -281,7 +287,10 @@ export async function createTicket(
       request.message_id || null,
       null,  // body_html - plain text for API-created messages
       null,  // body_html_stripped
-      null   // email_metadata
+      null,  // email_metadata
+      null,  // scheduledAt
+      null,  // toEmails - manual tickets don't have recipients
+      null   // ccEmails
     );
 
     message = (await messageQueries.getById(messageId))!;
@@ -367,6 +376,12 @@ export async function replyToTicket(
   // Save message with HTML in body_html field
   // Use agent's company email (agent_email) or fallback to shared inbox
   const senderEmail = user.agent_email || config.smtp.from;
+
+  // Determine actual recipients - use provided to_emails or fallback to ticket customer
+  const actualToEmails = request.to_emails && request.to_emails.length > 0
+    ? request.to_emails
+    : [ticket.reply_to_email || ticket.customer_email];
+
   const messageId = await messageQueries.create(
     ticketId,
     senderEmail,  // Use agent's company email (what customer sees), not login email
@@ -377,7 +392,9 @@ export async function replyToTicket(
     request.body,  // HTML in body_html
     stripHtml(request.body),  // body_html_stripped (stripped HTML for full-text search)
     null,  // email_metadata (agent reply, no email metadata)
-    isScheduled ? request.scheduled_at! : null  // scheduled_at
+    isScheduled ? request.scheduled_at! : null,  // scheduled_at
+    request.type !== 'note' ? actualToEmails : null,  // toEmails (only for non-notes)
+    request.type !== 'note' ? (request.cc_emails || null) : null  // ccEmails (only for non-notes)
   );
 
   // messageId returned directly

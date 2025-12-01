@@ -19,8 +19,8 @@ const defaultLogger: Logger = {
 };
 
 /**
- * Extract recipient addresses from message email_metadata
- * Returns the to, cc, and originalTo fields if available
+ * Extract recipient addresses from message
+ * Uses to_emails/cc_emails columns first, falls back to email_metadata for backward compatibility
  */
 export function extractRecipientsFromMessage(message: Message): {
   to: string[];
@@ -29,23 +29,47 @@ export function extractRecipientsFromMessage(message: Message): {
 } {
   const result = { to: [] as string[], cc: [] as string[], original_to: null as string | null };
 
-  if (!message.email_metadata) {
-    return result;
+  // Try database columns first (new format)
+  if (message.to_emails) {
+    try {
+      const parsed = JSON.parse(message.to_emails);
+      if (Array.isArray(parsed)) {
+        result.to = parsed;
+      }
+    } catch {
+      // Invalid JSON, continue to fallback
+    }
   }
 
-  try {
-    const metadata = JSON.parse(message.email_metadata);
-    if (Array.isArray(metadata.to)) {
-      result.to = metadata.to;
+  if (message.cc_emails) {
+    try {
+      const parsed = JSON.parse(message.cc_emails);
+      if (Array.isArray(parsed)) {
+        result.cc = parsed;
+      }
+    } catch {
+      // Invalid JSON, continue to fallback
     }
-    if (Array.isArray(metadata.cc)) {
-      result.cc = metadata.cc;
+  }
+
+  // Fall back to email_metadata for backward compatibility and original_to
+  if (message.email_metadata) {
+    try {
+      const metadata = JSON.parse(message.email_metadata);
+      // Only use metadata.to/cc if database columns were empty
+      if (result.to.length === 0 && Array.isArray(metadata.to)) {
+        result.to = metadata.to;
+      }
+      if (result.cc.length === 0 && Array.isArray(metadata.cc)) {
+        result.cc = metadata.cc;
+      }
+      // original_to is only in email_metadata (from X-Original-To header)
+      if (typeof metadata.originalTo === 'string') {
+        result.original_to = metadata.originalTo;
+      }
+    } catch {
+      // Invalid JSON, ignore
     }
-    if (typeof metadata.originalTo === 'string') {
-      result.original_to = metadata.originalTo;
-    }
-  } catch {
-    // Invalid JSON, return empty result
   }
 
   return result;

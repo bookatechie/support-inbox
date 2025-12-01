@@ -436,12 +436,12 @@ export const messageQueries = {
     return query<Message>('SELECT * FROM messages WHERE ticket_id = $1 ORDER BY created_at ASC', [ticketId]);
   },
 
-  async create(ticketId: number, senderEmail: string, senderName: string | null, body: string, type: string, messageId: string | null, bodyHtml: string | null, bodyHtmlStripped: string | null, emailMetadata: string | null, scheduledAt: string | null = null): Promise<number> {
+  async create(ticketId: number, senderEmail: string, senderName: string | null, body: string, type: string, messageId: string | null, bodyHtml: string | null, bodyHtmlStripped: string | null, emailMetadata: string | null, scheduledAt: string | null = null, toEmails: string[] | null = null, ccEmails: string[] | null = null): Promise<number> {
     const result = await queryOne<{ id: number }>(
-      `INSERT INTO messages (ticket_id, sender_email, sender_name, body, type, message_id, body_html, body_html_stripped, email_metadata, scheduled_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO messages (ticket_id, sender_email, sender_name, body, type, message_id, body_html, body_html_stripped, email_metadata, scheduled_at, to_emails, cc_emails)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
-      [ticketId, senderEmail, senderName, body, type, messageId, bodyHtml, bodyHtmlStripped, emailMetadata, scheduledAt]
+      [ticketId, senderEmail, senderName, body, type, messageId, bodyHtml, bodyHtmlStripped, emailMetadata, scheduledAt, toEmails ? JSON.stringify(toEmails) : null, ccEmails ? JSON.stringify(ccEmails) : null]
     );
     return result!.id;
   },

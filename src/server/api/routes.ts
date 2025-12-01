@@ -790,7 +790,10 @@ export default async function routes(fastify: FastifyInstance) {
         null,  // message_id (will be set after sending)
         htmlBody,  // HTML with comments + separator + original
         null,  // body_html_stripped
-        null   // email_metadata
+        null,  // email_metadata
+        null,  // scheduledAt
+        [to_email],  // toEmails - the forward recipient
+        null   // ccEmails
       );
 
       // Send the email directly

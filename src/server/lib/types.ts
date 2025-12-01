@@ -52,6 +52,8 @@ export interface Message {
   created_at: string;
   scheduled_at: string | null; // NULL = send immediately, timestamp = scheduled for later
   sent_at: string | null; // NULL = not sent yet, timestamp = when actually sent
+  to_emails: string | null; // JSON array of To recipient email addresses
+  cc_emails: string | null; // JSON array of CC recipient email addresses
 }
 
 export interface Attachment {
