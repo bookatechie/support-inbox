@@ -18,6 +18,39 @@ const defaultLogger: Logger = {
   error: (msg: string, error?: unknown) => console.error(msg, error),
 };
 
+/**
+ * Extract recipient addresses from message email_metadata
+ * Returns the to, cc, and originalTo fields if available
+ */
+export function extractRecipientsFromMessage(message: Message): {
+  to: string[];
+  cc: string[];
+  original_to: string | null;
+} {
+  const result = { to: [] as string[], cc: [] as string[], original_to: null as string | null };
+
+  if (!message.email_metadata) {
+    return result;
+  }
+
+  try {
+    const metadata = JSON.parse(message.email_metadata);
+    if (Array.isArray(metadata.to)) {
+      result.to = metadata.to;
+    }
+    if (Array.isArray(metadata.cc)) {
+      result.cc = metadata.cc;
+    }
+    if (typeof metadata.originalTo === 'string') {
+      result.original_to = metadata.originalTo;
+    }
+  } catch {
+    // Invalid JSON, return empty result
+  }
+
+  return result;
+}
+
 export interface NewTicketWebhookPayload {
   event: 'new_ticket';
   ticket: {
@@ -43,6 +76,9 @@ export interface NewTicketWebhookPayload {
     type: string;
     message_id: string | null;
     created_at: string;
+    to: string[];
+    cc: string[];
+    original_to: string | null;
     attachments?: Array<{
       id: number;
       message_id: number;
@@ -80,6 +116,9 @@ export interface NewReplyWebhookPayload {
     type: string;
     message_id: string | null;
     created_at: string;
+    to: string[];
+    cc: string[];
+    original_to: string | null;
     attachments?: Array<{
       id: number;
       message_id: number;
@@ -117,6 +156,9 @@ export interface CustomerReplyWebhookPayload {
     type: string;
     message_id: string | null;
     created_at: string;
+    to: string[];
+    cc: string[];
+    original_to: string | null;
     attachments?: Array<{
       id: number;
       message_id: number;
@@ -165,6 +207,8 @@ export function sendNewTicketWebhook(
     return; // Webhook not configured, skip silently
   }
 
+  const recipients = extractRecipientsFromMessage(message);
+
   const payload: NewTicketWebhookPayload = {
     event: 'new_ticket',
     ticket: {
@@ -190,6 +234,9 @@ export function sendNewTicketWebhook(
       type: message.type,
       message_id: message.message_id,
       created_at: message.created_at,
+      to: recipients.to,
+      cc: recipients.cc,
+      original_to: recipients.original_to,
       attachments: attachments,
     },
   };
@@ -229,6 +276,8 @@ export function sendNewReplyWebhook(
     return; // Webhook not configured, skip silently
   }
 
+  const recipients = extractRecipientsFromMessage(message);
+
   const payload: NewReplyWebhookPayload = {
     event: 'new_reply',
     ticket: {
@@ -254,6 +303,9 @@ export function sendNewReplyWebhook(
       type: message.type,
       message_id: message.message_id,
       created_at: message.created_at,
+      to: recipients.to,
+      cc: recipients.cc,
+      original_to: recipients.original_to,
       attachments: attachments,
     },
   };
@@ -293,6 +345,8 @@ export function sendCustomerReplyWebhook(
     return; // Webhook not configured, skip silently
   }
 
+  const recipients = extractRecipientsFromMessage(message);
+
   const payload: CustomerReplyWebhookPayload = {
     event: 'customer_reply',
     ticket: {
@@ -318,6 +372,9 @@ export function sendCustomerReplyWebhook(
       type: message.type,
       message_id: message.message_id,
       created_at: message.created_at,
+      to: recipients.to,
+      cc: recipients.cc,
+      original_to: recipients.original_to,
       attachments: attachments,
     },
   };
