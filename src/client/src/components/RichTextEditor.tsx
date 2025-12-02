@@ -111,6 +111,12 @@ export function RichTextEditor({
         heading: {
           levels: [1, 2, 3],
         },
+        link: {
+          openOnClick: false,
+          HTMLAttributes: {
+            class: 'text-primary underline cursor-pointer',
+          },
+        },
       }),
       Placeholder.configure({
         placeholder,
