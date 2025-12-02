@@ -11,6 +11,7 @@ import ResizableImage from 'tiptap-extension-resize-image';
 import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
+import Link from '@tiptap/extension-link';
 import {
   Bold,
   Italic,
@@ -111,11 +112,15 @@ export function RichTextEditor({
         heading: {
           levels: [1, 2, 3],
         },
-        link: {
-          openOnClick: false,
-          HTMLAttributes: {
-            class: 'text-primary underline cursor-pointer',
-          },
+        // Disable StarterKit's Link to use our custom extended version
+        link: false,
+      }),
+      // Extend Link with inclusive: false to prevent link from extending
+      // when typing after it (fixes paste + edit issue)
+      Link.extend({ inclusive: false }).configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-primary underline cursor-pointer',
         },
       }),
       Placeholder.configure({
