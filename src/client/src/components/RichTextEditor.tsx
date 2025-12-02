@@ -118,7 +118,6 @@ export function RichTextEditor({
       // Extend Link with inclusive: false to prevent link from extending
       // when typing after it (fixes paste + edit issue)
       Link.extend({ inclusive: false }).configure({
-        openOnClick: false,
         HTMLAttributes: {
           class: 'text-primary underline cursor-pointer',
         },
