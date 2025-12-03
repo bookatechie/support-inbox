@@ -459,11 +459,26 @@ export function TicketsPage() {
     return () => clearTimeout(timeoutId);
   }, [newEmail.to, showNewEmailModal]);
 
-  // Clear selection when tickets change
+  // Clear selection when filters change (not on SSE updates)
   useEffect(() => {
     clearSelection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTickets]);
+  }, [statusFilter, assigneeFilter, tagFilter, sortOrder, location.search]);
+
+  // Remove selected tickets that no longer exist in the list (e.g., deleted or filtered out)
+  useEffect(() => {
+    if (selectedTicketIds.size === 0) return;
+
+    const currentTicketIds = new Set(allTickets.map(t => t.id));
+    const validSelectedIds = new Set(
+      Array.from(selectedTicketIds).filter(id => currentTicketIds.has(id))
+    );
+
+    // Only update if some selections became invalid
+    if (validSelectedIds.size !== selectedTicketIds.size) {
+      setSelectedTicketIds(validSelectedIds);
+    }
+  }, [allTickets, selectedTicketIds]);
 
   // Infinite scroll: load more when sentinel element is visible
   useEffect(() => {
@@ -1197,7 +1212,7 @@ export function TicketsPage() {
         size="lg"
       >
         <div className="text-sm text-muted-foreground mb-4">
-          User ID: <span className="font-mono">{user.id}</span>
+          User ID: <span className="font-mono">{user?.id}</span>
         </div>
 
         <div>
