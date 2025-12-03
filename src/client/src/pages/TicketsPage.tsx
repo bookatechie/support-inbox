@@ -1196,6 +1196,10 @@ export function TicketsPage() {
         error={profileError}
         size="lg"
       >
+        <div className="text-sm text-muted-foreground mb-4">
+          User ID: <span className="font-mono">{user.id}</span>
+        </div>
+
         <div>
           <Label htmlFor="profile-signature">Email Signature (optional)</Label>
           <RichTextEditor
