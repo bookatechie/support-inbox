@@ -19,6 +19,20 @@ const defaultLogger: Logger = {
 };
 
 /**
+ * Strip base64 encoded images from text content
+ * Replaces data URIs like "data:image/png;base64,..." with a placeholder
+ */
+function stripBase64Images(text: string | null): string | null {
+  if (!text) return text;
+  // Match data URIs for images with base64 encoding
+  // Handles: data:image/png;base64,..., data:image/jpeg;base64,..., etc.
+  return text.replace(
+    /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g,
+    '[base64 image removed]'
+  );
+}
+
+/**
  * Extract recipient addresses from message
  * Uses to_emails/cc_emails columns first, falls back to email_metadata for backward compatibility
  */
@@ -252,8 +266,8 @@ export function sendNewTicketWebhook(
       ticket_id: message.ticket_id,
       sender_email: message.sender_email,
       sender_name: message.sender_name,
-      body: message.body,
-      body_html: message.body_html,
+      body: stripBase64Images(message.body) ?? '',
+      body_html: stripBase64Images(message.body_html),
       email_metadata: message.email_metadata,
       type: message.type,
       message_id: message.message_id,
@@ -321,8 +335,8 @@ export function sendNewReplyWebhook(
       ticket_id: message.ticket_id,
       sender_email: message.sender_email,
       sender_name: message.sender_name,
-      body: message.body,
-      body_html: message.body_html,
+      body: stripBase64Images(message.body) ?? '',
+      body_html: stripBase64Images(message.body_html),
       email_metadata: message.email_metadata,
       type: message.type,
       message_id: message.message_id,
@@ -390,8 +404,8 @@ export function sendCustomerReplyWebhook(
       ticket_id: message.ticket_id,
       sender_email: message.sender_email,
       sender_name: message.sender_name,
-      body: message.body,
-      body_html: message.body_html,
+      body: stripBase64Images(message.body) ?? '',
+      body_html: stripBase64Images(message.body_html),
       email_metadata: message.email_metadata,
       type: message.type,
       message_id: message.message_id,
