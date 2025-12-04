@@ -362,7 +362,7 @@ function EmailIframe({
 
         {/* Gradient fade and expand button for long emails */}
         {isExpandable && !isExpanded && (
-          <div className="absolute left-0 right-0 bottom-0 h-40 bg-gradient-to-t from-white via-white via-20% to-transparent flex items-end justify-center pb-4">
+          <div className="absolute left-0 right-0 bottom-0 h-40 bg-gradient-to-t from-background via-background via-20% to-transparent flex items-end justify-center pb-4">
             <Button
               variant="outline"
               size="sm"
@@ -1961,7 +1961,7 @@ export function TicketDetailPage() {
                                 ? 'bg-blue-50 border-blue-200 dark:bg-blue-950/20'
                                 : 'bg-background'
                             }`
-                          : 'p-0 overflow-hidden'
+                          : 'p-0 overflow-hidden bg-background'
                       }`}>
                         {useIframe ? (
                           // Complex HTML: Use iframe for isolation and proper rendering
