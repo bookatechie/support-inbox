@@ -362,7 +362,7 @@ function EmailIframe({
 
         {/* Gradient fade and expand button for long emails */}
         {isExpandable && !isExpanded && (
-          <div className="absolute left-0 right-0 bottom-0 h-40 bg-gradient-to-t from-background via-background via-20% to-transparent flex items-end justify-center pb-4">
+          <div className="absolute left-0 right-0 bottom-0 h-40 bg-gradient-to-t from-white via-white via-20% to-transparent dark:from-card dark:via-card flex items-end justify-center pb-4">
             <Button
               variant="outline"
               size="sm"
@@ -1952,16 +1952,14 @@ export function TicketDetailPage() {
                     const needsCardPadding = !useIframe && !hasEmailMetadata;
 
                     return (
-                      <Card className={`${
+                      <Card className={`bg-white dark:bg-card ${
                         needsCardPadding
                           ? `p-4 ${
                               message.type === 'note'
                                 ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20'
-                                : isCustomer
-                                ? 'bg-blue-50 border-blue-200 dark:bg-blue-950/20'
-                                : 'bg-background'
+                                : ''
                             }`
-                          : 'p-0 overflow-hidden bg-background'
+                          : 'p-0 overflow-hidden'
                       }`}>
                         {useIframe ? (
                           // Complex HTML: Use iframe for isolation and proper rendering
