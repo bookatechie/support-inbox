@@ -293,8 +293,9 @@ export const ticketQueries = {
     }
 
     // Check if search term is a number (ticket ID search)
+    // Must be within PostgreSQL INTEGER range (max 2,147,483,647)
     const ticketIdNum = parseInt(searchTerm, 10);
-    const isNumericSearch = !isNaN(ticketIdNum) && ticketIdNum.toString() === searchTerm;
+    const isNumericSearch = !isNaN(ticketIdNum) && ticketIdNum.toString() === searchTerm && ticketIdNum <= 2147483647;
 
     // Simplified PostgreSQL full-text search with 3 strategies:
     // 1. Exact ticket ID match (highest priority)
