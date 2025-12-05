@@ -429,8 +429,14 @@ export function TicketDetailPage() {
   const [replyToMessageId, setReplyToMessageId] = useState<number | null>(null);
   const [scheduledAt, setScheduledAt] = useState<string>('');
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  const [composerHeight, setComposerHeight] = useState<number>(() => {
+    const saved = localStorage.getItem('composerHeight');
+    return saved ? parseInt(saved, 10) : 250;
+  });
+  const [isResizing, setIsResizing] = useState(false);
   const composingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesPanelRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
 
   const loadTicket = useCallback(async () => {
     if (!id) return;
@@ -1200,14 +1206,6 @@ export function TicketDetailPage() {
     // Set the reply_to_message_id for backend to quote this specific message
     setReplyToMessageId(messageId);
 
-    // Scroll the message being replied to to the top of the screen
-    setTimeout(() => {
-      const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-      if (messageElement) {
-        messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 100);
-
     const senderName = message.sender_name || message.sender_email;
     toast.success(`Replying to ${senderName}`, {
       description: `Email will be sent to ${message.sender_email}`
@@ -1276,16 +1274,72 @@ export function TicketDetailPage() {
     [users]
   );
 
-  // Render reply editor (can be shown inline or at bottom)
-  const renderReplyEditor = () => {
+  // Handle composer resize - uses direct DOM manipulation for smooth resizing
+  const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+
+    const startY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const startHeight = composerRef.current?.offsetHeight || 250;
+    let finalHeight = startHeight;
+
+    const handleMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const currentY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      const deltaY = startY - currentY;
+      finalHeight = Math.max(150, Math.min(window.innerHeight * 0.7, startHeight + deltaY));
+      // Update DOM directly for smooth resizing (no React re-render)
+      if (composerRef.current) {
+        composerRef.current.style.height = `${finalHeight}px`;
+      }
+    };
+
+    const handleEnd = () => {
+      setIsResizing(false);
+      // Sync React state and save to localStorage
+      setComposerHeight(Math.round(finalHeight));
+      localStorage.setItem('composerHeight', String(Math.round(finalHeight)));
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleEnd);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('touchend', handleEnd);
+    };
+
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleEnd);
+    document.addEventListener('touchmove', handleMove);
+    document.addEventListener('touchend', handleEnd);
+  }, []);
+
+  // Render reply editor (can be shown inline or floating at bottom)
+  const renderReplyEditor = (isFloating = false) => {
     if (!ticket) return null;
 
     return (
-      <div className="space-y-4 my-8">
-        <Card className="lg:p-6 lg:border p-0 border-0 lg:bg-card bg-transparent shadow-none">
-          <div className="space-y-4">
+      <div className={isFloating ? "flex flex-col h-full min-h-0" : "space-y-4 my-8"}>
+        <Card className={isFloating ? "p-0 border-0 bg-transparent shadow-none flex flex-col h-full min-h-0" : "lg:p-6 lg:border p-0 border-0 lg:bg-card bg-transparent shadow-none"}>
+          <div className={isFloating ? "flex flex-col h-full min-h-0 gap-2" : "space-y-4"}>
+            {/* Reply-to indicator when replying to a specific message */}
+            {replyToMessageId && (
+              <div className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800 flex-shrink-0">
+                <Reply className="h-4 w-4 flex-shrink-0" />
+                <span className="flex-1 truncate">
+                  Replying to {(() => {
+                    const replyToMessage = ticket?.messages?.find(m => m.id === replyToMessageId);
+                    return replyToMessage?.sender_name || replyToMessage?.sender_email || 'message';
+                  })()}
+                </span>
+                <button
+                  onClick={() => setReplyToMessageId(null)}
+                  className="hover:text-blue-900 dark:hover:text-blue-100 p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                  title="Clear reply-to"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
             {/* Recipients Section with Draft Status */}
-            <div className="space-y-2">
+            <div className={isFloating ? "space-y-2 flex-shrink-0" : "space-y-2"}>
               <div className="flex items-center justify-between gap-4">
                 {!isInternal ? (
                   <div className="flex items-center flex-wrap gap-2 text-sm">
@@ -1450,7 +1504,7 @@ export function TicketDetailPage() {
 
             {/* Composing Indicator */}
             {composingUsers.length > 0 && (
-              <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-md border border-amber-200 dark:border-amber-900">
+              <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-md border border-amber-200 dark:border-amber-900 flex-shrink-0">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 <span>
                   {composingUsers.map((u) => u.name).join(', ')} {composingUsers.length === 1 ? 'is' : 'are'} composing a reply...
@@ -1459,7 +1513,7 @@ export function TicketDetailPage() {
             )}
 
             {/* Reply Editor */}
-            <div data-reply-editor>
+            <div data-reply-editor className={isFloating ? "flex-1 min-h-0" : ""}>
               <RichTextEditor
                 content={replyContent}
                 onChange={setReplyContent}
@@ -1478,12 +1532,13 @@ export function TicketDetailPage() {
                 isUploading={isUploading}
                 onAiSuggest={handleGenerateAIResponse}
                 isGeneratingAi={isGeneratingResponse}
+                fillHeight={isFloating}
               />
             </div>
 
             {/* Attachments */}
             {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 flex-shrink-0">
                 {attachments.map((file, index) => (
                   <div
                     key={index}
@@ -1505,7 +1560,7 @@ export function TicketDetailPage() {
             )}
 
             {/* Actions */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="internal"
@@ -1794,9 +1849,11 @@ export function TicketDetailPage() {
 
       {/* Main Content Area - Two independent scrolling panels */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left Panel: Messages Thread - Scrollable */}
-        <div ref={messagesPanelRef} className="flex-1 min-w-0 overflow-y-auto lg:overflow-hidden lg:hover:overflow-y-auto h-full">
-          <div className="px-2 sm:px-4 pt-4 pb-6 space-y-4 sm:space-y-6">
+        {/* Left Panel: Messages Thread + Floating Composer */}
+        <div className="flex-1 min-w-0 flex flex-col h-full">
+          {/* Scrollable Messages Area */}
+          <div ref={messagesPanelRef} className="flex-1 min-w-0 overflow-y-auto lg:overflow-hidden lg:hover:overflow-y-auto">
+            <div className="px-2 sm:px-4 pt-4 pb-6 space-y-4 sm:space-y-6">
 
           {/* Mobile: Subject and Details - At top of scrollable area */}
           <div className="lg:hidden mb-4 pb-4 border-b">
@@ -1848,11 +1905,9 @@ export function TicketDetailPage() {
             const isFirstMessage = timeline.findIndex(t => 'sender_email' in t) === index;
             const isDeleting = deletingMessageIds.has(message.id);
 
-            const showReplyEditorHere = replyToMessageId === message.id;
-
             return (
-              <React.Fragment key={message.id}>
               <div
+                key={message.id}
                 data-message-id={message.id}
                 className={`sm:flex sm:gap-4 group transition-all duration-300 animate-fade-in-up ${
                   isDeleting ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
@@ -2063,26 +2118,30 @@ export function TicketDetailPage() {
                   )}
                 </div>
               </div>
-
-              {/* Show reply editor inline after this message if replying to it */}
-              {showReplyEditorHere && renderReplyEditor()}
-              </React.Fragment>
             );
           })
           )}
 
-            {/* Show reply editor at bottom only if NOT replying to a specific message */}
-            {!replyToMessageId && (
-              <>
-                {/* Separator */}
-                <div className="my-8">
-                  <Separator />
-                </div>
+          </div>
+        </div>
 
-                {/* Reply Editor */}
-                {renderReplyEditor()}
-              </>
-            )}
+          {/* Floating Reply Editor at Bottom */}
+          <div
+            ref={composerRef}
+            className="flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col"
+            style={{ height: composerHeight }}
+          >
+            {/* Resize Handle */}
+            <div
+              className={`h-3 cursor-ns-resize flex items-center justify-center hover:bg-muted/50 transition-colors flex-shrink-0 ${isResizing ? 'bg-muted' : ''}`}
+              onMouseDown={handleResizeStart}
+              onTouchStart={handleResizeStart}
+            >
+              <div className="w-12 h-1 rounded-full bg-muted-foreground/30" />
+            </div>
+            <div className="flex-1 min-h-0 px-2 sm:px-4 pb-3">
+              {renderReplyEditor(true)}
+            </div>
           </div>
         </div>
 

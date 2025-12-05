@@ -55,6 +55,8 @@ interface RichTextEditorProps {
   isUploading?: boolean;
   onAiSuggest?: () => void;
   isGeneratingAi?: boolean;
+  /** When true, editor fills available height and content scrolls */
+  fillHeight?: boolean;
 }
 
 export function RichTextEditor({
@@ -70,6 +72,7 @@ export function RichTextEditor({
   isUploading = false,
   onAiSuggest,
   isGeneratingAi = false,
+  fillHeight = false,
 }: RichTextEditorProps) {
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -294,7 +297,7 @@ export function RichTextEditor({
   }
 
   return (
-    <div className={cn('border rounded-md relative', className)}>
+    <div className={cn('border rounded-md relative', fillHeight && 'flex flex-col h-full', className)}>
       {/* Template Menu */}
       {showTemplateMenu && (
         <div className="absolute bottom-full left-0 right-0 mb-2 z-50">
@@ -654,12 +657,16 @@ export function RichTextEditor({
 
       {/* Editor Content */}
       <div className={cn(
-        'p-4 min-h-[200px] overflow-hidden',
+        'p-4 overflow-hidden',
+        fillHeight ? 'flex-1 overflow-y-auto min-h-0' : 'min-h-[200px]',
         !showVariablesBar || Object.keys(variables).length === 0 ? 'rounded-b-md' : ''
       )}>
         <EditorContent
           editor={editor}
-          className="prose prose-sm dark:prose-invert max-w-none focus-visible:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[150px]"
+          className={cn(
+            'prose prose-sm dark:prose-invert max-w-none focus-visible:outline-none [&_.ProseMirror]:outline-none',
+            fillHeight ? '[&_.ProseMirror]:min-h-full' : '[&_.ProseMirror]:min-h-[150px]'
+          )}
         />
       </div>
 
