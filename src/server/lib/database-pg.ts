@@ -331,9 +331,9 @@ export const ticketQueries = {
 
         UNION
 
-        -- Strategy 4: Body ILIKE only for numeric searches (tracking numbers etc) - skipped for text searches
+        -- Strategy 4: Message body search (uses trigram index for fast ILIKE)
         SELECT DISTINCT ticket_id as id, 60 as rank FROM messages
-        WHERE $${paramIndex + 3} = true AND body ILIKE $${paramIndex + 2}
+        WHERE body ILIKE $${paramIndex + 2}
 
         UNION
 
@@ -362,7 +362,7 @@ export const ticketQueries = {
         SELECT filtered_tickets.*, (SELECT total_count FROM total_count_cte) as total_count
         FROM filtered_tickets
         ORDER BY COALESCE(filtered_tickets.last_message_at, filtered_tickets.created_at) ${sortDirection}
-        LIMIT $${paramIndex + 4} OFFSET $${paramIndex + 5}
+        LIMIT $${paramIndex + 3} OFFSET $${paramIndex + 4}
       )
       SELECT
         paginated_tickets.*,
@@ -399,18 +399,14 @@ export const ticketQueries = {
       ORDER BY COALESCE(paginated_tickets.last_message_at, paginated_tickets.created_at) ${sortDirection}
     `;
 
-    // Check if search term looks like a number (for body search on tracking numbers)
-    const isNumericOnlySearch = /^\d+$/.test(searchTerm);
-
     // Build params array
     const searchParams = [
       ...params,
-      searchTerm,                    // $paramIndex: FTS search term
+      searchTerm,                         // $paramIndex: FTS search term
       isNumericSearch ? ticketIdNum : 0,  // $paramIndex+1: Ticket ID (0 if not numeric)
-      `%${searchTerm}%`,             // $paramIndex+2: LIKE pattern for fallback searches
-      isNumericOnlySearch,           // $paramIndex+3: Whether to search message body (only for numeric searches)
-      limit,                         // $paramIndex+4
-      offset                         // $paramIndex+5
+      `%${searchTerm}%`,                  // $paramIndex+2: LIKE pattern for fallback searches
+      limit,                              // $paramIndex+3
+      offset                              // $paramIndex+4
     ];
 
     return query<any>(searchQueryText, searchParams);
