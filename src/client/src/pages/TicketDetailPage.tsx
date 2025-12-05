@@ -51,7 +51,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, Mail, Send, Save, User as UserIcon, Trash2, X, File, Plus, Eye, MoreVertical, Search, Edit, Menu, ChevronsDown, Forward, Reply, Clock, Calendar, CalendarClock } from 'lucide-react';
+import { Loader2, Mail, Send, Save, User as UserIcon, Trash2, X, File, Plus, Eye, MoreVertical, Search, Edit, Menu, ChevronsDown, Forward, Reply, Clock, Calendar, CalendarClock, Minimize2, Maximize2 } from 'lucide-react';
 import { formatMessageDate, formatAbsoluteDate, formatRelativeTime } from '@/lib/formatters';
 import { ApiError } from '@/lib/api';
 import DOMPurify from 'dompurify';
@@ -434,6 +434,7 @@ export function TicketDetailPage() {
     return saved ? parseInt(saved, 10) : 250;
   });
   const [isResizing, setIsResizing] = useState(false);
+  const [isComposerMinimized, setIsComposerMinimized] = useState(false);
   const composingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesPanelRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
@@ -1434,6 +1435,21 @@ export function TicketDetailPage() {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
+                  {isFloating && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsComposerMinimized(!isComposerMinimized)}
+                      className="h-6 w-6 p-0"
+                      title={isComposerMinimized ? "Expand composer" : "Minimize composer"}
+                    >
+                      {isComposerMinimized ? (
+                        <Maximize2 className="h-4 w-4" />
+                      ) : (
+                        <Minimize2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -2128,20 +2144,48 @@ export function TicketDetailPage() {
           {/* Floating Reply Editor at Bottom */}
           <div
             ref={composerRef}
-            className="flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col"
-            style={{ height: composerHeight }}
+            className="flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col transition-[height] duration-200"
+            style={{ height: isComposerMinimized ? 44 : composerHeight }}
           >
-            {/* Resize Handle */}
-            <div
-              className={`h-3 cursor-ns-resize flex items-center justify-center hover:bg-muted/50 transition-colors flex-shrink-0 ${isResizing ? 'bg-muted' : ''}`}
-              onMouseDown={handleResizeStart}
-              onTouchStart={handleResizeStart}
-            >
-              <div className="w-12 h-1 rounded-full bg-muted-foreground/30" />
-            </div>
-            <div className="flex-1 min-h-0 px-2 sm:px-4 pb-3">
-              {renderReplyEditor(true)}
-            </div>
+            {/* Minimized Bar */}
+            {isComposerMinimized ? (
+              <div
+                className="h-full flex items-center justify-between px-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => setIsComposerMinimized(false)}
+              >
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Mail className="h-4 w-4" />
+                  <span>{replyContent.trim() ? 'Draft in progress...' : 'Write a reply...'}</span>
+                  {replyToMessageId && (
+                    <Badge variant="secondary" className="text-xs">
+                      Replying to message
+                    </Badge>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  title="Expand composer"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* Resize Handle */}
+                <div
+                  className={`h-3 cursor-ns-resize flex items-center justify-center hover:bg-muted/50 transition-colors flex-shrink-0 ${isResizing ? 'bg-muted' : ''}`}
+                  onMouseDown={handleResizeStart}
+                  onTouchStart={handleResizeStart}
+                >
+                  <div className="w-12 h-1 rounded-full bg-muted-foreground/30" />
+                </div>
+                <div className="flex-1 min-h-0 px-2 sm:px-4 pb-3">
+                  {renderReplyEditor(true)}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
