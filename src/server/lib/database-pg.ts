@@ -319,7 +319,7 @@ export const ticketQueries = {
 
         UNION
 
-        -- Strategy 3: Fallback pattern matching for emails, tags, message-IDs (rank: 50-70)
+        -- Strategy 3: Fallback pattern matching for emails, tags, message-IDs, message body (rank: 50-70)
         SELECT DISTINCT id, 70 as rank FROM tickets
         WHERE customer_email ILIKE $${paramIndex + 2} OR message_id ILIKE $${paramIndex + 2}
 
@@ -327,6 +327,11 @@ export const ticketQueries = {
 
         SELECT DISTINCT ticket_id as id, 65 as rank FROM messages
         WHERE sender_email ILIKE $${paramIndex + 2}
+
+        UNION
+
+        SELECT DISTINCT ticket_id as id, 60 as rank FROM messages
+        WHERE body ILIKE $${paramIndex + 2}
 
         UNION
 
