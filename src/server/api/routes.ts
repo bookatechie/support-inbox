@@ -495,8 +495,8 @@ export default async function routes(fastify: FastifyInstance) {
 
     const ticket = await createTicket(ticketRequest, user, request.log);
 
-    // Determine assignee: use assignee_email if provided, otherwise assign to creator
-    let assigneeId = user.id;
+    // Determine assignee: use assignee_email if provided, otherwise assign to creator (unless internal API)
+    let assigneeId: number | null = user.id > 0 ? user.id : null;
 
     if (ticketRequest.assignee_email) {
       const assignee = await userQueries.getByAgentEmail(ticketRequest.assignee_email);
@@ -504,12 +504,15 @@ export default async function routes(fastify: FastifyInstance) {
         assigneeId = assignee.id;
         request.log.info(`Assigning ticket #${ticket.id} to ${assignee.name} via agent_email: ${ticketRequest.assignee_email}`);
       } else {
-        request.log.warn(`Could not find user with agent_email: ${ticketRequest.assignee_email}, assigning to creator instead`);
+        request.log.warn(`Could not find user with agent_email: ${ticketRequest.assignee_email}, leaving unassigned`);
+        assigneeId = null;
       }
     }
 
-    // Assign ticket
-    await ticketQueries.updateAssignee(assigneeId, ticket.id);
+    // Assign ticket (only if we have a valid assignee)
+    if (assigneeId !== null) {
+      await ticketQueries.updateAssignee(assigneeId, ticket.id);
+    }
 
     // Get updated ticket with assignee
     const updatedTicket = await getTicketById(ticket.id);
