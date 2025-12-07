@@ -117,11 +117,13 @@ npm start
 
 Deploy to any Node.js-compatible platform:
 
-- **DigitalOcean App Platform** — Connect your repo, auto-deploy on push
+- **[DigitalOcean App Platform](https://m.do.co/c/3c892b83131b)** — Connect your repo, auto-deploy on push
 - **Railway** — Zero-config Node.js hosting
 - **Render** — Free tier available for small teams
 - **Fly.io** — Edge deployment with global distribution
 - **Any VPS** — Ubuntu/Debian with Node.js 20+
+
+For the PostgreSQL database, we recommend [DigitalOcean Managed Databases](https://m.do.co/c/3c892b83131b) — automatic backups, scaling, and maintenance-free operation starting at $15/month.
 
 > **Want us to handle deployment?** [Blue Leaf LLC](https://www.blle.co/box) provides fully managed hosting with security hardening, automatic backups, and ongoing maintenance.
 
