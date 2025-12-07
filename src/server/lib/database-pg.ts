@@ -38,7 +38,7 @@ const PG_CONFIG: pg.PoolConfig = {
   port: parseInt(process.env.POSTGRES_PORT || '5432'),
   database: process.env.POSTGRES_DB || 'defaultdb',
   ssl: process.env.POSTGRES_SSL === 'require' ? { rejectUnauthorized: false } : false,
-  max: 20, // Maximum number of clients in the pool (increased from 3)
+  max: 5, // Maximum number of clients in the pool
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 30000, // 30 seconds (increased from 2 seconds)
   query_timeout: 60000, // 60 seconds timeout for slow queries
