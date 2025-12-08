@@ -801,10 +801,10 @@ export function TicketsPage() {
               </Button>
             </Link>
 
-            {/* New Email Button - Desktop Only */}
+            {/* New Ticket Button - Desktop Only */}
             <Button variant="default" size="sm" onClick={() => setShowNewEmailModal(true)} className="whitespace-nowrap h-9 hidden lg:flex">
               <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">New Email</span>
+              <span className="hidden sm:inline">New Ticket</span>
             </Button>
 
             {/* Search Icon - Mobile Only */}
@@ -1131,11 +1131,11 @@ export function TicketsPage() {
         )}
       </div>
 
-      {/* New Email Modal */}
+      {/* New Ticket Modal */}
       <FormModal
         open={showNewEmailModal}
         onOpenChange={setShowNewEmailModal}
-        title="New Email"
+        title="New Ticket"
         onSubmit={(e) => {
           e.preventDefault();
           handleNewEmail();

@@ -2210,7 +2210,7 @@ export function TicketDetailPage() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setShowNewEmailModal(true)}>
                       <Mail className="h-4 w-4 mr-2" />
-                      New Email
+                      New Ticket
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleOpenChangeContactDialog}>
                       <Edit className="h-4 w-4 mr-2" />
@@ -2347,7 +2347,7 @@ export function TicketDetailPage() {
                   className="w-full h-9"
                 >
                   <Mail className="h-4 w-4 mr-2" />
-                  New Email
+                  New Ticket
                 </Button>
                 <Button
                   variant="outline"
@@ -2492,11 +2492,11 @@ export function TicketDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* New Email Modal */}
+      {/* New Ticket Modal */}
       <FormModal
         open={showNewEmailModal}
         onOpenChange={setShowNewEmailModal}
-        title="New Email"
+        title="New Ticket"
         onSubmit={(e) => {
           e.preventDefault();
           handleNewConversation();
