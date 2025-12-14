@@ -436,6 +436,7 @@ export function TicketDetailPage() {
   const [isResizing, setIsResizing] = useState(false);
   const [isComposerMinimized, setIsComposerMinimized] = useState(false);
   const composingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const composingUserTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const messagesPanelRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
 
@@ -489,6 +490,14 @@ export function TicketDetailPage() {
     loadTicket();
     loadHistory();
   }, [loadTicket, loadHistory]);
+
+  // Reset composing users when ticket changes
+  useEffect(() => {
+    setComposingUsers([]);
+    // Clear all pending composing timeouts
+    composingUserTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+    composingUserTimeoutsRef.current.clear();
+  }, [id]);
 
   // Fetch additional customer info when ticket loads or customer email changes
   useEffect(() => {
@@ -679,17 +688,28 @@ export function TicketDetailPage() {
       if (event.type === 'user-composing') {
         const composingEvent = event as UserComposingEvent;
         if (composingEvent.data.ticketId === Number(id) && composingEvent.data.userEmail !== currentUser?.email) {
+          const userEmail = composingEvent.data.userEmail;
+
           // Add user to composing list
           setComposingUsers((prev) => {
-            const existing = prev.find((u) => u.email === composingEvent.data.userEmail);
+            const existing = prev.find((u) => u.email === userEmail);
             if (existing) return prev;
-            return [...prev, { email: composingEvent.data.userEmail, name: composingEvent.data.userName }];
+            return [...prev, { email: userEmail, name: composingEvent.data.userName }];
           });
 
+          // Clear any existing timeout for this user (reset the 5s timer)
+          const existingTimeout = composingUserTimeoutsRef.current.get(userEmail);
+          if (existingTimeout) {
+            clearTimeout(existingTimeout);
+          }
+
           // Remove user after 5 seconds (typing stopped)
-          setTimeout(() => {
-            setComposingUsers((prev) => prev.filter((u) => u.email !== composingEvent.data.userEmail));
+          const timeout = setTimeout(() => {
+            setComposingUsers((prev) => prev.filter((u) => u.email !== userEmail));
+            composingUserTimeoutsRef.current.delete(userEmail);
           }, 5000);
+
+          composingUserTimeoutsRef.current.set(userEmail, timeout);
         }
       }
 
