@@ -144,6 +144,16 @@ const closeGracefully = async (signal: string) => {
 process.on("SIGTERM", () => closeGracefully("SIGTERM"));
 process.on("SIGINT", () => closeGracefully("SIGINT"));
 
+// Global error handlers to prevent crashes from uncaught errors
+// This catches errors from libraries like 'imap' that throw uncaught exceptions
+process.on("uncaughtException", (error: Error) => {
+  fastify.log.error({ err: error.message, stack: error.stack }, "Uncaught exception (handled - not crashing)");
+});
+
+process.on("unhandledRejection", (reason: unknown) => {
+  fastify.log.error({ reason }, "Unhandled promise rejection (handled - not crashing)");
+});
+
 // ============================================================================
 // Start Server Function
 // ============================================================================

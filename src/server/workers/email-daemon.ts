@@ -123,6 +123,16 @@ async function checkEmails(config: ImapConfig): Promise<void> {
       },
     });
 
+    // Add error handler on underlying IMAP connection to catch Parser errors
+    // This fixes a known bug in the imap library where self._curReq can be undefined
+    // and throws "Cannot read properties of undefined (reading 'type')"
+    const imapConnection = (connection as any).imap;
+    if (imapConnection) {
+      imapConnection.on('error', (err: Error) => {
+        logger.warn({ err: err.message }, 'IMAP connection error (handled)');
+      });
+    }
+
     // Open inbox
     await connection.openBox('INBOX');
 
@@ -171,11 +181,25 @@ async function checkEmails(config: ImapConfig): Promise<void> {
     // imap-simple's end() doesn't fully clean up event listeners
     if (connection) {
       try {
-        connection.end();
-        // Force destroy the underlying imap connection to release all event listeners
-        // This fixes a known memory leak in imap-simple where listeners accumulate
-        if ((connection as any).imap) {
-          (connection as any).imap.destroy();
+        const imapConn = (connection as any).imap;
+        if (imapConn) {
+          // Wait for connection to close gracefully, then destroy to clean up listeners
+          // This prevents the "Cannot read properties of undefined (reading 'type')" crash
+          // that occurs when destroy() is called while parser is still processing
+          const closePromise = new Promise<void>((resolve) => {
+            const timeout = setTimeout(() => {
+              resolve(); // Force resolve after 2s if connection hangs
+            }, 2000);
+            imapConn.once('close', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+          });
+          connection.end();
+          await closePromise;
+          imapConn.destroy();
+        } else {
+          connection.end();
         }
       } catch (closeError) {
         logger.debug(closeError, 'Error closing IMAP connection');
