@@ -38,10 +38,11 @@ const PG_CONFIG: pg.PoolConfig = {
   port: parseInt(process.env.POSTGRES_PORT || '5432'),
   database: process.env.POSTGRES_DB || 'defaultdb',
   ssl: process.env.POSTGRES_SSL === 'require' ? { rejectUnauthorized: false } : false,
-  max: 5, // Maximum number of clients in the pool
+  max: 3, // Reduced from 5 to conserve memory on low-RAM server
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 30000, // 30 seconds (increased from 2 seconds)
-  query_timeout: 60000, // 60 seconds timeout for slow queries
+  query_timeout: 30000, // Reduced to 30 seconds - fail fast on slow queries
+  statement_timeout: 30000, // PostgreSQL statement timeout
 };
 
 // Create connection pool

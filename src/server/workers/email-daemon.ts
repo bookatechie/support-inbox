@@ -167,10 +167,16 @@ async function checkEmails(config: ImapConfig): Promise<void> {
     }
     throw error;
   } finally {
-    // Safely close connection
+    // Safely close connection - MUST destroy underlying imap to prevent memory leak
+    // imap-simple's end() doesn't fully clean up event listeners
     if (connection) {
       try {
         connection.end();
+        // Force destroy the underlying imap connection to release all event listeners
+        // This fixes a known memory leak in imap-simple where listeners accumulate
+        if ((connection as any).imap) {
+          (connection as any).imap.destroy();
+        }
       } catch (closeError) {
         logger.debug(closeError, 'Error closing IMAP connection');
       }
