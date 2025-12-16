@@ -32,7 +32,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Menu } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Menu, CalendarX } from 'lucide-react';
+import { toast } from 'sonner';
 import { STATUS_COLORS, STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
 
 // ============================================================================
@@ -207,6 +208,7 @@ export function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   // Filter state using custom hook
   const [tags, setTags] = useState<Tag[]>([]);
@@ -340,6 +342,30 @@ export function CalendarPage() {
   const goToToday = () => {
     setCurrentDate(new Date());
     setSelectedDate(null);
+  };
+
+  // Clear all follow-ups for selected date
+  const clearFollowUpsForDate = async () => {
+    if (!selectedDate || selectedDateTickets.length === 0) return;
+
+    setIsClearing(true);
+    try {
+      const ticketIds = selectedDateTickets.map(t => t.id);
+      await ticketsApi.bulkUpdate(ticketIds, { follow_up_at: null });
+
+      // Remove cleared tickets from local state
+      setTickets(prev => prev.map(t =>
+        ticketIds.includes(t.id) ? { ...t, follow_up_at: null } : t
+      ));
+
+      toast.success(`Cleared ${ticketIds.length} follow-up${ticketIds.length > 1 ? 's' : ''}`);
+      setSelectedDate(null);
+    } catch (error) {
+      console.error('Failed to clear follow-ups:', error);
+      toast.error('Failed to clear follow-ups');
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   // Build calendar grid
@@ -626,6 +652,24 @@ export function CalendarPage() {
               </div>
             )}
           </div>
+          {selectedDateTickets.length > 0 && (
+            <div className="pt-3 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFollowUpsForDate}
+                disabled={isClearing}
+                className="w-full text-muted-foreground hover:text-destructive"
+              >
+                {isClearing ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <CalendarX className="h-4 w-4 mr-2" />
+                )}
+                Clear All Follow-ups
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
