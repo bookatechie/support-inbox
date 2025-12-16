@@ -271,7 +271,8 @@ export async function createTicket(
     request.message_id || null,
     options?.status || 'new',
     options?.priority || 'normal',
-    options?.assigneeId !== undefined ? options.assigneeId : null
+    options?.assigneeId !== undefined ? options.assigneeId : null,
+    request.follow_up_at || null
   );
 
   // Create initial message if message_body is provided

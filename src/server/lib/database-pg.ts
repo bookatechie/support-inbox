@@ -136,12 +136,12 @@ export const ticketQueries = {
     return queryOne<Ticket>('SELECT * FROM tickets WHERE message_id = $1', [messageId]);
   },
 
-  async create(subject: string, customerEmail: string, customerName: string | null, replyToEmail: string | null, messageId: string | null, status: TicketStatus, priority: TicketPriority, assigneeId: number | null): Promise<number> {
+  async create(subject: string, customerEmail: string, customerName: string | null, replyToEmail: string | null, messageId: string | null, status: TicketStatus, priority: TicketPriority, assigneeId: number | null, followUpAt: string | null = null): Promise<number> {
     const result = await queryOne<{ id: number }>(
-      `INSERT INTO tickets (subject, customer_email, customer_name, reply_to_email, message_id, status, priority, assignee_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO tickets (subject, customer_email, customer_name, reply_to_email, message_id, status, priority, assignee_id, follow_up_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id`,
-      [subject, customerEmail, customerName, replyToEmail, messageId, status, priority, assigneeId]
+      [subject, customerEmail, customerName, replyToEmail, messageId, status, priority, assigneeId, followUpAt]
     );
     return result!.id;
   },

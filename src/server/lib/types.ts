@@ -177,6 +177,7 @@ export interface CreateTicketRequest {
   message_body: string;
   message_id?: string;
   assignee_email?: string;
+  follow_up_at?: string | null;
 }
 
 export interface CreateTicketOptions {
