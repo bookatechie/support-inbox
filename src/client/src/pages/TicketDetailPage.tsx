@@ -51,168 +51,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, Mail, Send, Save, User as UserIcon, Trash2, X, File, Plus, Eye, MoreVertical, Search, Edit, Menu, ChevronsDown, Forward, Reply, Clock, Calendar, CalendarClock, Minimize2, Maximize2 } from 'lucide-react';
-import { formatMessageDate, formatAbsoluteDate, formatRelativeTime } from '@/lib/formatters';
+import { Loader2, Mail, Send, Save, User as UserIcon, Trash2, X, File, Plus, Search, Edit, Menu, Forward, Reply, Clock, Calendar, CalendarClock, Minimize2, Maximize2, MoreVertical } from 'lucide-react';
+import { formatMessageDate, formatAbsoluteDate, formatFileSize } from '@/lib/formatters';
 import { ApiError } from '@/lib/api';
-import DOMPurify from 'dompurify';
 import type { EmailMetadata } from '@/types';
 import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
 import { Avatar } from '@/components/Avatar';
+import { MessageItem } from '@/components/MessageItem';
 import { toast } from 'sonner';
 import { fetchWithCache } from '@/lib/cache';
-
-/**
- * Check if a file type can be viewed in the browser
- */
-function isViewableInBrowser(mimeType: string | null): boolean {
-  if (!mimeType) return false;
-
-  return (
-    mimeType.startsWith('image/') || // All images
-    mimeType === 'application/pdf'   // PDFs
-  );
-}
-
-/**
- * Check if file is an audio file that can be played in browser
- */
-function isAudioFile(mimeType: string | null): boolean {
-  if (!mimeType) return false;
-
-  return (
-    mimeType.startsWith('audio/') || // All audio types (audio/wav, audio/mp3, etc.)
-    mimeType === 'application/ogg'   // Some ogg files use this mime type
-  );
-}
-
-/**
- * Get sanitized HTML for message body
- * Prefers HTML if available, otherwise converts plain text to HTML
- */
-function getMessageBodyHtml(body: string, bodyHtml: string | null, attachments?: Attachment[]): string {
-  if (bodyHtml) {
-    let html = bodyHtml;
-
-    // Replace cid: references with attachment URLs
-    if (attachments && attachments.length > 0) {
-      attachments.forEach(attachment => {
-        // Extract CID from filename (format: image-timestamp-index.ext or just a UUID)
-        const cidMatch = attachment.filename.match(/^(.+)\.(png|jpg|jpeg|gif|webp)$/i);
-        if (cidMatch) {
-          const cid = cidMatch[1]; // filename without extension
-          const token = localStorage.getItem('authToken');
-          const attachmentUrl = `/api/attachments/${attachment.id}?token=${token}`;
-
-          // Replace cid: references with attachment URL
-          html = html.replace(new RegExp(`cid:${cid}`, 'g'), attachmentUrl);
-        }
-      });
-    }
-
-    // Sanitize HTML to prevent XSS while preserving email formatting
-    // DOMPurify's defaults are safe - removes script, event handlers, etc.
-    const sanitized = DOMPurify.sanitize(html, {
-      ADD_TAGS: ['style'], // Allow style tags for email CSS
-      ADD_ATTR: ['target', 'style', 'loading'], // Allow lazy loading attribute
-      ALLOW_DATA_ATTR: false, // Don't allow data-* attributes
-      WHOLE_DOCUMENT: false, // Just sanitize fragment, not full HTML doc
-    });
-
-    // Add lazy loading to all images and remove tracking pixels
-    const doc = new DOMParser().parseFromString(sanitized, 'text/html');
-    const images = doc.querySelectorAll('img');
-    images.forEach(img => {
-      // Remove tracking pixels (1x1 images pointing to /api/track/)
-      const src = img.getAttribute('src') || '';
-      if (src.includes('/api/track/') || (img.width === 1 && img.height === 1)) {
-        img.remove();
-      } else {
-        img.setAttribute('loading', 'lazy');
-        img.setAttribute('decoding', 'async');
-      }
-    });
-
-    return doc.body.innerHTML;
-  }
-
-  // Fall back to plain text with line breaks converted to <br>
-  return body.replace(/\n/g, '<br>');
-}
-
-/**
- * Check if HTML is simple enough to render inline (no iframe needed)
- * Simple HTML = basic formatting only, no complex layouts or embedded content
- */
-function isSimpleHtml(html: string): boolean {
-  if (!html) return true;
-
-  // Complex indicators that require iframe isolation
-  const complexPatterns = [
-    /<table/i,           // Tables (often used in email templates)
-    /<style/i,           // Style tags (can conflict with page styles)
-    /<iframe/i,          // Embedded iframes
-    /<form/i,            // Forms
-    /<script/i,          // Scripts (should be sanitized anyway, but indicator of complexity)
-    /style=["'][^"']*background/i,  // Background images/colors (can be complex)
-    /gmail_quote/i,      // Gmail quoted/forwarded messages (often complex)
-  ];
-
-  // Check for complex patterns
-  for (const pattern of complexPatterns) {
-    if (pattern.test(html)) {
-      return false;
-    }
-  }
-
-  // If HTML is longer than 1000 chars, it's likely complex
-  if (html.length > 1000) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * EmailMetadataHeader component - Shows From/To/CC/Subject info
- */
-function EmailMetadataHeader({
-  metadata,
-  senderName,
-  senderEmail
-}: {
-  metadata: EmailMetadata;
-  senderName: string | null;
-  senderEmail: string;
-}) {
-  const hasAnyMetadata = metadata.subject || metadata.to?.length || metadata.cc?.length;
-
-  if (!hasAnyMetadata) return null;
-
-  return (
-    <div className="p-3 border-b space-y-1 text-sm bg-muted/30">
-      {senderEmail && (
-        <div className="text-muted-foreground">
-          <span className="font-medium">From:</span> {senderEmail}
-        </div>
-      )}
-      {metadata.to && metadata.to.length > 0 && (
-        <div className="text-muted-foreground">
-          <span className="font-medium">To:</span> {metadata.to.join(', ')}
-        </div>
-      )}
-      {metadata.cc && metadata.cc.length > 0 && (
-        <div className="text-muted-foreground">
-          <span className="font-medium">CC:</span> {metadata.cc.join(', ')}
-        </div>
-      )}
-      {metadata.subject && (
-        <div className="text-muted-foreground">
-          <span className="font-medium">Subject:</span> {metadata.subject}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /**
  * TicketSubject component - Reusable subject line display
@@ -244,137 +91,6 @@ function TicketMetadata({
       <span>•</span>
       <span className="font-medium">Created:</span>
       <span>{formatAbsoluteDate(createdAt)}</span>
-    </div>
-  );
-}
-
-/**
- * EmailIframe component - Renders email HTML in an isolated iframe
- * Based on un-inbox/chatwoot implementations with expandable content
- */
-function EmailIframe({
-  html,
-  emailMetadata,
-  senderName,
-  senderEmail
-}: {
-  html: string;
-  emailMetadata: EmailMetadata | null;
-  senderName: string | null;
-  senderEmail: string;
-}) {
-  const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  const [height, setHeight] = useState('800px');
-  const [isExpandable, setIsExpandable] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  const onLoad = () => {
-    if (!frameRef.current) return;
-
-    const doc = frameRef.current.contentWindow?.document;
-    if (!doc) return;
-
-    const bodyHeight = doc.body.scrollHeight ?? 0;
-
-    // Check if content is expandable (>300px)
-    setIsExpandable(bodyHeight > 300);
-
-    // Set height
-    if (isExpanded || bodyHeight <= 300) {
-      setHeight(`${bodyHeight + 30}px`);
-    } else {
-      setHeight('300px');
-    }
-
-    // Force all links to open in new tab
-    doc.querySelectorAll('a').forEach((a) => {
-      a.setAttribute('target', '_blank');
-      a.setAttribute('rel', 'noopener noreferrer');
-    });
-  };
-
-  // Re-render iframe when expand changes
-  useEffect(() => {
-    if (frameRef.current) {
-      onLoad();
-    }
-  }, [isExpanded]);
-
-  // Wrap email HTML with default font and basic styling
-  const wrappedHtml = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-          html, body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-          }
-          body {
-            padding: 16px;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            font-size: 14px;
-            line-height: 1.5;
-            color: #333;
-            background: white;
-            overflow-wrap: break-word;
-            word-wrap: break-word;
-          }
-          img {
-            max-width: 100%;
-            height: auto;
-          }
-          a {
-            color: #4a90e2;
-          }
-        </style>
-      </head>
-      <body>
-        ${html}
-      </body>
-    </html>
-  `;
-
-  return (
-    <div className="relative">
-      {/* Email Metadata Header */}
-      {emailMetadata && <EmailMetadataHeader metadata={emailMetadata} senderName={senderName} senderEmail={senderEmail} />}
-
-      {/* Email Content Container */}
-      <div
-        ref={contentRef}
-        className={`relative ${isExpandable && !isExpanded ? 'max-h-[300px] overflow-hidden' : ''}`}
-      >
-        <iframe
-          title="Email Content"
-          ref={frameRef}
-          onLoad={onLoad}
-          className="w-full"
-          sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-          srcDoc={wrappedHtml}
-          height={height}
-          style={{ border: 'none', display: 'block' }}
-        />
-
-        {/* Gradient fade and expand button for long emails */}
-        {isExpandable && !isExpanded && (
-          <div className="absolute left-0 right-0 bottom-0 h-40 bg-gradient-to-t from-white via-white via-20% to-transparent dark:from-card dark:via-card flex items-end justify-center pb-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsExpanded(true)}
-              className="shadow-md"
-            >
-              <ChevronsDown className="h-4 w-4 mr-2" />
-              Expand Email
-            </Button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -775,12 +491,6 @@ export function TicketDetailPage() {
 
   const handleRemoveAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   // Notify other agents that user is composing
@@ -1684,42 +1394,15 @@ export function TicketDetailPage() {
   if (isLoading) {
     return (
       <div className="h-full flex flex-col bg-muted/20">
-        {/* Header placeholder */}
+        {/* Header placeholder with back button only */}
         <header className="sticky top-0 z-50 flex-shrink-0 border-b backdrop-blur-lg bg-background/70">
           <div className="px-2 sm:px-4 py-2">
-            {/* Desktop: Two-column layout */}
-            <div className="hidden lg:flex gap-4">
-              {/* Left Column: Back Button */}
-              <div className="flex-shrink-0">
-                <BackButton to="/tickets" />
-              </div>
-
-              {/* Right Column: Loading indicator */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span className="text-lg font-semibold">Loading...</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Mobile: Back Button on its own row */}
-            <div className="flex lg:hidden items-center gap-2 mb-3">
-              <BackButton to="/tickets" />
-            </div>
-
-            {/* Mobile: Subject Line Placeholder */}
-            <div className="lg:hidden mb-2">
-              <div className="flex items-center gap-2">
-                <Mail className="h-5 w-5 flex-shrink-0 hidden sm:block" />
-                <span className="text-lg font-semibold">Loading...</span>
-              </div>
-            </div>
+            <BackButton to="/tickets" />
           </div>
         </header>
 
-        {/* Loading content */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 pt-32">
+        {/* Centered loading indicator */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
           <p className="text-base font-medium text-foreground">Loading ticket...</p>
         </div>
@@ -1937,223 +1620,21 @@ export function TicketDetailPage() {
 
             // Handle message
             const message = item;
-            const isCustomer = message.sender_email === ticket.customer_email;
             const isFirstMessage = timeline.findIndex(t => 'sender_email' in t) === index;
             const isDeleting = deletingMessageIds.has(message.id);
 
             return (
-              <div
+              <MessageItem
                 key={message.id}
-                data-message-id={message.id}
-                className={`sm:flex sm:gap-4 group transition-all duration-300 animate-fade-in-up ${
-                  isDeleting ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-                }`}
-              >
-                {/* Avatar - Hidden on mobile, shown on tablet+ */}
-                <div className="hidden sm:block flex-shrink-0">
-                  <Avatar
-                    name={message.sender_name || message.sender_email}
-                    email={message.sender_email}
-                    size="md"
-                  />
-                </div>
-
-                {/* Message Content */}
-                <div className="flex-1 min-w-0 w-full sm:w-auto">
-                  <div className="flex items-baseline gap-2 mb-2 flex-wrap">
-                    <span className="font-semibold">
-                      {message.sender_name || message.sender_email}
-                    </span>
-                    {isCustomer ? (
-                      <Badge variant="outline" className="text-xs">
-                        Customer
-                      </Badge>
-                    ) : null}
-                    {message.type === 'note' ? (
-                      <Badge className="text-xs bg-yellow-600 text-white">
-                        Internal Note
-                      </Badge>
-                    ) : null}
-                    {isFirstMessage ? (
-                      <Badge variant="outline" className="text-xs">
-                        Original Message
-                      </Badge>
-                    ) : null}
-                    {message.scheduled_at && !message.sent_at ? (
-                      <Badge className="text-xs bg-blue-600 text-white flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Scheduled: {new Date(message.scheduled_at).toLocaleString()}
-                      </Badge>
-                    ) : null}
-                    <div className="ml-auto text-right flex items-center gap-2">
-                      <div className="text-xs text-muted-foreground">
-                        {formatMessageDate(message.created_at)}
-                      </div>
-                      {/* Actions menu */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent"
-                            title="Message actions"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {/* Reply option for email messages only (not internal notes) */}
-                          {message.type === 'email' && (
-                            <DropdownMenuItem onClick={() => handleReplyToMessage(message.id)}>
-                              <Reply className="h-4 w-4 mr-2" />
-                              Reply
-                            </DropdownMenuItem>
-                          )}
-                          {/* Forward option for all messages */}
-                          <DropdownMenuItem onClick={() => handleForwardEmail(message.id)}>
-                            <Forward className="h-4 w-4 mr-2" />
-                            Forward Email
-                          </DropdownMenuItem>
-                          {/* Delete option only for internal notes */}
-                          {message.type === 'note' && (
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteMessage(message.id)}
-                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete Note
-                            </DropdownMenuItem>
-                          )}
-                          {/* Cancel option for scheduled messages */}
-                          {message.scheduled_at && !message.sent_at && (
-                            <DropdownMenuItem
-                              onClick={() => handleCancelScheduled(message.id)}
-                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                            >
-                              <X className="h-4 w-4 mr-2" />
-                              Cancel Scheduled
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-
-                  {(() => {
-                    const hasEmailMetadata = message.email_metadata && message.body_html;
-                    const useIframe = message.body_html && !isSimpleHtml(message.body_html);
-                    const needsCardPadding = !useIframe && !hasEmailMetadata;
-
-                    return (
-                      <Card className={`bg-white dark:bg-card ${
-                        needsCardPadding
-                          ? `p-4 ${
-                              message.type === 'note'
-                                ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:text-foreground [&_*]:dark:!text-inherit'
-                                : ''
-                            }`
-                          : 'p-0 overflow-hidden'
-                      }`}>
-                        {useIframe ? (
-                          // Complex HTML: Use iframe for isolation and proper rendering
-                          <EmailIframe
-                            html={getMessageBodyHtml(message.body, message.body_html, message.attachments)}
-                            emailMetadata={message.email_metadata ? JSON.parse(message.email_metadata) : null}
-                            senderName={message.sender_name}
-                            senderEmail={message.sender_email}
-                          />
-                        ) : (
-                          // Simple HTML or plain text: Render inline for better performance
-                          <>
-                            {hasEmailMetadata && (
-                              <EmailMetadataHeader
-                                metadata={JSON.parse(message.email_metadata!)}
-                                senderName={message.sender_name}
-                                senderEmail={message.sender_email}
-                              />
-                            )}
-                            <div
-                              className={`prose prose-sm max-w-none dark:prose-invert ${hasEmailMetadata ? 'p-4' : ''}`}
-                              dangerouslySetInnerHTML={{ __html: getMessageBodyHtml(message.body, message.body_html, message.attachments) }}
-                            />
-                          </>
-                        )}
-
-                        {/* Display attachments if any */}
-                        {message.attachments && message.attachments.length > 0 && (
-                          <div className="mt-4 px-4 pb-4 space-y-2">
-                            <div className="text-xs font-medium text-muted-foreground">Attachments:</div>
-                            <div className="flex flex-col gap-2">
-                              {message.attachments.map((attachment: Attachment) => {
-                                const isViewable = isViewableInBrowser(attachment.mime_type);
-                                const isAudio = isAudioFile(attachment.mime_type);
-                                const attachmentUrl = `/api/attachments/${attachment.id}?token=${localStorage.getItem('authToken')}`;
-
-                                // Audio files get an inline player
-                                if (isAudio) {
-                                  return (
-                                    <div key={attachment.id} className="flex flex-col gap-1 p-3 bg-background border rounded-md">
-                                      <div className="flex items-center gap-2 text-sm">
-                                        <File className="h-4 w-4" />
-                                        <span className="truncate flex-1">{attachment.filename}</span>
-                                        {attachment.size_bytes && (
-                                          <span className="text-muted-foreground text-xs">
-                                            ({formatFileSize(attachment.size_bytes)})
-                                          </span>
-                                        )}
-                                      </div>
-                                      <audio
-                                        controls
-                                        preload="none"
-                                        className="w-full h-8"
-                                        src={attachmentUrl}
-                                      >
-                                        Your browser does not support the audio element.
-                                      </audio>
-                                    </div>
-                                  );
-                                }
-
-                                // Other files get the existing link behavior
-                                return (
-                                  <a
-                                    key={attachment.id}
-                                    href={attachmentUrl}
-                                    {...(isViewable
-                                      ? { target: '_blank', rel: 'noopener noreferrer' }
-                                      : { download: attachment.filename }
-                                    )}
-                                    className="flex items-center gap-2 px-3 py-2 bg-background border rounded-md text-sm hover:bg-accent transition-colors"
-                                    title={isViewable ? 'Click to view' : 'Click to download'}
-                                  >
-                                    {isViewable ? (
-                                      <Eye className="h-4 w-4" />
-                                    ) : (
-                                      <File className="h-4 w-4" />
-                                    )}
-                                    <span className="truncate max-w-xs">{attachment.filename}</span>
-                                    {attachment.size_bytes && (
-                                      <span className="text-muted-foreground">
-                                        ({formatFileSize(attachment.size_bytes)})
-                                      </span>
-                                    )}
-                                  </a>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </Card>
-                    );
-                  })()}
-
-                  {/* Show read status for agent messages sent to customer */}
-                  {!isCustomer && message.type !== 'note' && message.first_opened_at && (
-                    <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 mt-2">
-                      <Eye className="h-3 w-3" />
-                      Read {formatRelativeTime(message.first_opened_at)}
-                    </div>
-                  )}
-                </div>
-              </div>
+                message={message}
+                customerEmail={ticket.customer_email}
+                isFirstMessage={isFirstMessage}
+                isDeleting={isDeleting}
+                onReply={handleReplyToMessage}
+                onForward={handleForwardEmail}
+                onDelete={handleDeleteMessage}
+                onCancelScheduled={handleCancelScheduled}
+              />
             );
           })
           )}
