@@ -521,7 +521,31 @@ export default async function routes(fastify: FastifyInstance) {
       await ticketQueries.updateAssignee(assigneeId, ticket.id);
     }
 
-    // Get updated ticket with assignee
+    // Apply tags if provided
+    if (ticketRequest.tags && Array.isArray(ticketRequest.tags)) {
+      for (const tag of ticketRequest.tags) {
+        let tagId: number | undefined;
+
+        if (typeof tag === 'number') {
+          tagId = tag;
+        } else if (typeof tag === 'string') {
+          // Look up by name, create if not exists
+          const trimmedName = tag.trim();
+          let existingTag = await tagQueries.getByName(trimmedName);
+          if (!existingTag) {
+            const newTagId = await tagQueries.create(trimmedName);
+            existingTag = await tagQueries.getById(newTagId);
+          }
+          tagId = existingTag?.id;
+        }
+
+        if (tagId) {
+          await ticketTagQueries.addTagToTicket(ticket.id, tagId);
+        }
+      }
+    }
+
+    // Get updated ticket with assignee and tags
     const updatedTicket = await getTicketById(ticket.id);
 
     return reply.status(201).send(updatedTicket);

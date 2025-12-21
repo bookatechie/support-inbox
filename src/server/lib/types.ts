@@ -178,6 +178,7 @@ export interface CreateTicketRequest {
   message_id?: string;
   assignee_email?: string;
   follow_up_at?: string | null;
+  tags?: (number | string)[];  // Array of tag IDs or tag names
 }
 
 export interface CreateTicketOptions {
