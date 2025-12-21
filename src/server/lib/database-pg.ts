@@ -330,6 +330,8 @@ export const ticketQueries = {
 
         SELECT DISTINCT ticket_id as id, 65 as rank FROM messages
         WHERE sender_email ILIKE $${paramIndex + 2}
+           OR to_emails ILIKE $${paramIndex + 2}
+           OR cc_emails ILIKE $${paramIndex + 2}
 
         UNION
 
