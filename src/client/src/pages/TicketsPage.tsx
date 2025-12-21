@@ -847,6 +847,14 @@ export function TicketsPage() {
               </Button>
             </Link>
 
+            {/* Calendar Button - Desktop Only */}
+            <Link to="/calendar" className="hidden lg:block">
+              <Button variant="outline" size="sm" className="whitespace-nowrap h-9">
+                <Calendar className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Calendar</span>
+              </Button>
+            </Link>
+
             {/* New Ticket Button - Desktop Only */}
             <Button variant="default" size="sm" onClick={() => setShowNewEmailModal(true)} className="whitespace-nowrap h-9 hidden lg:flex">
               <Plus className="h-4 w-4 sm:mr-2" />
@@ -856,6 +864,11 @@ export function TicketsPage() {
             {/* Search Icon - Mobile Only */}
             <Link to="/search" className="lg:hidden flex items-center justify-center h-9 w-9 flex-shrink-0">
               <Search className="h-5 w-5" />
+            </Link>
+
+            {/* Calendar Icon - Mobile Only */}
+            <Link to="/calendar" className="lg:hidden flex items-center justify-center h-9 w-9 flex-shrink-0">
+              <Calendar className="h-5 w-5" />
             </Link>
 
             {/* Hamburger Menu - Mobile Only */}
@@ -871,13 +884,6 @@ export function TicketsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56" sideOffset={5} collisionPadding={8}>
-                <Link to="/calendar">
-                  <DropdownMenuItem>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Follow-up Calendar
-                  </DropdownMenuItem>
-                </Link>
-
                 <Link to="/canned-responses">
                   <DropdownMenuItem>
                     <MessageSquare className="h-4 w-4 mr-2" />
@@ -1314,13 +1320,6 @@ export function TicketsPage() {
             {/* Menu Items Section */}
             <div className="space-y-2">
               <h3 className="text-sm font-semibold mb-3">Menu</h3>
-
-              <Link to="/calendar" onClick={() => setShowMobileMenu(false)}>
-                <Button variant="ghost" className="w-full justify-start">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Follow-up Calendar
-                </Button>
-              </Link>
 
               <Link to="/canned-responses" onClick={() => setShowMobileMenu(false)}>
                 <Button variant="ghost" className="w-full justify-start">
