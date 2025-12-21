@@ -65,6 +65,7 @@ interface TicketFilters {
   statusFilter: string;
   assigneeFilter: string;
   tagFilter: string;
+  followUpFilter: string;
   sortOrder: string;
 }
 
@@ -72,6 +73,7 @@ const DEFAULT_TICKET_FILTERS: TicketFilters = {
   statusFilter: 'new_or_open',
   assigneeFilter: 'all',
   tagFilter: 'all',
+  followUpFilter: 'due',
   sortOrder: 'desc',
 };
 
@@ -170,6 +172,22 @@ function TicketFiltersComponent({
         </Select>
       </div>
 
+      {/* Follow-up Filter */}
+      <div className={isMobile ? '' : undefined}>
+        {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Follow-up</Label>}
+        <Select value={filters.followUpFilter} onValueChange={handleChange('followUpFilter')}>
+          <SelectTrigger className={triggerClass}>
+            <SelectValue placeholder="Follow-up" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="due">Due or No Follow-up</SelectItem>
+            <SelectItem value="all">All Tickets</SelectItem>
+            <SelectItem value="overdue">Overdue Only</SelectItem>
+            <SelectItem value="scheduled">Scheduled (Future)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Sort Order - only shown in component on mobile */}
       {isMobile && (
         <div>
@@ -222,7 +240,7 @@ export function TicketsPage() {
   );
 
   // Destructure for easier access and backwards compatibility
-  const { statusFilter, assigneeFilter, tagFilter, sortOrder } = filters;
+  const { statusFilter, assigneeFilter, tagFilter, followUpFilter, sortOrder } = filters;
 
   // Memoize sorted lists to avoid re-sorting on every render
   const sortedActiveUsers = useMemo(() => {
@@ -304,6 +322,11 @@ export function TicketsPage() {
     // Tag filter
     if (tagFilter !== 'all') {
       filters.tag_id = tagFilter;
+    }
+
+    // Follow-up filter
+    if (followUpFilter !== 'all') {
+      filters.follow_up = followUpFilter;
     }
 
     // Sort order
@@ -391,7 +414,7 @@ export function TicketsPage() {
       isInitialMount.current = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, assigneeFilter, tagFilter, sortOrder, location.search]);
+  }, [statusFilter, assigneeFilter, tagFilter, followUpFilter, sortOrder, location.search]);
 
   // Restore scroll position after tickets are loaded
   useEffect(() => {
@@ -463,7 +486,7 @@ export function TicketsPage() {
   useEffect(() => {
     clearSelection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, assigneeFilter, tagFilter, sortOrder, location.search]);
+  }, [statusFilter, assigneeFilter, tagFilter, followUpFilter, sortOrder, location.search]);
 
   // Remove selected tickets that no longer exist in the list (e.g., deleted or filtered out)
   useEffect(() => {
@@ -531,6 +554,29 @@ export function TicketsPage() {
     // We skip tag filtering for notifications since SSE data may be incomplete
     // The list will reload anyway and apply proper filtering
 
+    // Check follow-up filter
+    if (followUpFilter !== 'all') {
+      const now = new Date();
+      const followUpAt = ticket.follow_up_at ? new Date(ticket.follow_up_at) : null;
+
+      if (followUpFilter === 'due') {
+        // Show tickets without follow-up OR with follow-up due now or in the past
+        if (followUpAt && followUpAt > now) {
+          return false;
+        }
+      } else if (followUpFilter === 'overdue') {
+        // Show only tickets with follow-up in the past
+        if (!followUpAt || followUpAt >= now) {
+          return false;
+        }
+      } else if (followUpFilter === 'scheduled') {
+        // Show only tickets with follow-up in the future
+        if (!followUpAt || followUpAt <= now) {
+          return false;
+        }
+      }
+    }
+
     // Check customer email from URL
     const params = new URLSearchParams(location.search);
     const customerEmail = params.get('customer');
@@ -539,7 +585,7 @@ export function TicketsPage() {
     }
 
     return true;
-  }, [statusFilter, assigneeFilter, user, location.search]);
+  }, [statusFilter, assigneeFilter, followUpFilter, user, location.search]);
 
   // Real-time updates - debounced reload from server when changes occur
   // Server handles all filtering, no need to duplicate filter logic client-side

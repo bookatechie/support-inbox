@@ -245,12 +245,13 @@ export const ticketQueries = {
       assigneeId?: number | null;
       customerEmail?: string;
       tagId?: number;
+      followUp?: 'all' | 'due' | 'overdue' | 'scheduled';
       limit?: number;
       offset?: number;
       sortOrder?: 'asc' | 'desc';
     }
   ): Promise<(Ticket & { message_count: number; last_message_preview: string | null; attachment_count: number; last_message_sender_email: string | null; last_message_sender_name: string | null; last_message_at: string | null; total_count: number })[]> {
-    const { status, assigneeId, customerEmail, tagId, limit = 50, offset = 0, sortOrder = 'desc' } = options;
+    const { status, assigneeId, customerEmail, tagId, followUp, limit = 50, offset = 0, sortOrder = 'desc' } = options;
 
     // Build WHERE clause for filters
     const whereClauses: string[] = [];
@@ -420,6 +421,7 @@ export const ticketQueries = {
       assigneeId?: number | null;
       customerEmail?: string;
       tagId?: number;
+      followUp?: 'all' | 'due' | 'overdue' | 'scheduled';
       limit?: number;
       offset?: number;
       sortOrder?: 'asc' | 'desc';
@@ -858,11 +860,12 @@ export async function getTicketsFiltered(options: {
   assigneeId?: number | null;
   customerEmail?: string;
   tagId?: number;
+  followUp?: 'all' | 'due' | 'overdue' | 'scheduled';
   limit?: number;
   offset?: number;
   sortOrder?: 'asc' | 'desc';
 }): Promise<(Ticket & { message_count: number; last_message_preview: string | null; attachment_count: number; last_message_sender_email: string | null; last_message_sender_name: string | null; last_message_at: string | null; total_count: number; tags?: Tag[] })[]> {
-  const { status, assigneeId, customerEmail, tagId, limit = 50, offset = 0, sortOrder = 'desc' } = options;
+  const { status, assigneeId, customerEmail, tagId, followUp, limit = 50, offset = 0, sortOrder = 'desc' } = options;
 
   // Build WHERE clause
   const whereClauses: string[] = [];
@@ -894,6 +897,21 @@ export async function getTicketsFiltered(options: {
   if (customerEmail) {
     whereClauses.push(`tickets.customer_email = $${paramIndex++}`);
     params.push(customerEmail);
+  }
+
+  // Follow-up filter: 'due' shows tickets without follow-up OR due now/past
+  // 'overdue' shows only past due, 'scheduled' shows only future
+  if (followUp && followUp !== 'all') {
+    if (followUp === 'due') {
+      // Show tickets without follow-up OR with follow-up due now or in the past
+      whereClauses.push('(tickets.follow_up_at IS NULL OR tickets.follow_up_at <= NOW())');
+    } else if (followUp === 'overdue') {
+      // Show only tickets with follow-up in the past
+      whereClauses.push('tickets.follow_up_at < NOW()');
+    } else if (followUp === 'scheduled') {
+      // Show only tickets with follow-up in the future
+      whereClauses.push('tickets.follow_up_at > NOW()');
+    }
   }
 
   const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';

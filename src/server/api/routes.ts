@@ -74,6 +74,7 @@ function parseFilterParams(query: {
   assignee_id?: string;
   customer_email?: string;
   tag_id?: string;
+  follow_up?: string;
 }) {
   // Parse status filter
   const statuses = query.status ? query.status.split(',').map(s => s.trim()) : undefined;
@@ -98,11 +99,15 @@ function parseFilterParams(query: {
     }
   }
 
+  // Parse follow-up filter: 'all' | 'due' | 'overdue' | 'scheduled'
+  const followUp = query.follow_up as 'all' | 'due' | 'overdue' | 'scheduled' | undefined;
+
   return {
     statuses,
     assigneeId,
     customerEmail: query.customer_email,
     tagId,
+    followUp,
   };
 }
 
@@ -302,18 +307,19 @@ export default async function routes(fastify: FastifyInstance) {
       search?: string;
       tag_id?: string;
       sort_order?: 'asc' | 'desc';
+      follow_up?: string;
     };
   }>('/tickets', {
     onRequest: [fastify.authenticate],
   }, async (request, reply) => {
-    const { status, assignee_id, customer_email, limit, offset, search, tag_id, sort_order } = request.query;
+    const { status, assignee_id, customer_email, limit, offset, search, tag_id, sort_order, follow_up } = request.query;
 
     // Parse pagination params
     const pageLimit = limit ? Math.min(parseInt(limit, 10), 100) : 50; // Default 50, max 100
     const pageOffset = offset ? parseInt(offset, 10) : 0;
 
     // Parse filter parameters using helper function
-    const filters = parseFilterParams({ status, assignee_id, customer_email, tag_id });
+    const filters = parseFilterParams({ status, assignee_id, customer_email, tag_id, follow_up });
 
     // Unified query - searchWithFilters handles both search and filter-only cases
     const searchTerm = search?.trim() || '';
@@ -324,6 +330,7 @@ export default async function routes(fastify: FastifyInstance) {
       assigneeId: filters.assigneeId,
       customerEmail: filters.customerEmail,
       tagId: filters.tagId,
+      followUp: filters.followUp,
       limit: pageLimit,
       offset: pageOffset,
       sortOrder: sort_order || 'desc',
