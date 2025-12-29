@@ -227,7 +227,7 @@ export function TicketsPage() {
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  const isInitialMount = useRef(true);
+  const hasInitiallyLoaded = useRef(false);
   const reloadTimeoutRef = useRef<number | null>(null);
   const isLoadingTickets = useRef(false);
 
@@ -357,6 +357,9 @@ export function TicketsPage() {
       setHasMore(response.pagination.hasMore);
       setNextOffset(response.pagination.nextOffset);
       setTotalCount(response.pagination.total);
+      if (isInitialLoad) {
+        hasInitiallyLoaded.current = true;
+      }
     } catch (error) {
       console.error('Failed to load tickets:', error);
     } finally {
@@ -395,24 +398,17 @@ export function TicketsPage() {
       reloadTimeoutRef.current = null;
     }
 
-    if (isInitialMount.current) {
+    if (!hasInitiallyLoaded.current) {
       // First load - use full page loader
-      isInitialMount.current = false;
       setIsLoading(true);
       loadTickets(true);
     } else {
-      // Subsequent filter changes - clear old results and use filtering state
+      // Subsequent filter changes - keep old results visible while loading
       setIsFiltering(true);
-      setAllTickets([]); // Clear old results immediately to prevent showing stale data
       setHasMore(false);
       setNextOffset(null);
       loadTickets(false);
     }
-
-    // Reset ref on cleanup for React 18 Strict Mode
-    return () => {
-      isInitialMount.current = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, assigneeFilter, tagFilter, followUpFilter, sortOrder, location.search]);
 
