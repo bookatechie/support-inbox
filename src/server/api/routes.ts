@@ -951,7 +951,7 @@ export default async function routes(fastify: FastifyInstance) {
    * POST /tickets/:id/generate-response
    * Generate AI response suggestion
    */
-  fastify.post<{ Params: { id: string } }>('/tickets/:id/generate-response', {
+  fastify.post<{ Params: { id: string }; Body: { draft?: string } }>('/tickets/:id/generate-response', {
     onRequest: [fastify.authenticate],
   }, async (request, reply) => {
     // If not configured, return 404
@@ -960,6 +960,7 @@ export default async function routes(fastify: FastifyInstance) {
     }
 
     const ticketId = parseInt(request.params.id);
+    const { draft } = request.body || {};
     const ticketWithMessages = await getTicketWithMessages(ticketId);
 
     if (!ticketWithMessages) {
@@ -1008,6 +1009,7 @@ export default async function routes(fastify: FastifyInstance) {
             created_at: msg.created_at,
             attachments: msg.attachments,
           })),
+          current_draft_reply: draft || '',
         }),
       });
 

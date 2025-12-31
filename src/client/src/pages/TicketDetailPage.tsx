@@ -677,7 +677,7 @@ export function TicketDetailPage() {
 
     try {
       setIsGeneratingResponse(true);
-      const result = await ticketsApi.generateResponse(Number(id));
+      const result = await ticketsApi.generateResponse(Number(id), replyContent);
 
       // Insert AI response into the editor
       if (result.response) {

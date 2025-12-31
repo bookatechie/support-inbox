@@ -105,9 +105,10 @@ export const tickets = {
     request<{ html: string }>(`/tickets/${id}/customer-info`),
 
   // AI response generation
-  generateResponse: (id: number) =>
+  generateResponse: (id: number, draft?: string) =>
     request<{ response: string }>(`/tickets/${id}/generate-response`, {
       method: 'POST',
+      body: JSON.stringify({ draft: draft || '' }),
     }),
 
   // Bulk operations
