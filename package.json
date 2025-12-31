@@ -33,6 +33,7 @@
     "bcrypt": "^5.1.1",
     "dotenv": "^16.4.1",
     "fastify": "^5.2.0",
+    "heic-convert": "^2.1.0",
     "imap-simple": "^5.1.0",
     "mailparser": "^3.6.5",
     "nodemailer": "^6.9.9",
@@ -40,6 +41,7 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
+    "@types/heic-convert": "^2.1.0",
     "@types/mailparser": "^3.4.6",
     "@types/node": "^20.11.5",
     "@types/nodemailer": "^6.4.21",

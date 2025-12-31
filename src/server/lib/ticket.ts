@@ -5,6 +5,7 @@
 
 import crypto from 'crypto';
 import { EventEmitter } from 'events';
+import convert from 'heic-convert';
 import {
   ticketQueries,
   messageQueries,
@@ -60,6 +61,52 @@ export function setSseEmitter(emitter: EventEmitter): void {
 }
 
 /**
+ * Check if a file is HEIC format based on content type or filename
+ */
+function isHeicFile(contentType: string, filename: string): boolean {
+  const lowerType = contentType.toLowerCase();
+  const lowerName = filename.toLowerCase();
+  return (
+    lowerType === 'image/heic' ||
+    lowerType === 'image/heif' ||
+    lowerName.endsWith('.heic') ||
+    lowerName.endsWith('.heif')
+  );
+}
+
+/**
+ * Convert HEIC image to JPEG
+ * Returns the converted buffer, new filename, and new content type
+ */
+async function convertHeicToJpeg(
+  content: Buffer,
+  filename: string
+): Promise<{ content: Buffer; filename: string; contentType: string }> {
+  try {
+    const jpegBuffer = await convert({
+      buffer: new Uint8Array(content).buffer,
+      format: 'JPEG',
+      quality: 0.9,
+    });
+
+    // Replace .heic/.heif extension with .jpg
+    const newFilename = filename.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
+
+    console.log(`Converted HEIC to JPEG: ${filename} -> ${newFilename}`);
+
+    return {
+      content: Buffer.from(jpegBuffer),
+      filename: newFilename,
+      contentType: 'image/jpeg',
+    };
+  } catch (error) {
+    console.error(`Failed to convert HEIC file ${filename}:`, error);
+    // Return original if conversion fails
+    return { content, filename, contentType: 'image/heic' };
+  }
+}
+
+/**
  * Save attachments for a message
  */
 async function saveMessageAttachments(
@@ -69,23 +116,33 @@ async function saveMessageAttachments(
 ): Promise<void> {
   for (const attachment of attachments) {
     try {
+      let content = attachment.content;
+      let filename = attachment.filename;
+      let contentType = attachment.contentType;
+      let size = attachment.size;
+
+      // Convert HEIC to JPEG for browser compatibility
+      if (isHeicFile(contentType, filename)) {
+        const converted = await convertHeicToJpeg(content, filename);
+        content = converted.content;
+        filename = converted.filename;
+        contentType = converted.contentType;
+        size = content.length;
+      }
+
       // Save file to disk
-      const filePath = await saveAttachment(
-        attachment.filename,
-        attachment.content,
-        ticketId
-      );
+      const filePath = await saveAttachment(filename, content, ticketId);
 
       // Save to database
       await attachmentQueries.create(
         messageId,
-        attachment.filename,
+        filename,
         filePath,
-        attachment.size,
-        attachment.contentType
+        size,
+        contentType
       );
 
-      console.log(`Saved attachment: ${attachment.filename} (${attachment.size} bytes)`);
+      console.log(`Saved attachment: ${filename} (${size} bytes)`);
     } catch (error) {
       console.error(`Failed to save attachment ${attachment.filename}:`, error);
     }
