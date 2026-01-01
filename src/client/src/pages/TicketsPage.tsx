@@ -118,6 +118,8 @@ function TicketFiltersComponent({
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="new_or_open">New or Open</SelectItem>
+            <SelectItem value="new">{STATUS_LABELS.new}</SelectItem>
+            <SelectItem value="open">{STATUS_LABELS.open}</SelectItem>
             <SelectItem value="awaiting_customer">{STATUS_LABELS.awaiting_customer}</SelectItem>
             <SelectItem value="resolved">{STATUS_LABELS.resolved}</SelectItem>
           </SelectContent>
