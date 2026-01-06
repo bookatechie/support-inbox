@@ -124,15 +124,52 @@ export function LoginPage() {
 
       {/* Right Panel - Decorative Design */}
       <div className="hidden md:flex md:w-1/2 relative overflow-hidden">
-        {/* Animated Gradient Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-600 via-pink-500 to-blue-500 animate-gradient-shift bg-[length:400%_400%]" />
-
-        {/* Overlay Patterns */}
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-0 left-0 bg-white rounded-full w-96 h-96 mix-blend-overlay blur-3xl animate-blob" />
-          <div className="absolute bottom-0 right-0 bg-yellow-300 rounded-full w-96 h-96 mix-blend-overlay blur-3xl animate-blob" style={{ animationDelay: '2s' }} />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-cyan-300 rounded-full w-96 h-96 mix-blend-overlay blur-3xl animate-blob" style={{ animationDelay: '4s' }} />
-        </div>
+        {/* Animated SVG Background */}
+        <svg
+          className="absolute inset-0 w-full h-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{ backgroundColor: '#0f172a' }}
+        >
+          <style>
+            {`
+              .login-path { transform-origin: 50% 0%; }
+              @keyframes loginPath0 {
+                0% { transform: rotate(-10deg); }
+                100% { transform: rotate(10deg); }
+              }
+              @keyframes loginPath1 {
+                0% { transform: rotate(-30deg); }
+                100% { transform: rotate(30deg); }
+              }
+              @keyframes loginPath2 {
+                0% { transform: rotate(40deg); }
+                100% { transform: rotate(-40deg); }
+              }
+            `}
+          </style>
+          <path
+            className="login-path"
+            fill="#7c3aed"
+            fillOpacity="0.6"
+            d="M-100 -100L200 -100L200 50L-100 50Z"
+            style={{ animation: 'loginPath0 5s linear infinite alternate' }}
+          />
+          <path
+            className="login-path"
+            fill="#3b82f6"
+            fillOpacity="0.5"
+            d="M-100 -100L200 -100L200 50L-100 50Z"
+            style={{ animation: 'loginPath1 12.5s linear infinite alternate' }}
+          />
+          <path
+            className="login-path"
+            fill="#ec4899"
+            fillOpacity="0.3"
+            d="M-100 -100L200 -100L200 20L-100 20Z"
+            style={{ animation: 'loginPath2 30s linear infinite alternate' }}
+          />
+        </svg>
 
         {/* Content Overlay */}
         <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-white">
