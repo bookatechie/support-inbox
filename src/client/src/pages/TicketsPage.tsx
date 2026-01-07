@@ -1174,11 +1174,9 @@ export function TicketsPage() {
         </div>
 
         {/* Status Legend - Desktop Only */}
-        {allTickets.length > 0 && (
-          <div className="mt-6 text-xs text-muted-foreground hidden lg:block">
-            new: no team member has replied yet • open: customer has replied • awaiting customer: waiting for customer reply • resolved: closed
-          </div>
-        )}
+        <div className="mt-6 text-xs text-muted-foreground hidden lg:block">
+          new: no team member has replied yet • open: customer has replied • awaiting customer: waiting for customer reply • resolved: closed
+        </div>
       </div>
 
       {/* New Ticket Modal */}
