@@ -47,7 +47,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, Mail, RefreshCw, LogOut, MessageSquare, Users, UserCircle, Moon, Sun, Monitor, Plus, Trash2, MoreVertical, Paperclip, Inbox, User as UserProfileIcon, Search, Menu, ArrowDownWideNarrow, ArrowUpNarrowWide, Bell, BellOff, Calendar } from 'lucide-react';
+import { Loader2, Mail, LogOut, MessageSquare, Users, UserCircle, Moon, Sun, Monitor, Plus, Trash2, MoreVertical, Paperclip, Inbox, User as UserProfileIcon, Search, Menu, ArrowDownWideNarrow, ArrowUpNarrowWide, Bell, BellOff, Calendar } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { STATUS_COLORS, PRIORITY_COLORS, STATUS_LABELS } from '@/lib/constants';
 import { formatRelativeTime, formatNumber } from '@/lib/formatters';
@@ -905,11 +905,6 @@ export function TicketsPage() {
 
                 <DropdownMenuSeparator />
 
-                <DropdownMenuItem onClick={() => loadTickets(false)}>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh
-                </DropdownMenuItem>
-
                 <DropdownMenuItem onClick={toggleTheme}>
                   {theme === 'light' && <Moon className="h-4 w-4 mr-2" />}
                   {theme === 'dark' && <Monitor className="h-4 w-4 mr-2" />}
@@ -1339,14 +1334,6 @@ export function TicketsPage() {
               }}>
                 <UserProfileIcon className="h-4 w-4 mr-2" />
                 My Profile
-              </Button>
-
-              <Button variant="ghost" className="w-full justify-start" onClick={() => {
-                setShowMobileMenu(false);
-                loadTickets(false);
-              }}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
               </Button>
 
               <Button variant="ghost" className="w-full justify-start" onClick={() => {
