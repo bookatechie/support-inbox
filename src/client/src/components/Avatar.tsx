@@ -66,11 +66,10 @@ function getAvatarColor(identifier: string): typeof AVATAR_COLORS[number] {
 }
 
 export function Avatar({ name, email, size = 'md', className = '' }: AvatarProps) {
-  const initials = useMemo(() => getInitials(name || email || ''), [name, email]);
-  const colors = useMemo(
-    () => getAvatarColor(email || name || ''),
-    [email, name]
-  );
+  // Use the same identifier for both initials and color to ensure consistency
+  const identifier = name || email || '';
+  const initials = useMemo(() => getInitials(identifier), [identifier]);
+  const colors = useMemo(() => getAvatarColor(identifier), [identifier]);
 
   return (
     <div
