@@ -621,19 +621,25 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
   const isFirstMessage = allMessages.filter(m => m.id !== message.id).length === 0;
   const user = await userQueries.getByAgentEmail(message.sender_email);
 
-  const emailMessageId = await sendReplyEmail(
-    ticket,
-    message.body_html || message.body,
-    message.sender_name || 'Support',
-    isFirstMessage,
-    emailAttachments.length > 0 ? emailAttachments : undefined,
-    undefined,
-    undefined,
-    user?.signature || null,
-    trackingToken,
-    message.sender_email,
-    previousMessages
-  );
+  let emailMessageId: string;
+  try {
+    emailMessageId = await sendReplyEmail(
+      ticket,
+      message.body_html || message.body,
+      message.sender_name || 'Support',
+      isFirstMessage,
+      emailAttachments.length > 0 ? emailAttachments : undefined,
+      undefined,
+      undefined,
+      user?.signature || null,
+      trackingToken,
+      message.sender_email,
+      previousMessages
+    );
+  } catch (error) {
+    console.error(`Failed to send scheduled message #${message.id}, will retry on next interval:`, error instanceof Error ? error.message : error);
+    return false;
+  }
 
   if (emailMessageId) {
     await messageQueries.updateMessageId(emailMessageId, message.id);
