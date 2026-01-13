@@ -637,7 +637,12 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
       previousMessages
     );
   } catch (error) {
-    console.error(`Failed to send scheduled message #${message.id}, will retry on next interval:`, error instanceof Error ? error.message : error);
+    const errorMsg = `Failed to send scheduled message #${message.id} for ticket #${message.ticket_id}, will retry on next interval`;
+    if (logger) {
+      logger.error(errorMsg, error);
+    } else {
+      console.error(errorMsg, error instanceof Error ? error.message : error);
+    }
     return false;
   }
 
