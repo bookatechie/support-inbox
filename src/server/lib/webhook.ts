@@ -6,17 +6,21 @@
 import { config } from './config.js';
 import type { Ticket, Message, Attachment } from './types.js';
 
-// Simple logger interface for compatibility
+// Logger interface for Pino/Fastify logger compatibility
 interface Logger {
-  info: (msg: string) => void;
-  error: (msg: string, error?: unknown) => void;
+  info: (objOrMsg: object | string, msg?: string) => void;
+  error: (objOrMsg: object | string, msg?: string) => void;
 }
 
-// Default console logger
-const defaultLogger: Logger = {
-  info: (msg: string) => console.log(msg),
-  error: (msg: string, error?: unknown) => console.error(msg, error),
-};
+// Module-level logger (will be set by index.ts)
+let moduleLogger: Logger | null = null;
+
+/**
+ * Set the logger for this module
+ */
+export function setWebhookLogger(log: Logger): void {
+  moduleLogger = log;
+}
 
 /**
  * Strip base64 encoded images from text content
@@ -239,8 +243,9 @@ export function sendNewTicketWebhook(
   ticket: Ticket,
   message: Message,
   attachments?: Attachment[],
-  logger: Logger = defaultLogger
+  _logger?: Logger  // Deprecated: uses module logger
 ): void {
+  const logger = moduleLogger;
   if (!config.webhookUrl) {
     return; // Webhook not configured, skip silently
   }
@@ -290,13 +295,13 @@ export function sendNewTicketWebhook(
   })
     .then((response) => {
       if (!response.ok) {
-        logger.error(`Webhook failed: ${response.status} ${response.statusText}`);
+        logger?.error({ status: response.status, statusText: response.statusText, ticketId: ticket.id }, 'Webhook failed');
       } else {
-        logger.info(`✓ Webhook sent for ticket #${ticket.id}`);
+        logger?.info({ ticketId: ticket.id, event: 'new_ticket' }, 'Webhook sent');
       }
     })
     .catch((error) => {
-      logger.error('Failed to send webhook:', error);
+      logger?.error({ err: error, ticketId: ticket.id }, 'Failed to send webhook');
     });
 }
 
@@ -308,8 +313,9 @@ export function sendNewReplyWebhook(
   ticket: Ticket,
   message: Message,
   attachments?: Attachment[],
-  logger: Logger = defaultLogger
+  _logger?: Logger  // Deprecated: uses module logger
 ): void {
+  const logger = moduleLogger;
   if (!config.webhookUrl) {
     return; // Webhook not configured, skip silently
   }
@@ -359,13 +365,13 @@ export function sendNewReplyWebhook(
   })
     .then((response) => {
       if (!response.ok) {
-        logger.error(`Webhook failed: ${response.status} ${response.statusText}`);
+        logger?.error({ status: response.status, statusText: response.statusText, ticketId: ticket.id }, 'Webhook failed');
       } else {
-        logger.info(`✓ Webhook sent for reply on ticket #${ticket.id}`);
+        logger?.info({ ticketId: ticket.id, event: 'new_reply' }, 'Webhook sent');
       }
     })
     .catch((error) => {
-      logger.error('Failed to send webhook:', error);
+      logger?.error({ err: error, ticketId: ticket.id }, 'Failed to send webhook');
     });
 }
 
@@ -377,8 +383,9 @@ export function sendCustomerReplyWebhook(
   ticket: Ticket,
   message: Message,
   attachments?: Attachment[],
-  logger: Logger = defaultLogger
+  _logger?: Logger  // Deprecated: uses module logger
 ): void {
+  const logger = moduleLogger;
   if (!config.webhookUrl) {
     return; // Webhook not configured, skip silently
   }
@@ -428,13 +435,13 @@ export function sendCustomerReplyWebhook(
   })
     .then((response) => {
       if (!response.ok) {
-        logger.error(`Webhook failed: ${response.status} ${response.statusText}`);
+        logger?.error({ status: response.status, statusText: response.statusText, ticketId: ticket.id }, 'Webhook failed');
       } else {
-        logger.info(`✓ Webhook sent for customer reply on ticket #${ticket.id}`);
+        logger?.info({ ticketId: ticket.id, event: 'customer_reply' }, 'Webhook sent');
       }
     })
     .catch((error) => {
-      logger.error('Failed to send webhook:', error);
+      logger?.error({ err: error, ticketId: ticket.id }, 'Failed to send webhook');
     });
 }
 
@@ -446,8 +453,9 @@ export function sendTicketUpdateWebhook(
   ticket: Ticket,
   changes: { status?: string; priority?: string; assignee_id?: number | null },
   updatedBy: string,
-  logger: Logger = defaultLogger
+  _logger?: Logger  // Deprecated: uses module logger
 ): void {
+  const logger = moduleLogger;
   if (!config.webhookUrl) {
     return; // Webhook not configured, skip silently
   }
@@ -481,12 +489,12 @@ export function sendTicketUpdateWebhook(
   })
     .then((response) => {
       if (!response.ok) {
-        logger.error(`Webhook failed: ${response.status} ${response.statusText}`);
+        logger?.error({ status: response.status, statusText: response.statusText, ticketId: ticket.id }, 'Webhook failed');
       } else {
-        logger.info(`✓ Webhook sent for ticket #${ticket.id} update`);
+        logger?.info({ ticketId: ticket.id, event: 'ticket_update' }, 'Webhook sent');
       }
     })
     .catch((error) => {
-      logger.error('Failed to send webhook:', error);
+      logger?.error({ err: error, ticketId: ticket.id }, 'Failed to send webhook');
     });
 }

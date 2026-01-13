@@ -14,12 +14,14 @@ import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 
 // Import components
-import { ensureDefaultUser } from "./lib/database-pg.js";
-import { setSseEmitter } from "./lib/ticket.js";
+import { ensureDefaultUser, setDatabaseLogger, testDatabaseConnection } from "./lib/database-pg.js";
+import { setLogger, setSseEmitter } from "./lib/ticket.js";
 import { sseEmitter, closeAllConnections } from "./api/sse.js";
 import { startEmailDaemon, stopEmailDaemon } from "./workers/email-daemon.js";
 import { startScheduledEmailWorker, stopScheduledEmailWorker } from "./workers/scheduled-email-worker.js";
-import { verifyEmailConnection } from "./lib/email-sender.js";
+import { verifyEmailConnection, setEmailSenderLogger } from "./lib/email-sender.js";
+import { setFileStorageLogger, initFileStorage } from "./lib/file-storage.js";
+import { setWebhookLogger } from "./lib/webhook.js";
 import apiRoutes from "./api/routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -66,13 +68,27 @@ async function initialize() {
   fastify.log.info("Support Inbox - Starting...");
   fastify.log.info("=".repeat(60));
 
-  // 1. Ensure database has default user
+  // 1. Initialize loggers for all modules
+  const log = fastify.log;
+  setDatabaseLogger(log);
+  setLogger(log);
+  setEmailSenderLogger(log);
+  setFileStorageLogger(log);
+  setWebhookLogger(log);
+
+  // 2. Test database connection (now that logger is set)
+  testDatabaseConnection();
+
+  // 3. Initialize file storage (logs configuration)
+  initFileStorage();
+
+  // 4. Ensure database has default user
   ensureDefaultUser();
 
-  // 2. Connect SSE emitter to ticket module
+  // 5. Connect SSE emitter to ticket module
   setSseEmitter(sseEmitter);
 
-  // 3. Verify SMTP connection
+  // 6. Verify SMTP connection
   fastify.log.info("Verifying SMTP connection...");
   const smtpOk = await verifyEmailConnection();
   if (smtpOk) {
@@ -81,7 +97,7 @@ async function initialize() {
     fastify.log.warn("✗ SMTP connection failed - check configuration");
   }
 
-  // 4. Start email daemon (if configured)
+  // 7. Start email daemon (if configured)
   if (process.env.IMAP_USER && process.env.IMAP_PASSWORD) {
     fastify.log.info("Starting email daemon...");
     startEmailDaemon(fastify.log);
@@ -93,7 +109,7 @@ async function initialize() {
     );
   }
 
-  // 5. Start scheduled email worker
+  // 8. Start scheduled email worker
   fastify.log.info("Starting scheduled email worker...");
   startScheduledEmailWorker(fastify.log);
   fastify.log.info("✓ Scheduled email worker started");

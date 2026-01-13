@@ -7,7 +7,22 @@ import type { Transporter } from 'nodemailer';
 import type { SmtpConfig, Ticket } from './types.js';
 import { config } from './config.js';
 
+// Logger interface for Pino/Fastify logger compatibility
+interface Logger {
+  info: (objOrMsg: object | string, msg?: string) => void;
+  error: (objOrMsg: object | string, msg?: string) => void;
+  debug: (objOrMsg: object | string, msg?: string) => void;
+}
+
 let transporter: Transporter | null = null;
+let logger: Logger | null = null;
+
+/**
+ * Set the logger for this module
+ */
+export function setEmailSenderLogger(log: Logger): void {
+  logger = log;
+}
 
 /**
  * Initialize SMTP transporter
@@ -23,7 +38,7 @@ export function initializeEmailSender(smtpConfig: SmtpConfig): void {
     },
   });
 
-  console.log(`Email sender initialized: ${smtpConfig.host}:${smtpConfig.port}`);
+  logger?.info({ host: smtpConfig.host, port: smtpConfig.port }, 'Email sender initialized');
 }
 
 /**
@@ -106,8 +121,7 @@ export async function sendReplyEmail(
 
   // Debug: log inline images
   if (attachments && attachments.some(a => a.cid)) {
-    console.log('Sending email with inline images:', attachments.filter(a => a.cid).map(a => ({ filename: a.filename, cid: a.cid })));
-    console.log('HTML contains cid references:', finalBody.includes('cid:'));
+    logger?.debug({ inlineImages: attachments.filter(a => a.cid).map(a => ({ filename: a.filename, cid: a.cid })), hasCidRefs: finalBody.includes('cid:') }, 'Sending email with inline images');
   }
 
   // Build proper References header with all message IDs in the thread
@@ -133,7 +147,7 @@ export async function sendReplyEmail(
           referencesArray = metadata.references;
         }
       } catch (e) {
-        console.error('Failed to parse email_metadata for References header:', e);
+        logger?.error({ err: e }, 'Failed to parse email_metadata for References header');
       }
     }
 
@@ -189,12 +203,10 @@ export async function sendReplyEmail(
 
   try {
     const info = await transport.sendMail(mailOptions);
-    const toInfo = recipientEmails.length > 1 ? ` (To: ${recipientEmails.join(', ')})` : ` (To: ${recipientEmails[0]})`;
-    const ccInfo = ccEmails && ccEmails.length > 0 ? ` (CC: ${ccEmails.join(', ')})` : '';
-    console.log(`Email sent${toInfo}${ccInfo}: ${info.messageId}`);
+    logger?.info({ messageId: info.messageId, to: recipientEmails, cc: ccEmails }, 'Email sent');
     return info.messageId || '';
   } catch (error) {
-    console.error('Failed to send email:', error);
+    logger?.error({ err: error }, 'Failed to send email');
     throw new Error('Failed to send email');
   }
 }
@@ -218,9 +230,9 @@ export async function sendAgentNotification(
 
   try {
     const info = await transport.sendMail(mailOptions);
-    console.log(`Notification sent to ${agentEmail}: ${info.messageId}`);
+    logger?.info({ to: agentEmail, messageId: info.messageId }, 'Agent notification sent');
   } catch (error) {
-    console.error('Failed to send notification:', error);
+    logger?.error({ err: error, to: agentEmail }, 'Failed to send agent notification');
     // Don't throw - notifications are nice-to-have
   }
 }
@@ -239,10 +251,10 @@ export async function sendTestEmail(to: string): Promise<boolean> {
       text: 'This is a test email from Support Inbox. Your SMTP configuration is working correctly!',
     });
 
-    console.log(`Test email sent to ${to}`);
+    logger?.info({ to }, 'Test email sent');
     return true;
   } catch (error) {
-    console.error('Test email failed:', error);
+    logger?.error({ err: error, to }, 'Test email failed');
     return false;
   }
 }
@@ -254,10 +266,10 @@ export async function verifyEmailConnection(): Promise<boolean> {
   try {
     const transport = getTransporter();
     await transport.verify();
-    console.log('SMTP connection verified');
+    logger?.info('SMTP connection verified');
     return true;
   } catch (error) {
-    console.error('SMTP verification failed:', error);
+    logger?.error({ err: error }, 'SMTP verification failed');
     return false;
   }
 }
@@ -293,10 +305,10 @@ export async function sendNewEmail(
 
   try {
     const info = await transport.sendMail(mailOptions);
-    console.log(`New email sent to ${to}: ${info.messageId}`);
+    logger?.info({ to, messageId: info.messageId }, 'New email sent');
     return info.messageId || null;
   } catch (error) {
-    console.error('Failed to send new email:', error);
+    logger?.error({ err: error, to }, 'Failed to send new email');
     throw new Error('Failed to send email');
   }
 }

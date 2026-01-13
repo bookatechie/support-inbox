@@ -12,6 +12,22 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } fro
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Logger interface for Pino/Fastify logger compatibility
+interface Logger {
+  info: (objOrMsg: object | string, msg?: string) => void;
+  error: (objOrMsg: object | string, msg?: string) => void;
+  debug: (objOrMsg: object | string, msg?: string) => void;
+}
+
+let logger: Logger | null = null;
+
+/**
+ * Set the logger for this module
+ */
+export function setFileStorageLogger(log: Logger): void {
+  logger = log;
+}
+
 // Configuration
 const ATTACHMENTS_DIR = process.env.ATTACHMENTS_DIR || path.join(__dirname, '../../../data/attachments');
 
@@ -50,7 +66,7 @@ class LocalStorage implements StorageBackend {
       await fs.access(this.baseDir);
     } catch {
       await fs.mkdir(this.baseDir, { recursive: true });
-      console.log(`Created attachments directory: ${this.baseDir}`);
+      logger?.info({ dir: this.baseDir }, 'Created attachments directory');
     }
   }
 
@@ -86,9 +102,9 @@ class LocalStorage implements StorageBackend {
     const ticketDir = path.join(this.baseDir, `ticket-${ticketId}`);
     try {
       await fs.rm(ticketDir, { recursive: true, force: true });
-      console.log(`Deleted attachments directory for ticket #${ticketId}`);
-    } catch (error) {
-      console.log(`No attachments directory found for ticket #${ticketId}`);
+      logger?.info({ ticketId }, 'Deleted attachments directory for ticket');
+    } catch {
+      logger?.debug({ ticketId }, 'No attachments directory found for ticket');
     }
   }
 
@@ -142,7 +158,7 @@ class S3Storage implements StorageBackend {
       })
     );
 
-    console.log(`Uploaded to S3: s3://${this.bucket}/${key}`);
+    logger?.info({ bucket: this.bucket, key }, 'Uploaded to S3');
 
     // Return S3 key as the "path" (for database storage)
     return key;
@@ -171,14 +187,14 @@ class S3Storage implements StorageBackend {
         Key: s3Key,
       })
     );
-    console.log(`Deleted from S3: s3://${this.bucket}/${s3Key}`);
+    logger?.info({ bucket: this.bucket, key: s3Key }, 'Deleted from S3');
   }
 
   async deleteTicketFiles(ticketId: number): Promise<void> {
     // Note: S3 doesn't support deleting by prefix directly in a single call
     // For now, individual files are deleted via delete() when messages are removed
     // This method is a no-op for S3, but could be enhanced with ListObjectsV2 + batch delete
-    console.log(`S3 ticket files for #${ticketId} will be cleaned up individually`);
+    logger?.debug({ ticketId }, 'S3 ticket files will be cleaned up individually');
   }
 }
 
@@ -227,7 +243,6 @@ export function getMimeType(filename: string): string {
 let storage: StorageBackend;
 
 if (USE_S3) {
-  console.log(`Using S3 storage: s3://${S3_BUCKET}/${S3_PREFIX}`);
   storage = new S3Storage({
     bucket: S3_BUCKET,
     region: S3_REGION,
@@ -235,15 +250,27 @@ if (USE_S3) {
     secretAccessKey: S3_SECRET_ACCESS_KEY,
     prefix: S3_PREFIX,
   });
+  // Log after logger might be set (deferred logging in initFileStorage)
 } else {
-  console.log(`Using local file storage: ${ATTACHMENTS_DIR}`);
   storage = new LocalStorage(ATTACHMENTS_DIR);
+  // Log after logger might be set (deferred logging in initFileStorage)
+}
 
-  // Ensure directory exists for local storage
-  if (storage instanceof LocalStorage) {
-    storage.ensureDirectory().catch(err => {
-      console.error('Failed to create attachments directory:', err);
-    });
+/**
+ * Initialize file storage and log configuration
+ * Called after logger is set
+ */
+export function initFileStorage(): void {
+  if (USE_S3) {
+    logger?.info({ bucket: S3_BUCKET, prefix: S3_PREFIX }, 'Using S3 storage');
+  } else {
+    logger?.info({ dir: ATTACHMENTS_DIR }, 'Using local file storage');
+    // Ensure directory exists for local storage
+    if (storage instanceof LocalStorage) {
+      storage.ensureDirectory().catch(err => {
+        logger?.error({ err }, 'Failed to create attachments directory');
+      });
+    }
   }
 }
 

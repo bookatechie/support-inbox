@@ -40,13 +40,14 @@ import type {
   ChangeSource,
 } from './types.js';
 
-// Simple logger interface for compatibility
+// Logger interface for Pino/Fastify logger compatibility
 interface Logger {
-  info: (msg: string) => void;
-  error: (msg: string, error?: unknown) => void;
+  info: (objOrMsg: object | string, msg?: string) => void;
+  error: (objOrMsg: object | string, msg?: string) => void;
+  debug: (objOrMsg: object | string, msg?: string) => void;
 }
 
-// Module-level logger (will be set by routes/index)
+// Module-level logger (will be set by index.ts)
 let logger: Logger | null = null;
 
 export function setLogger(log: Logger): void {
@@ -92,7 +93,7 @@ async function convertHeicToJpeg(
     // Replace .heic/.heif extension with .jpg
     const newFilename = filename.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
 
-    console.log(`Converted HEIC to JPEG: ${filename} -> ${newFilename}`);
+    logger?.debug({ originalFilename: filename, newFilename }, 'Converted HEIC to JPEG');
 
     return {
       content: Buffer.from(jpegBuffer),
@@ -100,7 +101,7 @@ async function convertHeicToJpeg(
       contentType: 'image/jpeg',
     };
   } catch (error) {
-    console.error(`Failed to convert HEIC file ${filename}:`, error);
+    logger?.error({ err: error, filename }, 'Failed to convert HEIC file');
     // Return original if conversion fails
     return { content, filename, contentType: 'image/heic' };
   }
@@ -142,9 +143,9 @@ async function saveMessageAttachments(
         contentType
       );
 
-      console.log(`Saved attachment: ${filename} (${size} bytes)`);
+      logger?.debug({ filename, size }, 'Saved attachment');
     } catch (error) {
-      console.error(`Failed to save attachment ${attachment.filename}:`, error);
+      logger?.error({ err: error, filename: attachment.filename }, 'Failed to save attachment');
     }
   }
 }
@@ -214,12 +215,7 @@ export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger,
   // Send webhook notification (fire-and-forget, handles errors internally)
   sendNewTicketWebhook(ticket, message, attachments, logger);
 
-  const logMsg = `Created ticket #${ticketId}: ${email.subject} (${email.attachments?.length || 0} attachments)`;
-  if (logger) {
-    logger.info(logMsg);
-  } else {
-    console.log(logMsg);
-  }
+  logger?.info({ ticketId, subject: email.subject, attachments: email.attachments?.length || 0 }, 'Created ticket from email');
 
   return ticket;
 }
@@ -305,7 +301,7 @@ export async function addMessageToTicket(ticketId: number, email: ParsedEmail): 
     sendCustomerReplyWebhook(updatedTicket, message, attachments);
   }
 
-  console.log(`Added message to ticket #${ticketId} (${email.attachments?.length || 0} attachments)`);
+  logger?.info({ ticketId, attachments: email.attachments?.length || 0 }, 'Added message to ticket');
 
   return message;
 }
@@ -367,12 +363,7 @@ export async function createTicket(
     sendNewTicketWebhook(ticket, message, attachments, logger);
   }
 
-  const logMsg = `Manually created ticket #${ticketId} by ${user.email}`;
-  if (logger) {
-    logger.info(logMsg);
-  } else {
-    console.log(logMsg);
-  }
+  logger?.info({ ticketId, createdBy: user.email }, 'Manually created ticket');
 
   return ticket;
 }
@@ -402,7 +393,7 @@ export async function replyToTicket(
 
   // Auto-assign ticket to replying user if unassigned (only for immediate sends)
   if (!ticket.assignee_id && !isScheduled) {
-    console.log(`Auto-assigning ticket #${ticketId} to ${user.name} (${user.email})`);
+    logger?.info({ ticketId, assignee: user.name, assigneeEmail: user.email }, 'Auto-assigning ticket');
     await ticketQueries.updateAssignee(user.id, ticketId);
 
     // Log auto-assignment to audit trail
@@ -577,9 +568,9 @@ export async function replyToTicket(
   }
 
   if (isScheduled) {
-    console.log(`Scheduled reply for ticket #${ticketId} by ${user.email} for ${request.scheduled_at}`);
+    logger?.info({ ticketId, by: user.email, scheduledAt: request.scheduled_at }, 'Scheduled reply for ticket');
   } else {
-    console.log(`Reply added to ticket #${ticketId} by ${user.email} (type: ${request.type || 'email'})`);
+    logger?.info({ ticketId, by: user.email, type: request.type || 'email' }, 'Reply added to ticket');
   }
 
   return message;
@@ -591,7 +582,7 @@ export async function replyToTicket(
 export async function sendScheduledMessage(message: Message): Promise<boolean> {
   const ticket = await getTicketById(message.ticket_id);
   if (!ticket) {
-    console.error(`Ticket #${message.ticket_id} not found for scheduled message #${message.id}`);
+    logger?.error({ ticketId: message.ticket_id, messageId: message.id }, 'Ticket not found for scheduled message');
     return false;
   }
 
@@ -637,12 +628,7 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
       previousMessages
     );
   } catch (error) {
-    const errorMsg = `Failed to send scheduled message #${message.id} for ticket #${message.ticket_id}, will retry on next interval`;
-    if (logger) {
-      logger.error(errorMsg, error);
-    } else {
-      console.error(errorMsg, error instanceof Error ? error.message : error);
-    }
+    logger?.error({ err: error, messageId: message.id, ticketId: message.ticket_id }, 'Failed to send scheduled message, will retry on next interval');
     return false;
   }
 
@@ -653,7 +639,7 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
   await messageQueries.updateSentAt(new Date().toISOString(), message.id);
   await ticketQueries.updateStatus('resolved', message.ticket_id);
 
-  console.log(`Scheduled message #${message.id} sent for ticket #${message.ticket_id}`);
+  logger?.info({ messageId: message.id, ticketId: message.ticket_id }, 'Scheduled message sent');
   return true;
 }
 
@@ -689,19 +675,9 @@ async function logTicketChange(
       notes,
     });
 
-    const logMsg = `[AUDIT] Ticket #${ticketId} ${fieldName}: ${oldValueStr} → ${newValueStr} by ${user.email}`;
-    if (logger) {
-      logger.info(logMsg);
-    } else {
-      console.log(logMsg);
-    }
+    logger?.info({ ticketId, field: fieldName, oldValue: oldValueStr, newValue: newValueStr, by: user.email }, '[AUDIT] Ticket field changed');
   } catch (error) {
-    const errorMsg = `Failed to log ticket change for ticket #${ticketId}`;
-    if (logger) {
-      logger.error(errorMsg, error);
-    } else {
-      console.error(errorMsg, error);
-    }
+    logger?.error({ err: error, ticketId }, 'Failed to log ticket change');
     // Don't throw - audit logging failure shouldn't break ticket updates
   }
 }
@@ -791,12 +767,7 @@ export async function updateTicket(ticketId: number, request: UpdateTicketReques
     sendTicketUpdateWebhook(updatedTicket, changes, user.email);
   }
 
-  const logMsg = `Ticket #${ticketId} updated by ${user.email}`;
-  if (logger) {
-    logger.info(logMsg);
-  } else {
-    console.log(logMsg);
-  }
+  logger?.info({ ticketId, by: user.email }, 'Ticket updated');
 
   return updatedTicket;
 }

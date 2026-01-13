@@ -7,6 +7,23 @@ import pg from 'pg';
 import bcrypt from 'bcrypt';
 import { config } from './config.js';
 
+// Logger interface for Pino/Fastify logger compatibility
+interface Logger {
+  info: (objOrMsg: object | string, msg?: string) => void;
+  error: (objOrMsg: object | string, msg?: string) => void;
+  warn: (objOrMsg: object | string, msg?: string) => void;
+}
+
+// Module-level logger (will be set by index.ts)
+let logger: Logger | null = null;
+
+/**
+ * Set the logger for this module
+ */
+export function setDatabaseLogger(log: Logger): void {
+  logger = log;
+}
+
 // Configure pg to parse TIMESTAMP WITHOUT TIME ZONE as UTC
 // By default, pg parses timestamps in the server's local timezone
 // This ensures all timestamps are treated as UTC
@@ -51,23 +68,28 @@ export const pool = new pg.Pool(PG_CONFIG);
 // Set timezone to UTC for all connections
 pool.on('connect', (client) => {
   client.query('SET timezone = "UTC"').catch((err) => {
-    console.error('Failed to set timezone to UTC:', err);
+    logger?.error({ err }, 'Failed to set timezone to UTC');
   });
 });
 
 // Log pool errors
 pool.on('error', (err) => {
-  console.error('Unexpected PostgreSQL pool error:', err);
+  logger?.error({ err }, 'Unexpected PostgreSQL pool error');
 });
 
-// Test connection on startup
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('❌ Failed to connect to PostgreSQL:', err);
-  } else {
-    console.log('✅ Connected to PostgreSQL at', res.rows[0].now);
-  }
-});
+/**
+ * Test database connection and log result
+ * Called after logger is set
+ */
+export function testDatabaseConnection(): void {
+  pool.query('SELECT NOW()', (err, res) => {
+    if (err) {
+      logger?.error({ err }, 'Failed to connect to PostgreSQL');
+    } else {
+      logger?.info({ timestamp: res.rows[0].now }, 'Connected to PostgreSQL');
+    }
+  });
+}
 
 // ============================================================================
 // Helper: Execute Query
@@ -1095,9 +1117,9 @@ export async function ensureDefaultUser(): Promise<void> {
       config.defaultAdminName,
       'admin'
     );
-    console.log(`✓ Created default admin user: ${config.defaultAdminEmail}`);
+    logger?.info({ email: config.defaultAdminEmail }, 'Created default admin user');
     if (config.defaultAdminEmail === 'admin@example.com' || config.defaultAdminPassword === 'admin123') {
-      console.log('⚠️  Using default credentials! Set DEFAULT_ADMIN_EMAIL and DEFAULT_ADMIN_PASSWORD in .env for production.');
+      logger?.warn('Using default credentials - set DEFAULT_ADMIN_EMAIL and DEFAULT_ADMIN_PASSWORD in .env for production');
     }
   } else {
     // Sync the first user (ID=1, the default admin) with .env configuration
@@ -1135,7 +1157,7 @@ export async function ensureDefaultUser(): Promise<void> {
           defaultAdmin.id
         );
         await userQueries.updatePassword(newPasswordHash, defaultAdmin.id);
-        console.log(`✓ Updated default admin user (ID=1): ${updates.join(', ')}`);
+        logger?.info({ userId: defaultAdmin.id, updates }, 'Updated default admin user');
       }
     }
   }
