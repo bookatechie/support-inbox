@@ -9,6 +9,7 @@ import { tickets as ticketsApi, users as usersApi, tags as tagsApi } from '@/lib
 import { useAuth } from '@/contexts/AuthContext';
 import type { Ticket, User, Tag } from '@/types';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
@@ -30,7 +31,7 @@ const MAX_RECENT_SEARCHES = 5;
 
 export function SearchPage() {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -75,21 +76,24 @@ export function SearchPage() {
     }
   }, []);
 
-  // Debounce search query
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
-
   // Perform search when debounced query changes
   useEffect(() => {
     if (debouncedSearchQuery.trim()) {
       performSearch();
     }
   }, [debouncedSearchQuery, statusFilter, assigneeFilter, tagFilter]);
+
+  // Handle search submission - updates URL history and triggers search
+  const handleSearch = () => {
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    // Update URL params (pushes to browser history)
+    setSearchParams({ query });
+
+    // Trigger the search
+    setDebouncedSearchQuery(query);
+  };
 
   // Load users and tags on mount (with caching)
   useEffect(() => {
@@ -195,7 +199,9 @@ export function SearchPage() {
   const handleSuggestionClick = (suggestion: string) => {
     setSearchQuery(suggestion);
     setShowSuggestions(false);
-    searchInputRef.current?.focus();
+    // Update URL and trigger search
+    setSearchParams({ query: suggestion });
+    setDebouncedSearchQuery(suggestion);
   };
 
   const clearSearch = () => {
@@ -264,59 +270,72 @@ export function SearchPage() {
         <Card className="p-6 mb-6">
           <div className="space-y-4">
             {/* Main Search Input */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                ref={searchInputRef}
-                id="search"
-                type="text"
-                placeholder="Search by subject, customer, content, tags, or ticket ID..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    setDebouncedSearchQuery(searchQuery);
-                  }
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                className="pl-10 pr-10 h-12 text-base"
-                autoFocus
-              />
-              {searchQuery && (
-                <button
-                  onClick={clearSearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Clear search"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              )}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                  ref={searchInputRef}
+                  id="search"
+                  type="text"
+                  placeholder="Search by subject, customer, content, tags, or ticket ID..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearch();
+                    }
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  className="pl-10 pr-10 h-12 text-base"
+                  autoFocus
+                />
+                {searchQuery && (
+                  <button
+                    onClick={clearSearch}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
 
-              {/* Recent Search Suggestions */}
-              {showSuggestions && recentSearches.length > 0 && (
-                <Card className="absolute top-full left-0 right-0 mt-2 p-2 z-10">
-                  <div className="flex items-center justify-between px-2 py-1 mb-1">
-                    <span className="text-xs text-muted-foreground font-medium">Recent Searches</span>
-                    <button
-                      onClick={clearRecentSearches}
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  {recentSearches.map((search, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleSuggestionClick(search)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent rounded-md transition-colors"
-                    >
-                      {search}
-                    </button>
-                  ))}
-                </Card>
-              )}
+                {/* Recent Search Suggestions */}
+                {showSuggestions && recentSearches.length > 0 && (
+                  <Card className="absolute top-full left-0 right-0 mt-2 p-2 z-10">
+                    <div className="flex items-center justify-between px-2 py-1 mb-1">
+                      <span className="text-xs text-muted-foreground font-medium">Recent Searches</span>
+                      <button
+                        onClick={clearRecentSearches}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    {recentSearches.map((search, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleSuggestionClick(search)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent rounded-md transition-colors"
+                      >
+                        {search}
+                      </button>
+                    ))}
+                  </Card>
+                )}
+              </div>
+              <Button
+                onClick={handleSearch}
+                disabled={!searchQuery.trim() || isSearching}
+                className="h-12 px-6"
+              >
+                {isSearching ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  'Search'
+                )}
+              </Button>
             </div>
 
             {/* Advanced Filters */}
