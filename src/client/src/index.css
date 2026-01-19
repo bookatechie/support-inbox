@@ -116,7 +116,7 @@
 }
 
 .infoGroup ul.unstyled {
-  @apply list-none p-0 m-0 px-3 py-2 space-y-1;
+  @apply list-none p-0 my-4 space-y-1;
 }
 
 .infoGroup ul.unstyled li {
