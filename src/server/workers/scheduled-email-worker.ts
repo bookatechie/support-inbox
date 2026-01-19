@@ -11,6 +11,11 @@ let pollInterval: NodeJS.Timeout | null = null;
 let logger: FastifyBaseLogger | null = null;
 
 const POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+const SEND_DELAY_MS = 1000; // 1 second delay between sends to avoid rate limits
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Start scheduled email worker
@@ -59,11 +64,17 @@ async function processScheduledMessages(): Promise<void> {
 
     logger?.info(`Processing ${dueMessages.length} scheduled message(s)`);
 
-    for (const message of dueMessages) {
+    for (let i = 0; i < dueMessages.length; i++) {
+      const message = dueMessages[i];
       try {
         await sendScheduledMessage(message);
       } catch (error) {
         logger?.error(error, `Failed to send scheduled message #${message.id}`);
+      }
+
+      // Add delay between sends to avoid rate limits (skip after last message)
+      if (i < dueMessages.length - 1) {
+        await sleep(SEND_DELAY_MS);
       }
     }
   } catch (error) {
