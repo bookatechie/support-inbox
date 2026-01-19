@@ -99,64 +99,39 @@
 }
 
 /* Additional Customer Info Styles */
-.toggleGroup {
+.infoGroup {
   @apply mb-3 rounded-md border border-border bg-card overflow-hidden;
 }
 
-.toggleGroup h4 {
+.infoGroup h4 {
   @apply m-0 p-0 flex items-center gap-1 bg-muted/50 px-3 py-2 text-sm text-muted-foreground;
 }
 
-.toggleGroup h4 > a {
+.infoGroup h4 > a {
   @apply flex-1;
 }
 
-.toggleGroup h4:hover {
-  @apply bg-muted cursor-pointer;
-}
-
-.toggleGroup .toggleBtn {
-  @apply flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors no-underline;
-}
-
-.toggleGroup .toggleBtn i {
-  @apply opacity-60;
-}
-
-.toggleGroup.open .toggle {
-  @apply block;
-}
-
-.toggleGroup:not(.open) .toggle {
-  @apply hidden;
-}
-
-.toggle {
-  @apply px-3 py-2 bg-card;
-}
-
-.toggle.indent {
+.infoGroup .indent {
   @apply pl-6;
 }
 
-.toggle ul.unstyled {
-  @apply list-none p-0 m-0 space-y-1;
+.infoGroup ul.unstyled {
+  @apply list-none p-0 m-0 px-3 py-2 space-y-1;
 }
 
-.toggle ul.unstyled li {
+.infoGroup ul.unstyled li {
   @apply text-sm text-foreground leading-relaxed;
 }
 
-.toggle ul.unstyled li strong {
+.infoGroup ul.unstyled li strong {
   @apply font-semibold text-foreground;
 }
 
-.toggle ul.unstyled li a {
+.infoGroup ul.unstyled li a {
   @apply text-primary hover:underline;
 }
 
-.toggle .muted,
-.toggle span.muted {
+.infoGroup .muted {
   @apply text-muted-foreground text-xs font-medium;
 }
 
