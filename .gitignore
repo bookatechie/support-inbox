@@ -1,5 +1,9 @@
 .mcp.json
 
+# Claude Code - ignore local config but include shared skills
+.claude/*
+!.claude/skills/
+
 # Dependencies
 node_modules/
 
