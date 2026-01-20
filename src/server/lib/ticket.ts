@@ -423,8 +423,8 @@ export async function replyToTicket(
     .trim();
 
   // Save message with HTML in body_html field
-  // Use agent's company email (agent_email) or fallback to shared inbox
-  const senderEmail = user.agent_email || config.smtp.from;
+  // Use from_email override, agent's company email, or fallback to shared inbox
+  const senderEmail = request.from_email || user.agent_email || config.smtp.from;
 
   // Determine actual recipients - use provided to_emails or fallback to ticket customer
   const actualToEmails = request.to_emails && request.to_emails.length > 0
@@ -624,6 +624,10 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
   const isFirstMessage = allMessages.filter(m => m.id !== message.id).length === 0;
   const user = await userQueries.getByAgentEmail(message.sender_email);
 
+  // Parse stored recipient emails (stored as JSON strings)
+  const toEmails = message.to_emails ? JSON.parse(message.to_emails) : undefined;
+  const ccEmails = message.cc_emails ? JSON.parse(message.cc_emails) : undefined;
+
   let emailMessageId: string;
   try {
     emailMessageId = await sendReplyEmail(
@@ -632,12 +636,13 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
       message.sender_name || 'Support',
       isFirstMessage,
       emailAttachments.length > 0 ? emailAttachments : undefined,
-      undefined,
-      undefined,
+      toEmails,
+      ccEmails,
       user?.signature || null,
       trackingToken,
-      message.sender_email,
-      previousMessages
+      user?.agent_email || null,  // agentPersonalEmail as fallback
+      previousMessages,
+      message.sender_email  // fromEmailOverride - use stored sender
     );
   } catch (error) {
     logger?.error({ err: error, messageId: message.id, ticketId: message.ticket_id }, 'Failed to send scheduled message, will retry on next interval');
