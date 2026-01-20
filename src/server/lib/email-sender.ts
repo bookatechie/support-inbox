@@ -67,7 +67,8 @@ export async function sendReplyEmail(
   signature?: string | null,
   trackingToken?: string,
   agentPersonalEmail?: string | null,
-  previousMessages?: Array<{ sender_email: string; sender_name: string | null; body_html: string | null; body: string; created_at: string; message_id: string | null; email_metadata: string | null }>
+  previousMessages?: Array<{ sender_email: string; sender_name: string | null; body_html: string | null; body: string; created_at: string; message_id: string | null; email_metadata: string | null }>,
+  fromEmailOverride?: string | null
 ): Promise<string> {
   const transport = getTransporter();
 
@@ -110,9 +111,9 @@ export async function sendReplyEmail(
   // Convert HTML to plain text for fallback (strip HTML tags)
   const plainText = finalBody.replace(/<[^>]*>/g, '').replace(/\n\n+/g, '\n\n');
 
-  // Use agent's personalized email if configured, otherwise use shared inbox
+  // Use override email if provided, then agent's personalized email, otherwise shared inbox
   // NEVER use the agent's login email (agentEmail parameter is ignored)
-  const fromAddress = agentPersonalEmail || config.smtp.from;
+  const fromAddress = fromEmailOverride || agentPersonalEmail || config.smtp.from;
 
   // Use provided to_emails, or fallback to ticket customer email
   const recipientEmails = toEmails && toEmails.length > 0

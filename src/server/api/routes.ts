@@ -191,18 +191,12 @@ export default async function routes(fastify: FastifyInstance) {
       // Check for API key first (X-API-Key header)
       const apiKey = request.headers['x-api-key'];
       if (apiKey && config.internalApiKey && apiKey === config.internalApiKey) {
-        // Valid internal API key - create a system user
-        request.user = {
-          id: 0,
-          email: 'system@internal',
-          name: 'Internal API',
-          role: 'admin',
-          signature: null,
-          agent_email: null,
-          ai_profile: null,
-          active: true,
-          created_at: new Date().toISOString(),
-        };
+        // Valid internal API key - use the default admin user (ID 1)
+        const adminUser = await getUserById(1);
+        if (!adminUser) {
+          return reply.status(500).send({ error: 'Default admin user not found' });
+        }
+        request.user = sanitizeUser(adminUser);
         request.log.info('Authenticated via internal API key');
         return;
       }
@@ -502,8 +496,8 @@ export default async function routes(fastify: FastifyInstance) {
 
     const ticket = await createTicket(ticketRequest, user, request.log);
 
-    // Determine assignee: use assignee_email if provided, otherwise assign to creator (unless internal API)
-    let assigneeId: number | null = user.id > 0 ? user.id : null;
+    // Determine assignee: use assignee_email if provided, otherwise assign to creator
+    let assigneeId: number | null = user.id;
 
     if (ticketRequest.assignee_email) {
       const assignee = await userQueries.getByAgentEmail(ticketRequest.assignee_email);

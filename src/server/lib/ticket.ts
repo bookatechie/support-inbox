@@ -514,10 +514,21 @@ export async function replyToTicket(
 
     // Database already stores cid: references, which work for both email and browser display
     // (Browser display converts cid: to /api/attachments/:id URLs on the frontend)
+
+    // If from_email is provided, look up the agent's name, otherwise use current user's name
+    let senderName = user.name;
+    if (request.from_email) {
+      const agentByEmail = await userQueries.getByAgentEmail(request.from_email)
+        || await userQueries.getByEmail(request.from_email);
+      if (agentByEmail) {
+        senderName = agentByEmail.name;
+      }
+    }
+
     const emailMessageId = await sendReplyEmail(
       ticket,
       request.body,  // Use body with cid: references as-is
-      user.name,
+      senderName,
       isFirstMessage,
       emailAttachments.length > 0 ? emailAttachments : undefined,
       request.to_emails,
@@ -525,7 +536,8 @@ export async function replyToTicket(
       user.signature,
       trackingToken,
       user.agent_email,  // Use agent's personalized email if configured
-      previousEmailMessages  // Pass previous messages for quoting
+      previousEmailMessages,  // Pass previous messages for quoting
+      request.from_email  // Override sender email if provided
     );
 
     // Store the Message-ID for email threading

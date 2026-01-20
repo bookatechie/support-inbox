@@ -195,6 +195,7 @@ export interface ReplyToTicketRequest {
   cc_emails?: string[];
   reply_to_message_id?: number; // Specific message to reply to (for quoting and recipient)
   scheduled_at?: string; // ISO 8601 timestamp for scheduled sending (null/undefined = send immediately)
+  from_email?: string; // Override sender email address (name is looked up from agent, or defaults to current user)
 }
 
 export interface UpdateTicketRequest {
