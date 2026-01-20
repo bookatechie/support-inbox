@@ -1110,6 +1110,14 @@ export function TicketsPage() {
                               <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
                               <span className="whitespace-nowrap">{ticket.message_count}</span>
                             </div>
+                            {ticket.follow_up_at && (
+                              <>
+                                <span className="hidden sm:inline">•</span>
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                                </div>
+                              </>
+                            )}
                             {ticket.attachment_count > 0 && (
                               <>
                                 <span className="hidden sm:inline">•</span>
