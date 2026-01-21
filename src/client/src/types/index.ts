@@ -262,6 +262,19 @@ export interface TicketStats {
   avg_resolution_time: number | null;
 }
 
+// Report Data
+export interface ReportData {
+  messagesOverTime: { date: string; sent: number; received: number }[];
+  ticketsByStatus: { status: string; count: number }[];
+  ticketsByPriority: { priority: string; count: number }[];
+  ticketsByAgent: { agent_id: number | null; agent_name: string; count: number }[];
+  messagesByType: { type: string; count: number }[];
+  avgResponseTime: { avg_hours: number | null };
+  totalTickets: number;
+  totalMessages: number;
+  resolvedTickets: number;
+}
+
 // Ticket Filters
 export interface TicketFilters {
   status?: TicketStatus | TicketStatus[];

@@ -47,7 +47,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, Mail, LogOut, MessageSquare, Users, UserCircle, Moon, Sun, Monitor, Plus, Trash2, MoreVertical, Paperclip, Inbox, User as UserProfileIcon, Search, Menu, ArrowDownWideNarrow, ArrowUpNarrowWide, Bell, BellOff, Calendar } from 'lucide-react';
+import { Loader2, Mail, LogOut, MessageSquare, Users, UserCircle, Moon, Sun, Monitor, Plus, Trash2, MoreVertical, Paperclip, Inbox, User as UserProfileIcon, Search, Menu, ArrowDownWideNarrow, ArrowUpNarrowWide, Bell, BellOff, Calendar, BarChart3 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { STATUS_COLORS, PRIORITY_COLORS, STATUS_LABELS } from '@/lib/constants';
 import { formatRelativeTime, formatNumber } from '@/lib/formatters';
@@ -889,6 +889,13 @@ export function TicketsPage() {
                   </DropdownMenuItem>
                 </Link>
 
+                <Link to="/reports">
+                  <DropdownMenuItem>
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    Reports
+                  </DropdownMenuItem>
+                </Link>
+
                 {user?.role === 'admin' && (
                   <Link to="/admin/users">
                     <DropdownMenuItem>
@@ -1324,6 +1331,13 @@ export function TicketsPage() {
                 <Button variant="ghost" className="w-full justify-start">
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Canned Responses
+                </Button>
+              </Link>
+
+              <Link to="/reports" onClick={() => setShowMobileMenu(false)}>
+                <Button variant="ghost" className="w-full justify-start">
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Reports
                 </Button>
               </Link>
 

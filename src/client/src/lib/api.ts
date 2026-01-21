@@ -12,6 +12,7 @@ import type {
   CannedResponse,
   Draft,
   TicketStats,
+  ReportData,
   LoginRequest,
   LoginResponse,
   CreateTicketRequest,
@@ -82,6 +83,15 @@ export const tickets = {
     if (end) params.append('end', end);
     const query = params.toString();
     return request<Ticket[]>(`/tickets/calendar${query ? `?${query}` : ''}`);
+  },
+
+  getReports: (start?: string, end?: string, assigneeId?: number) => {
+    const params = new URLSearchParams();
+    if (start) params.append('start', start);
+    if (end) params.append('end', end);
+    if (assigneeId !== undefined) params.append('assignee_id', assigneeId.toString());
+    const query = params.toString();
+    return request<ReportData>(`/tickets/reports${query ? `?${query}` : ''}`);
   },
 
   getCustomerEmails: (search?: string) => {

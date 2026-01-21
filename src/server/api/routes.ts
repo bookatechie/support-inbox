@@ -411,6 +411,29 @@ export default async function routes(fastify: FastifyInstance) {
   });
 
   /**
+   * GET /tickets/reports
+   * Get report data for analytics dashboard
+   * Query params: ?start=YYYY-MM-DD&end=YYYY-MM-DD&assignee_id=123 (optional)
+   */
+  fastify.get<{
+    Querystring: { start?: string; end?: string; assignee_id?: string };
+  }>('/tickets/reports', {
+    onRequest: [fastify.authenticate],
+  }, async (request, reply) => {
+    const { start, end, assignee_id } = request.query;
+    const assigneeId = assignee_id ? parseInt(assignee_id, 10) : undefined;
+
+    // Default to last 30 days if no date range provided
+    const endDate = end || new Date().toISOString().split('T')[0];
+    const startDate = start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Get report data from database
+    const reportData = await ticketQueries.getReportData(startDate, endDate, assigneeId);
+
+    return reply.send(reportData);
+  });
+
+  /**
    * GET /tickets/customer-emails
    * Get unique customer email addresses and support team from emails
    * Query params: ?search=query (optional filter)

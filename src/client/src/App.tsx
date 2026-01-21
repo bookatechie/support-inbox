@@ -19,6 +19,7 @@ const SearchPage = lazy(() => import('./pages/SearchPage').then(m => ({ default:
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then(m => ({ default: m.AdminUsersPage })));
 const CannedResponsesPage = lazy(() => import('./pages/CannedResponsesPage').then(m => ({ default: m.CannedResponsesPage })));
 const CalendarPage = lazy(() => import('./pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
+const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 
 // Loading component
 const PageLoader = () => (
@@ -107,6 +108,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <CalendarPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <ProtectedRoute>
+                    <ReportsPage />
                   </ProtectedRoute>
                 }
               />

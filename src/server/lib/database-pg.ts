@@ -455,6 +455,122 @@ export const ticketQueries = {
     return getTicketsFiltered(options);
   },
 
+  // Get report data for analytics dashboard
+  async getReportData(startDate: string, endDate: string, assigneeId?: number): Promise<{
+    messagesOverTime: { date: string; sent: number; received: number }[];
+    ticketsByStatus: { status: string; count: number }[];
+    ticketsByPriority: { priority: string; count: number }[];
+    ticketsByAgent: { agent_id: number | null; agent_name: string; count: number }[];
+    messagesByType: { type: string; count: number }[];
+    avgResponseTime: { avg_hours: number | null };
+    totalTickets: number;
+    totalMessages: number;
+    resolvedTickets: number;
+  }> {
+    const params: any[] = [startDate, endDate];
+    let assigneeFilter = '';
+    if (assigneeId !== undefined) {
+      assigneeFilter = ' AND t.assignee_id = $3';
+      params.push(assigneeId);
+    }
+
+    // Messages over time (sent vs received)
+    const messagesOverTime = await query<{ date: string; sent: number; received: number }>(
+      `SELECT
+         DATE(m.created_at) as date,
+         COUNT(*) FILTER (WHERE m.sender_email != t.customer_email AND m.type = 'email')::integer as sent,
+         COUNT(*) FILTER (WHERE m.sender_email = t.customer_email AND m.type = 'email')::integer as received
+       FROM messages m
+       JOIN tickets t ON m.ticket_id = t.id
+       WHERE m.created_at >= $1 AND m.created_at < $2::date + interval '1 day'${assigneeFilter.replace(/t\./g, 't.')}
+       GROUP BY DATE(m.created_at)
+       ORDER BY date ASC`,
+      params
+    );
+
+    // Tickets by status (current status for tickets created in range)
+    const ticketsByStatus = await query<{ status: string; count: number }>(
+      `SELECT t.status, COUNT(*)::integer as count
+       FROM tickets t
+       WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}
+       GROUP BY t.status
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Tickets by priority
+    const ticketsByPriority = await query<{ priority: string; count: number }>(
+      `SELECT t.priority, COUNT(*)::integer as count
+       FROM tickets t
+       WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}
+       GROUP BY t.priority
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Tickets by agent
+    const ticketsByAgent = await query<{ agent_id: number | null; agent_name: string; count: number }>(
+      `SELECT t.assignee_id as agent_id,
+              COALESCE(u.name, 'Unassigned') as agent_name,
+              COUNT(*)::integer as count
+       FROM tickets t
+       LEFT JOIN users u ON t.assignee_id = u.id
+       WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}
+       GROUP BY t.assignee_id, u.name
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Messages by type (email, note, etc.)
+    const messagesByType = await query<{ type: string; count: number }>(
+      `SELECT m.type, COUNT(*)::integer as count
+       FROM messages m
+       JOIN tickets t ON m.ticket_id = t.id
+       WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}
+       GROUP BY m.type
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Average response time (time from ticket creation to first agent reply)
+    const avgResponseTimeResult = await query<{ avg_hours: number | null }>(
+      `SELECT AVG(EXTRACT(EPOCH FROM (first_reply.created_at - t.created_at)) / 3600)::numeric(10,2) as avg_hours
+       FROM tickets t
+       INNER JOIN LATERAL (
+         SELECT m.created_at
+         FROM messages m
+         WHERE m.ticket_id = t.id
+           AND m.type = 'email'
+           AND m.sender_email != t.customer_email
+         ORDER BY m.created_at ASC
+         LIMIT 1
+       ) first_reply ON true
+       WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}`,
+      params
+    );
+
+    // Total counts
+    const totalsResult = await query<{ total_tickets: number; total_messages: number; resolved_tickets: number }>(
+      `SELECT
+         (SELECT COUNT(*)::integer FROM tickets t WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}) as total_tickets,
+         (SELECT COUNT(*)::integer FROM messages m JOIN tickets t ON m.ticket_id = t.id WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}) as total_messages,
+         (SELECT COUNT(*)::integer FROM tickets t WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day' AND t.status = 'resolved'${assigneeFilter}) as resolved_tickets`,
+      params
+    );
+
+    return {
+      messagesOverTime,
+      ticketsByStatus,
+      ticketsByPriority,
+      ticketsByAgent,
+      messagesByType,
+      avgResponseTime: avgResponseTimeResult[0] || { avg_hours: null },
+      totalTickets: totalsResult[0]?.total_tickets || 0,
+      totalMessages: totalsResult[0]?.total_messages || 0,
+      resolvedTickets: totalsResult[0]?.resolved_tickets || 0,
+    };
+  },
+
 };
 
 export const messageQueries = {
