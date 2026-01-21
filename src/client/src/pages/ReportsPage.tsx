@@ -96,7 +96,7 @@ interface StatCardProps {
 
 function StatCard({ title, value, icon, description }: StatCardProps) {
   return (
-    <Card className="p-4">
+    <Card className="p-4 h-full flex items-center">
       <div className="flex items-center gap-3">
         <div className="p-2 bg-primary/10 rounded-lg text-primary">
           {icon}
