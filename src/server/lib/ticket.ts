@@ -408,9 +408,16 @@ export async function replyToTicket(
     }
   }
 
+  // Build final HTML body with signature appended (if not a note and user has signature)
+  // This ensures we store exactly what gets sent to the customer
+  let finalHtmlBody = request.body;
+  if (request.type !== 'note' && user.signature) {
+    finalHtmlBody = `${request.body}<br>${user.signature}`;
+  }
+
   // Extract plain text from HTML for the body field
   // Simple HTML to text conversion - strip tags but preserve line breaks
-  const plainText = request.body
+  const plainText = finalHtmlBody
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n')
     .replace(/<\/div>/gi, '\n')
@@ -438,8 +445,8 @@ export async function replyToTicket(
     plainText,  // Plain text in body
     request.type || 'email',  // type defaults to 'email' if not specified
     null,  // message_id (agent reply, no email)
-    request.body,  // HTML in body_html
-    stripHtml(request.body),  // body_html_stripped (stripped HTML for full-text search)
+    finalHtmlBody,  // HTML in body_html (includes signature for non-notes)
+    stripHtml(finalHtmlBody),  // body_html_stripped (stripped HTML for full-text search)
     null,  // email_metadata (agent reply, no email metadata)
     isScheduled ? request.scheduled_at! : null,  // scheduled_at
     request.type !== 'note' ? actualToEmails : null,  // toEmails (only for non-notes)
@@ -527,13 +534,12 @@ export async function replyToTicket(
 
     const emailMessageId = await sendReplyEmail(
       ticket,
-      request.body,  // Use body with cid: references as-is
+      finalHtmlBody,  // Use final body with signature already included
       senderName,
       isFirstMessage,
       emailAttachments.length > 0 ? emailAttachments : undefined,
       request.to_emails,
       request.cc_emails,
-      user.signature,
       trackingToken,
       user.agent_email,  // Use agent's personalized email if configured
       previousEmailMessages,  // Pass previous messages for quoting
@@ -622,7 +628,6 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
     .slice(0, 5);
 
   const isFirstMessage = allMessages.filter(m => m.id !== message.id).length === 0;
-  const user = await userQueries.getByAgentEmail(message.sender_email);
 
   // Parse stored recipient emails (stored as JSON strings)
   const toEmails = message.to_emails ? JSON.parse(message.to_emails) : undefined;
@@ -632,15 +637,14 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
   try {
     emailMessageId = await sendReplyEmail(
       ticket,
-      message.body_html || message.body,
+      message.body_html || message.body,  // Signature already included in stored body
       message.sender_name || 'Support',
       isFirstMessage,
       emailAttachments.length > 0 ? emailAttachments : undefined,
       toEmails,
       ccEmails,
-      user?.signature || null,
       trackingToken,
-      user?.agent_email || null,  // agentPersonalEmail as fallback
+      message.sender_email,  // agentPersonalEmail - use stored sender
       previousMessages,
       message.sender_email  // fromEmailOverride - use stored sender
     );

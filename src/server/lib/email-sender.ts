@@ -64,7 +64,6 @@ export async function sendReplyEmail(
   attachments?: Array<{ filename: string; path?: string; content?: Buffer; cid?: string }>,
   toEmails?: string[],
   ccEmails?: string[],
-  signature?: string | null,
   trackingToken?: string,
   agentPersonalEmail?: string | null,
   previousMessages?: Array<{ sender_email: string; sender_name: string | null; body_html: string | null; body: string; created_at: string; message_id: string | null; email_metadata: string | null }>,
@@ -72,12 +71,7 @@ export async function sendReplyEmail(
 ): Promise<string> {
   const transport = getTransporter();
 
-  // Append signature if provided
   let finalBody = replyBody;
-  if (signature) {
-    // Signature is already HTML from RichTextEditor
-    finalBody = `${replyBody}<br>${signature}`;
-  }
 
   // Add tracking pixel if tracking token provided
   if (trackingToken) {
