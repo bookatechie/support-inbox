@@ -433,6 +433,16 @@ export async function replyToTicket(
   // Use from_email override, agent's company email, or fallback to shared inbox
   const senderEmail = request.from_email || user.agent_email || config.smtp.from;
 
+  // If from_email is provided, look up the agent's name, otherwise use current user's name
+  let senderName = user.name;
+  if (request.from_email) {
+    const agentByEmail = await userQueries.getByAgentEmail(request.from_email)
+      || await userQueries.getByEmail(request.from_email);
+    if (agentByEmail) {
+      senderName = agentByEmail.name;
+    }
+  }
+
   // Determine actual recipients - use provided to_emails or fallback to ticket customer
   const actualToEmails = request.to_emails && request.to_emails.length > 0
     ? request.to_emails
@@ -441,7 +451,7 @@ export async function replyToTicket(
   const messageId = await messageQueries.create(
     ticketId,
     senderEmail,  // Use agent's company email (what customer sees), not login email
-    user.name,
+    senderName,   // Use looked-up sender name based on from_email
     plainText,  // Plain text in body
     request.type || 'email',  // type defaults to 'email' if not specified
     null,  // message_id (agent reply, no email)
@@ -521,16 +531,6 @@ export async function replyToTicket(
 
     // Database already stores cid: references, which work for both email and browser display
     // (Browser display converts cid: to /api/attachments/:id URLs on the frontend)
-
-    // If from_email is provided, look up the agent's name, otherwise use current user's name
-    let senderName = user.name;
-    if (request.from_email) {
-      const agentByEmail = await userQueries.getByAgentEmail(request.from_email)
-        || await userQueries.getByEmail(request.from_email);
-      if (agentByEmail) {
-        senderName = agentByEmail.name;
-      }
-    }
 
     const emailMessageId = await sendReplyEmail(
       ticket,
