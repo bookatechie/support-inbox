@@ -412,7 +412,7 @@ export async function replyToTicket(
   // This ensures we store exactly what gets sent to the customer
   let finalHtmlBody = request.body;
   if (request.type !== 'note' && user.signature) {
-    finalHtmlBody = `${request.body}<br>${user.signature}`;
+    finalHtmlBody = `${request.body}${user.signature}`;
   }
 
   // Extract plain text from HTML for the body field
