@@ -330,11 +330,7 @@ export function SearchPage() {
                 disabled={!searchQuery.trim() || isSearching}
                 className="h-12 px-6"
               >
-                {isSearching ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  'Search'
-                )}
+                Search
               </Button>
             </div>
 
