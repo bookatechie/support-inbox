@@ -28,6 +28,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = parseInt(process.env.PORT || "3001");
+const HOST = process.env.HOST || "0.0.0.0";
 
 // ============================================================================
 // Create Fastify Instance
@@ -240,7 +241,7 @@ async function start() {
     await initialize();
 
     // Start listening
-    await fastify.listen({ port: PORT, host: "0.0.0.0" });
+    await fastify.listen({ port: PORT, host: HOST });
 
     fastify.log.info(`
 ╔═══════════════════════════════════════════════════════════╗
