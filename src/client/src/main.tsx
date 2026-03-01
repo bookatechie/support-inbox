@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import 'tippy.js/dist/tippy.css'
+import 'prismjs'
 import 'prismjs/themes/prism-tomorrow.css'
 // Import common Prism languages
 import 'prismjs/components/prism-javascript'
