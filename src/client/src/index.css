@@ -145,3 +145,75 @@
 .icon-cart {
   @apply hidden;
 }
+
+/* Rendered markdown blocks inside email messages */
+.rendered-markdown h1,
+.rendered-markdown h2,
+.rendered-markdown h3,
+.rendered-markdown h4,
+.rendered-markdown h5,
+.rendered-markdown h6 {
+  @apply font-semibold mt-4 mb-2;
+}
+.rendered-markdown h1 { @apply text-xl; }
+.rendered-markdown h2 { @apply text-lg; }
+.rendered-markdown h3 { @apply text-base; }
+
+.rendered-markdown p {
+  @apply mb-2;
+}
+
+.rendered-markdown ul,
+.rendered-markdown ol {
+  @apply pl-6 mb-2;
+}
+.rendered-markdown ul { @apply list-disc; }
+.rendered-markdown ol { @apply list-decimal; }
+
+.rendered-markdown table {
+  @apply w-full border-collapse mb-2 text-sm;
+}
+.rendered-markdown th,
+.rendered-markdown td {
+  @apply border border-border px-3 py-1.5 text-left;
+}
+.rendered-markdown th {
+  @apply bg-muted font-semibold;
+}
+
+.rendered-markdown code {
+  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.rendered-markdown pre {
+  @apply bg-muted rounded p-3 mb-2 overflow-x-auto;
+}
+.rendered-markdown pre code {
+  @apply bg-transparent p-0;
+}
+
+.rendered-markdown blockquote {
+  @apply border-l-4 border-border pl-4 italic text-muted-foreground mb-2;
+}
+
+.rendered-markdown strong {
+  @apply font-semibold;
+}
+
+.rendered-markdown a {
+  @apply text-primary hover:underline;
+}
+
+/* Prism code block styling */
+pre[class*="language-"] {
+  @apply rounded-md mb-2 text-sm;
+}
+
+/* Dark mode adjustments for Prism (prism-tomorrow is already dark) */
+:root pre[class*="language-"] {
+  @apply bg-[#2d2d2d];
+}
+
+.dark pre[class*="language-"] {
+  @apply bg-[#1e1e1e];
+}

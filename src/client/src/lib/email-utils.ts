@@ -3,6 +3,8 @@
  */
 
 import DOMPurify from 'dompurify';
+import { marked } from 'marked';
+import Prism from 'prismjs';
 import type { Attachment } from '@/types';
 
 /**
@@ -57,7 +59,7 @@ export function getMessageBodyHtml(body: string, bodyHtml: string | null, attach
     // DOMPurify's defaults are safe - removes script, event handlers, etc.
     const sanitized = DOMPurify.sanitize(html, {
       ADD_TAGS: ['style'], // Allow style tags for email CSS
-      ADD_ATTR: ['target', 'style', 'loading'], // Allow lazy loading attribute
+      ADD_ATTR: ['target', 'style', 'loading', 'class'], // Allow class for language-* on code blocks
       ALLOW_DATA_ATTR: false, // Don't allow data-* attributes
       WHOLE_DOCUMENT: false, // Just sanitize fragment, not full HTML doc
     });
@@ -73,6 +75,36 @@ export function getMessageBodyHtml(body: string, bodyHtml: string | null, attach
       } else {
         img.setAttribute('loading', 'lazy');
         img.setAttribute('decoding', 'async');
+      }
+    });
+
+    // Process <pre><code class="language-*"> blocks
+    const codeBlocks = doc.querySelectorAll('pre > code[class*="language-"]');
+    codeBlocks.forEach(codeEl => {
+      const pre = codeEl.parentElement;
+      if (!pre) return;
+
+      const classAttr = codeEl.getAttribute('class') || '';
+      const langMatch = classAttr.match(/language-(\w+)/);
+      if (!langMatch) return;
+
+      const lang = langMatch[1];
+      const textContent = codeEl.textContent || '';
+
+      if (lang === 'markdown') {
+        // Parse markdown and render as HTML
+        const rendered = marked.parse(textContent, { async: false }) as string;
+        const wrapper = doc.createElement('div');
+        wrapper.className = 'rendered-markdown';
+        wrapper.innerHTML = DOMPurify.sanitize(rendered, {
+          ADD_ATTR: ['class'],
+        });
+        pre.replaceWith(wrapper);
+      } else if (Prism.languages[lang]) {
+        // Syntax highlight with Prism
+        const highlighted = Prism.highlight(textContent, Prism.languages[lang], lang);
+        codeEl.innerHTML = highlighted;
+        pre.className = `language-${lang}`;
       }
     });
 

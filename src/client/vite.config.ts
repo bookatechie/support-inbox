@@ -42,6 +42,8 @@ export default defineConfig({
             '@tiptap/suggestion',
             '@tiptap/core',
           ],
+          // Markdown + syntax highlighting
+          'markdown-highlight': ['marked', 'prismjs'],
         },
       },
     },
