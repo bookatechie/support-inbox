@@ -634,7 +634,7 @@ export function TicketDetailPage() {
         to_emails: !isInternal ? allToEmails : undefined, // Always send to_emails for email type
         cc_emails: ccEmails.length > 0 ? ccEmails : undefined,
         reply_to_message_id: replyToMessageId || undefined,
-        scheduled_at: scheduledAt || undefined,
+        scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
       });
 
       // Message will be added via SSE event (no optimistic update to avoid duplicates)
