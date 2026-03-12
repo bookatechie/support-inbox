@@ -5,7 +5,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fastifyJwt from '@fastify/jwt';
 import fastifyMultipart from '@fastify/multipart';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import {
   getAllTickets,
   getTicketsFiltered,

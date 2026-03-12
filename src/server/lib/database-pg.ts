@@ -4,7 +4,7 @@
  */
 
 import pg from 'pg';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { config } from './config.js';
 
 // Logger interface for Pino/Fastify logger compatibility
