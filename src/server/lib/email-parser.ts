@@ -78,8 +78,12 @@ export async function parseEmail(rawEmail: Buffer | string): Promise<ParsedEmail
     }
   }
 
+  // Detect forwarded email and extract original sender
+  const subject = parsed.subject || '(No Subject)';
+  const forwarded = detectForwardedEmail(subject, body);
+
   return {
-    subject: parsed.subject || '(No Subject)',
+    subject: forwarded.isForwarded ? cleanForwardedSubject(subject) : subject,
     from: from || '',
     fromName: fromName,
     replyTo: replyTo,
@@ -100,6 +104,10 @@ export async function parseEmail(rawEmail: Buffer | string): Promise<ParsedEmail
     originalTo,
     emailClient,
     headers,
+    // Forwarded email detection
+    isForwarded: forwarded.isForwarded,
+    forwardedFrom: forwarded.forwardedFrom,
+    forwardedFromName: forwarded.forwardedFromName,
   };
 }
 
@@ -182,6 +190,88 @@ export function stripHtml(html: string | null): string {
     // Collapse multiple spaces
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Detect if an email is forwarded and extract the original sender.
+ * Checks subject line for Fwd:/Fw: prefixes and parses the forwarded
+ * message body for the original From: line.
+ */
+function detectForwardedEmail(subject: string, body: string): {
+  isForwarded: boolean;
+  forwardedFrom: string | null;
+  forwardedFromName: string | null;
+} {
+  const result = { isForwarded: false, forwardedFrom: null as string | null, forwardedFromName: null as string | null };
+
+  // Check subject for forward prefixes
+  const hasForwardSubject = /^\s*(\[?\s*Fwd?\s*:?\s*\]?\s*:?\s*)/i.test(subject);
+
+  // Check body for forwarded message markers
+  const hasForwardBody =
+    /^-+\s*Forwarded message\s*-+/im.test(body) ||           // Gmail
+    /^Begin forwarded message:/im.test(body) ||               // Apple Mail
+    /^-+\s*Original Message\s*-+/im.test(body) ||             // Outlook
+    /^From:\s*.+\nSent:\s*.+\nSubject:\s*/im.test(body);      // Outlook alt
+
+  if (!hasForwardSubject && !hasForwardBody) {
+    return result;
+  }
+
+  result.isForwarded = true;
+
+  // Try to extract the original sender from the forwarded body
+  // Look for "From:" line within the forwarded block
+  // Patterns:
+  //   From: John Doe <john@example.com>
+  //   From: "John Doe" <john@example.com>
+  //   From: john@example.com
+  const fromMatch = body.match(
+    /^(?:-+\s*Forwarded message\s*-+\s*\n|Begin forwarded message:\s*\n|-+\s*Original Message\s*-+\s*\n)?.*?^From:\s*(.+)$/im
+  );
+
+  if (fromMatch) {
+    const fromLine = fromMatch[1].trim();
+    const parsed = parseFromLine(fromLine);
+    result.forwardedFrom = parsed.email;
+    result.forwardedFromName = parsed.name;
+  }
+
+  return result;
+}
+
+/**
+ * Parse a "From:" line value into email and name.
+ * Handles: "Name <email>", Name <email>, <email>, email
+ */
+function parseFromLine(fromLine: string): { email: string | null; name: string | null } {
+  // Format: Name <email@example.com> or "Name" <email@example.com>
+  const angleMatch = fromLine.match(/^["']?(.+?)["']?\s*<([^>]+)>/);
+  if (angleMatch) {
+    return { name: angleMatch[1].trim(), email: angleMatch[2].trim().toLowerCase() };
+  }
+
+  // Format: <email@example.com>
+  const bareAngleMatch = fromLine.match(/^<([^>]+)>/);
+  if (bareAngleMatch) {
+    return { name: null, email: bareAngleMatch[1].trim().toLowerCase() };
+  }
+
+  // Format: just an email address
+  const emailMatch = fromLine.match(/([^\s@]+@[^\s@]+\.[^\s@]+)/);
+  if (emailMatch) {
+    return { name: null, email: emailMatch[1].trim().toLowerCase() };
+  }
+
+  return { name: null, email: null };
+}
+
+/**
+ * Strip forwarding prefixes from subject line.
+ * Handles: "Fwd:", "Fw:", "[Fwd]:", "[Fwd:]", "[Fw:]" etc.
+ */
+function cleanForwardedSubject(subject: string): string {
+  return subject.replace(/^\s*(\[?\s*Fwd?\s*:?\s*\]?\s*:?\s*)+/i, '').trim();
 }
 
 /**

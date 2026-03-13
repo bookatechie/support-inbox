@@ -154,13 +154,23 @@ async function saveMessageAttachments(
  * Create a new ticket from parsed email
  */
 export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger, assigneeId?: number): Promise<Ticket> {
-  // Use Reply-To if set (for automated emails), otherwise use From
-  const customerEmail = email.replyTo || email.from;
+  // For forwarded emails, use the original sender as customer (if extracted)
+  // Otherwise use Reply-To if set (for automated emails), or From
+  const customerEmail = (email.isForwarded && email.forwardedFrom)
+    ? email.forwardedFrom
+    : (email.replyTo || email.from);
+  const customerName = (email.isForwarded && email.forwardedFrom)
+    ? (email.forwardedFromName || email.fromName)
+    : email.fromName;
+
+  if (email.isForwarded && email.forwardedFrom) {
+    logger?.info({ forwardedFrom: email.forwardedFrom, forwardedFromName: email.forwardedFromName, forwarder: email.from }, 'Detected forwarded email, using original sender as customer');
+  }
 
   const ticketId = await ticketQueries.create(
     email.subject,
     customerEmail,
-    email.fromName,
+    customerName,
     email.replyTo,
     email.messageId,
     'new',
@@ -224,8 +234,10 @@ export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger,
  * Add message to existing ticket (customer reply)
  */
 export async function addMessageToTicket(ticketId: number, email: ParsedEmail): Promise<Message> {
-  // Use Reply-To if set (for automated emails), otherwise use From
-  const senderEmail = email.replyTo || email.from;
+  // For forwarded emails, use the original sender; otherwise Reply-To or From
+  const senderEmail = (email.isForwarded && email.forwardedFrom)
+    ? email.forwardedFrom
+    : (email.replyTo || email.from);
 
   const emailMetadata = JSON.stringify({
     subject: email.subject,
@@ -241,10 +253,14 @@ export async function addMessageToTicket(ticketId: number, email: ParsedEmail): 
     headers: email.headers,
   });
 
+  const senderName = (email.isForwarded && email.forwardedFrom)
+    ? (email.forwardedFromName || email.fromName)
+    : email.fromName;
+
   const messageId = await messageQueries.create(
     ticketId,
     senderEmail,
-    email.fromName,
+    senderName,
     email.body,
     'email',  // type = email (customer-facing)
     email.messageId,

@@ -248,6 +248,10 @@ export interface ParsedEmail {
   originalTo?: string | null; // X-Original-To header (original recipient before forwarding)
   emailClient?: string | null; // X-Mailer or User-Agent
   headers?: Record<string, string | string[]>; // Raw headers map for debugging
+  // Forwarded email detection
+  isForwarded: boolean; // Whether the email is a forwarded message
+  forwardedFrom: string | null; // Original sender email extracted from forwarded body
+  forwardedFromName: string | null; // Original sender name extracted from forwarded body
 }
 
 export interface ParsedAttachment {

@@ -240,6 +240,14 @@ async function processMessage(message: Message): Promise<void> {
 
   logger.info(`Processing email: "${parsed.subject}" from ${parsed.from}`);
 
+  if (parsed.isForwarded) {
+    logger.info({
+      forwarder: parsed.from,
+      originalSender: parsed.forwardedFrom || 'unknown',
+      originalName: parsed.forwardedFromName,
+    }, 'Forwarded email detected');
+  }
+
   // Check for duplicate emails (deduplication)
   if (await isEmailAlreadyProcessed(parsed.messageId)) {
     logger.info(`Skipping duplicate email (Message-ID: ${parsed.messageId?.substring(0, 20)}...)`);
