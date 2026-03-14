@@ -32,9 +32,12 @@
     "@types/pg": "^8.15.6",
     "bcryptjs": "^3.0.3",
     "dotenv": "^16.4.1",
+    "email-forward-parser": "^1.7.2",
+    "email-reply-parser": "^2.3.5",
     "fastify": "^5.2.0",
     "heic-convert": "^2.1.0",
     "imap-simple": "^5.1.0",
+    "isomorphic-dompurify": "^3.3.0",
     "mailparser": "^3.9.4",
     "nodemailer": "^6.9.9",
     "pg": "^8.16.3"
