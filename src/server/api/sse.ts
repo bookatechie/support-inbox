@@ -5,12 +5,26 @@
 import { EventEmitter } from 'events';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import type { Ticket, Message, SSEEventType } from '../lib/types.js';
+import type { Socket } from 'net';
 
 // Global event emitter for SSE events
 export const sseEmitter = new EventEmitter();
 
 // Track connected clients with their request logger
 const clients: Map<FastifyReply, FastifyRequest['log']> = new Map();
+
+// Max write buffer size before we consider a client slow (64KB).
+// Beyond this, events are dropped for that client to prevent heap growth.
+const MAX_WRITE_BUFFER_SIZE = 64 * 1024;
+
+/**
+ * Check if a client's socket write buffer is backed up (slow consumer)
+ */
+function isClientBackpressured(reply: FastifyReply): boolean {
+  const socket = reply.raw.socket as Socket | null;
+  if (!socket || socket.destroyed) return true;
+  return socket.writableLength > MAX_WRITE_BUFFER_SIZE;
+}
 
 /**
  * SSE endpoint handler
@@ -32,6 +46,15 @@ export function handleSSE(request: FastifyRequest, reply: FastifyReply): void {
   // Send heartbeat every 30 seconds to keep connection alive
   const heartbeat = setInterval(() => {
     try {
+      // If client's write buffer is backed up, disconnect it
+      // to prevent unbounded memory growth
+      if (isClientBackpressured(reply)) {
+        request.log.warn({ clientCount: clients.size }, 'SSE client backpressured, disconnecting');
+        clearInterval(heartbeat);
+        clients.delete(reply);
+        try { reply.raw.end(); } catch { /* already closed */ }
+        return;
+      }
       reply.raw.write(':heartbeat\n\n');
     } catch (error) {
       clearInterval(heartbeat);
@@ -48,16 +71,23 @@ export function handleSSE(request: FastifyRequest, reply: FastifyReply): void {
 }
 
 /**
- * Broadcast event to all connected clients
+ * Broadcast event to all connected clients.
+ * Skips clients with backed-up write buffers to prevent memory growth.
  */
-function broadcast(event: SSEEventType, data: any): void {
-  const payload = JSON.stringify({ type: event, data });
+function broadcast(event: SSEEventType, data: unknown): void {
+  if (clients.size === 0) return;
+
+  const payload = `event: ${event}\ndata: ${JSON.stringify({ type: event, data })}\n\n`;
   let successCount = 0;
 
   clients.forEach((logger, client) => {
+    // Skip backpressured clients — drop the event rather than buffer it
+    if (isClientBackpressured(client)) {
+      return;
+    }
+
     try {
-      client.raw.write(`event: ${event}\n`);
-      client.raw.write(`data: ${payload}\n\n`);
+      client.raw.write(payload);
       successCount++;
     } catch (error) {
       logger.error(error, 'Error broadcasting to client');
@@ -122,10 +152,4 @@ export function closeAllConnections(): void {
     }
   });
   clients.clear();
-
-  // Log to first logger if available
-  const firstLogger = clients.values().next().value;
-  if (firstLogger) {
-    firstLogger.info('All SSE connections closed');
-  }
 }
