@@ -128,7 +128,7 @@ async function checkEmails(config: ImapConfig): Promise<void> {
     // and throws "Cannot read properties of undefined (reading 'type')"
     const imapConnection = (connection as any).imap;
     if (imapConnection) {
-      imapConnection.on('error', (err: Error) => {
+      imapConnection.once('error', (err: Error) => {
         logger.warn({ err: err.message }, 'IMAP connection error (handled)');
       });
     }
