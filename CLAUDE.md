@@ -302,34 +302,62 @@ The default admin account is created automatically when the database is empty.
 - Sync with CRM systems (Salesforce, HubSpot)
 - Create tasks in project management tools
 
-## Deployment
+## Deployment (Fly.io)
 
-### Production with systemd
+The app runs on **Fly.io** in the `sjc` region (San Jose) as a single machine with 1GB RAM.
 
-Create `/etc/systemd/system/support-inbox.service`:
-```ini
-[Unit]
-Description=Support Inbox
-After=network.target
+- **App name**: `support-inbox`
+- **Domain**: `box.kovifabrics.com` (DNS points to Fly, TLS via Let's Encrypt)
+- **Database**: DigitalOcean Managed PostgreSQL (SFO3)
+- **VM**: shared-cpu-1x, 1024MB RAM
+- **Node heap limit**: `--max-old-space-size=768`
 
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/path/to/support-inbox
-ExecStart=/usr/bin/npm start
-Restart=always
-Environment="NODE_ENV=production"
+### Deploy
 
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
 ```bash
-sudo systemctl enable support-inbox
-sudo systemctl start support-inbox
-sudo systemctl status support-inbox
+cd ~/dev/support-inbox
+fly deploy
 ```
+
+### Fly.io Operations
+
+```bash
+# Check app status
+fly status
+
+# View logs (streams live)
+fly logs
+
+# View recent logs (no streaming)
+fly logs -n
+
+# Check machine details
+fly machines list
+fly machine status <machine-id>
+
+# Check memory usage from inside the VM
+fly ssh console -C "node -e \"const fs=require('fs');console.log('Memory:',Math.round(parseInt(fs.readFileSync('/sys/fs/cgroup/memory/memory.usage_in_bytes','utf8'))/1024/1024)+'MB')\""
+
+# Check outbound IPv4 (needed for DB trusted sources)
+fly ssh console -C "node -e \"fetch('https://api4.ipify.org').then(r=>r.text()).then(console.log)\""
+
+# Restart the machine
+fly machines list                    # get machine ID
+fly machine restart <machine-id>
+
+# Scale memory
+fly scale memory 1024
+
+# Manage secrets (env vars)
+fly secrets list
+fly secrets set KEY=value
+```
+
+### Important Notes
+
+- **`auto_stop_machines = 'off'`** in `fly.toml` — the machine must stay running for IMAP email polling
+- **Outbound IPv4 can change** if Fly migrates the machine to a different host. If DB connections start failing, check the outbound IP and update DigitalOcean's trusted sources
+- Secrets are set via `fly secrets set` — the `.env` file is not used in production
 
 ## Data Backup
 
