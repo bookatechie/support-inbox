@@ -41,3 +41,7 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
+# Deployment
+fly.toml
+Dockerfile
