@@ -304,22 +304,30 @@ The default admin account is created automatically when the database is empty.
 
 ## Deployment (Fly.io)
 
-The app runs on **Fly.io** in the `sjc` region (San Jose) as a single machine with 1GB RAM.
+Recommended setup for running on [Fly.io](https://fly.io):
 
-- **App name**: `support-inbox`
-- **Domain**: `box.kovifabrics.com` (DNS points to Fly, TLS via Let's Encrypt)
-- **Database**: DigitalOcean Managed PostgreSQL (SFO3)
-- **VM**: shared-cpu-1x, 1024MB RAM
-- **Node heap limit**: `--max-old-space-size=768`
+- **VM**: shared-cpu-1x, 1024MB RAM (minimum recommended)
+- **Node heap limit**: `--max-old-space-size=768` (set in Dockerfile CMD)
+- **Database**: Any managed PostgreSQL provider
 
-### Deploy
+### Setup
 
 ```bash
-cd ~/dev/support-inbox
+# Create the app
+fly launch --no-deploy
+
+# Set secrets from your .env
+fly secrets set \
+  POSTGRES_USER="..." \
+  POSTGRES_PASSWORD="..." \
+  POSTGRES_HOST="..." \
+  # ... (all env vars from .env)
+
+# Deploy
 fly deploy
 ```
 
-### Fly.io Operations
+### Useful Commands
 
 ```bash
 # Check app status
@@ -356,8 +364,9 @@ fly secrets set KEY=value
 ### Important Notes
 
 - **`auto_stop_machines = 'off'`** in `fly.toml` — the machine must stay running for IMAP email polling
-- **Outbound IPv4 can change** if Fly migrates the machine to a different host. If DB connections start failing, check the outbound IP and update DigitalOcean's trusted sources
+- **Outbound IPv4 can change** if Fly migrates the machine to a different host. If your managed database uses IP whitelisting, check the outbound IP and update your trusted sources
 - Secrets are set via `fly secrets set` — the `.env` file is not used in production
+- Set `HOST=0.0.0.0` as a secret so Fly's proxy can reach the app
 
 ## Data Backup
 
