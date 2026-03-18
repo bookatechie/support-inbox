@@ -6,7 +6,6 @@
 import { simpleParser, ParsedMail, AddressObject } from 'mailparser';
 import EmailForwardParser from 'email-forward-parser';
 import EmailReplyParser from 'email-reply-parser';
-import DOMPurify from 'isomorphic-dompurify';
 import type { ParsedEmail, ParsedAttachment } from './types.js';
 
 /**
@@ -186,17 +185,34 @@ function extractAllAddresses(addressObject: AddressObject | AddressObject[] | un
 
 /**
  * Strip HTML tags from a string for full-text search indexing.
- * Uses DOMPurify with an empty allowlist to properly parse and strip all HTML,
- * handling edge cases that regex-based stripping misses.
+ * Decodes HTML entities and removes all tags to produce plain text.
  */
 export function stripHtml(html: string | null): string {
   if (!html) return '';
 
-  // Use DOMPurify with no allowed tags to get plain text
-  const stripped = DOMPurify.sanitize(html, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+  // Remove style and script blocks entirely
+  let text = html.replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, '');
 
-  // Collapse multiple spaces/newlines
-  return stripped.replace(/\s+/g, ' ').trim();
+  // Replace block-level elements with spaces to preserve word boundaries
+  text = text.replace(/<\/(p|div|br|li|tr|h[1-6])>/gi, ' ');
+  text = text.replace(/<br\s*\/?>/gi, ' ');
+
+  // Strip remaining tags
+  text = text.replace(/<[^>]+>/g, '');
+
+  // Decode common HTML entities
+  text = text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)));
+
+  // Collapse whitespace
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 /**
