@@ -1432,8 +1432,18 @@ export default async function routes(fastify: FastifyInstance) {
     }
 
     try {
+      // If from_email provided, look up the agent to get their name
+      let senderName = user.name;
+      const senderEmail = from_email || user.agent_email;
+      if (from_email) {
+        const agent = await userQueries.getByAgentEmail(from_email) || await getUserByEmail(from_email);
+        if (agent) {
+          senderName = agent.name;
+        }
+      }
+
       // Send email via SMTP
-      const messageId = await sendNewEmail(to, subject, body, user.name, from_email || user.agent_email);
+      const messageId = await sendNewEmail(to, subject, body, senderName, senderEmail);
 
       // Create ticket for tracking
       const ticket = await createTicket(
