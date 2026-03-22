@@ -191,7 +191,8 @@ export type SSEEventType =
   | 'message-deleted'
   | 'viewer-joined'
   | 'viewer-left'
-  | 'user-composing';
+  | 'user-composing'
+  | 'auth-error';
 
 export interface SSEEvent {
   type: SSEEventType;

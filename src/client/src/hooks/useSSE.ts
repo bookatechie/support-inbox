@@ -85,6 +85,16 @@ export function useSSE({
           return;
         }
 
+        // Handle auth errors — stop reconnecting and redirect to login
+        if (event.type === 'auth-error') {
+          console.warn('SSE auth error — token expired, redirecting to login');
+          isIntentionalCloseRef.current = true;
+          eventSource.close();
+          localStorage.removeItem('authToken');
+          window.location.href = '/login';
+          return;
+        }
+
         onEventRef.current?.(event);
       } catch (error) {
         console.error('Failed to parse SSE message:', error);

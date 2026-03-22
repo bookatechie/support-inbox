@@ -1798,7 +1798,23 @@ export default async function routes(fastify: FastifyInstance) {
    * GET /events
    * Server-Sent Events stream
    */
-  fastify.get('/events', {
-    onRequest: [fastify.authenticate],
-  }, handleSSE);
+  fastify.get('/events', async (request, reply) => {
+    // Authenticate inline so we can send an SSE error instead of a 401
+    // (EventSource can't see HTTP status codes, so 401 causes infinite reconnect loops)
+    try {
+      await fastify.authenticate(request, reply);
+    } catch {
+      // Send SSE-formatted error so client can handle it gracefully
+      reply.raw.setHeader('Content-Type', 'text/event-stream');
+      reply.raw.setHeader('Cache-Control', 'no-cache');
+      reply.raw.write('data: {"type":"auth-error"}\n\n');
+      reply.raw.end();
+      return;
+    }
+    // If authenticate already sent a reply (e.g. 401), don't continue
+    if (reply.sent) {
+      return;
+    }
+    return handleSSE(request, reply);
+  });
 }
