@@ -1421,10 +1421,10 @@ export default async function routes(fastify: FastifyInstance) {
    * POST /send-email
    * Send new outbound email and create ticket
    */
-  fastify.post<{ Body: { to: string; subject: string; body: string } }>('/send-email', {
+  fastify.post<{ Body: { to: string; subject: string; body: string; from_email?: string } }>('/send-email', {
     onRequest: [fastify.authenticate],
   }, async (request, reply) => {
-    const { to, subject, body } = request.body;
+    const { to, subject, body, from_email } = request.body;
     const user = request.user!;
 
     if (!to || !subject || !body) {
@@ -1433,7 +1433,7 @@ export default async function routes(fastify: FastifyInstance) {
 
     try {
       // Send email via SMTP
-      const messageId = await sendNewEmail(to, subject, body, user.name, user.agent_email);
+      const messageId = await sendNewEmail(to, subject, body, user.name, from_email || user.agent_email);
 
       // Create ticket for tracking
       const ticket = await createTicket(
