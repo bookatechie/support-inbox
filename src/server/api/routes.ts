@@ -1432,13 +1432,15 @@ export default async function routes(fastify: FastifyInstance) {
     }
 
     try {
-      // If from_email provided, look up the agent to get their name
+      // If from_email provided, look up the agent to get their name and use them as assignee
       let senderName = user.name;
+      let assigneeId = user.id;
       const senderEmail = from_email || user.agent_email;
       if (from_email) {
         const agent = await userQueries.getByAgentEmail(from_email) || await getUserByEmail(from_email);
         if (agent) {
           senderName = agent.name;
+          assigneeId = agent.id;
         }
       }
 
@@ -1461,7 +1463,7 @@ export default async function routes(fastify: FastifyInstance) {
       if (messageId) {
         await ticketQueries.updateMessageId(messageId, ticket.id);
       }
-      await ticketQueries.updateAssignee(user.id, ticket.id);
+      await ticketQueries.updateAssignee(assigneeId, ticket.id);
       await ticketQueries.updateStatus('awaiting_customer', ticket.id);
 
       // Refresh ticket to get updated data
