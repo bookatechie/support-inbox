@@ -89,15 +89,15 @@ async function initialize() {
   // 5. Connect SSE emitter to ticket module
   setSseEmitter(sseEmitter);
 
-  // 6. Verify SMTP connection (non-blocking - don't delay server startup)
+  // 6. Verify SMTP connection
   fastify.log.info("Verifying SMTP connection...");
-  verifyEmailConnection().then((smtpOk) => {
-    if (smtpOk) {
-      fastify.log.info("✓ SMTP connection verified");
-    } else {
-      fastify.log.warn("✗ SMTP connection failed - check configuration");
-    }
-  });
+  const smtpOk = await verifyEmailConnection();
+  if (smtpOk) {
+    fastify.log.info("✓ SMTP connection verified");
+  } else {
+    fastify.log.warn("✗ SMTP connection failed - check SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD");
+    fastify.log.warn("  Outbound emails will not work until SMTP is configured correctly");
+  }
 
   // 7. Start email daemon (if configured)
   if (process.env.IMAP_USER && process.env.IMAP_PASSWORD) {
