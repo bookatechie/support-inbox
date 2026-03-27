@@ -348,15 +348,19 @@ export async function createTicket(
   let message = null;
   let attachments: any[] = [];
   if (request.message_body && request.message_body.trim()) {
+    const isHtml = /<[a-z][\s\S]*>/i.test(request.message_body);
+    const bodyText = isHtml ? request.message_body.replace(/<[^>]*>/g, '') : request.message_body;
+    const bodyHtml = isHtml ? request.message_body : null;
+    const bodyHtmlStripped = isHtml ? bodyText : null;
     const messageId = await messageQueries.create(
       ticketId,
       request.customer_email,  // Sender is the customer
       request.customer_name || null,
-      request.message_body,
+      bodyText,
       'email',  // type = email (customer-facing message)
       request.message_id || null,
-      null,  // body_html - plain text for API-created messages
-      null,  // body_html_stripped
+      bodyHtml,  // body_html - set if message contains HTML
+      bodyHtmlStripped,  // body_html_stripped
       null,  // email_metadata
       null,  // scheduledAt
       null,  // toEmails - manual tickets don't have recipients
