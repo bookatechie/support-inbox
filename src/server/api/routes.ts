@@ -1811,20 +1811,20 @@ export default async function routes(fastify: FastifyInstance) {
    * Server-Sent Events stream
    */
   fastify.get('/events', async (request, reply) => {
-    // Authenticate inline so we can send an SSE error instead of a 401
-    // (EventSource can't see HTTP status codes, so 401 causes infinite reconnect loops)
+    // Verify JWT directly instead of using authenticate decorator
+    // (authenticate sends 401 instead of throwing, causing EventSource infinite reconnect)
     try {
-      await fastify.authenticate(request, reply);
+      const token = (request.query as any).token;
+      if (!token) throw new Error('No token');
+      const payload = fastify.jwt.verify(token) as JwtPayload;
+      const user = await getUserById(payload.userId);
+      if (!user) throw new Error('User not found');
+      request.user = sanitizeUser(user);
     } catch {
-      // Send SSE-formatted error so client can handle it gracefully
       reply.raw.setHeader('Content-Type', 'text/event-stream');
       reply.raw.setHeader('Cache-Control', 'no-cache');
       reply.raw.write('data: {"type":"auth-error"}\n\n');
       reply.raw.end();
-      return;
-    }
-    // If authenticate already sent a reply (e.g. 401), don't continue
-    if (reply.sent) {
       return;
     }
     return handleSSE(request, reply);
