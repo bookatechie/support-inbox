@@ -352,18 +352,27 @@ export async function createTicket(
     const bodyText = isHtml ? request.message_body.replace(/<[^>]*>/g, '') : request.message_body;
     const bodyHtml = isHtml ? request.message_body : null;
     const bodyHtmlStripped = isHtml ? bodyText : null;
+
+    // Sender is the agent (from_email or the authenticated user), not the customer
+    let senderEmail = request.from_email || user.agent_email || config.smtp.from;
+    let senderName = user.name;
+    if (request.from_email) {
+      const agent = await userQueries.getByAgentEmail(request.from_email);
+      if (agent) senderName = agent.name;
+    }
+
     const messageId = await messageQueries.create(
       ticketId,
-      request.customer_email,  // Sender is the customer
-      request.customer_name || null,
+      senderEmail,
+      senderName,
       bodyText,
-      'email',  // type = email (customer-facing message)
+      'email',
       request.message_id || null,
-      bodyHtml,  // body_html - set if message contains HTML
-      bodyHtmlStripped,  // body_html_stripped
+      bodyHtml,
+      bodyHtmlStripped,
       null,  // email_metadata
       null,  // scheduledAt
-      null,  // toEmails - manual tickets don't have recipients
+      [request.customer_email],  // toEmails - message is to the customer
       null   // ccEmails
     );
 

@@ -1455,6 +1455,7 @@ export default async function routes(fastify: FastifyInstance) {
           customer_email: to,
           customer_name: undefined,
           message_body: body,
+          from_email: from_email || user.agent_email || undefined,
         },
         user,
         request.log
