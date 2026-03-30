@@ -55,25 +55,34 @@ export function stopScheduledEmailWorker(): void {
  */
 async function processScheduledMessages(): Promise<void> {
   try {
-    const dueMessages = await messageQueries.getScheduledDue();
+    // Fetch only IDs to avoid holding all message bodies in memory at once
+    const dueIds = await messageQueries.getScheduledDueIds();
 
-    if (dueMessages.length === 0) {
+    if (dueIds.length === 0) {
       logger?.debug('No scheduled messages due');
       return;
     }
 
-    logger?.info(`Processing ${dueMessages.length} scheduled message(s)`);
+    logger?.info(`Processing ${dueIds.length} scheduled message(s)`);
 
-    for (let i = 0; i < dueMessages.length; i++) {
-      const message = dueMessages[i];
+    for (let i = 0; i < dueIds.length; i++) {
       try {
+        // Load full message one at a time so GC can reclaim between iterations
+        const message = await messageQueries.getById(dueIds[i].id);
+        if (!message) {
+          logger?.error({ messageId: dueIds[i].id }, 'Scheduled message not found, skipping');
+          continue;
+        }
+        // Skip if already sent (e.g. by a concurrent process or manual send)
+        if (message.sent_at) continue;
+
         await sendScheduledMessage(message);
       } catch (error) {
-        logger?.error(error, `Failed to send scheduled message #${message.id}`);
+        logger?.error(error, `Failed to send scheduled message #${dueIds[i].id}`);
       }
 
       // Add delay between sends to avoid rate limits (skip after last message)
-      if (i < dueMessages.length - 1) {
+      if (i < dueIds.length - 1) {
         await sleep(SEND_DELAY_MS);
       }
     }

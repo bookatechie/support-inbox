@@ -640,14 +640,9 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
   const trackingToken = crypto.randomBytes(32).toString('hex');
   await messageQueries.updateTrackingToken(trackingToken, message.id);
 
-  // Get previous messages for quoting
-  const allMessages = await getMessagesByTicketId(message.ticket_id);
-  const previousMessages = allMessages
-    .filter(m => m.type === 'email' && m.id !== message.id)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5);
-
-  const isFirstMessage = allMessages.filter(m => m.id !== message.id).length === 0;
+  // Get only the recent email messages needed for quoting (avoids loading all messages for the ticket)
+  const previousMessages = await messageQueries.getRecentEmailsByTicketId(message.ticket_id, message.id, 5);
+  const isFirstMessage = previousMessages.length === 0;
 
   // Parse stored recipient emails (stored as JSON strings)
   const toEmails = message.to_emails ? JSON.parse(message.to_emails) : undefined;

@@ -638,6 +638,26 @@ export const messageQueries = {
     );
   },
 
+  async getScheduledDueIds(): Promise<Array<{ id: number }>> {
+    return query<{ id: number }>(
+      `SELECT id FROM messages
+       WHERE scheduled_at IS NOT NULL
+       AND sent_at IS NULL
+       AND scheduled_at <= CURRENT_TIMESTAMP
+       ORDER BY scheduled_at ASC`
+    );
+  },
+
+  async getRecentEmailsByTicketId(ticketId: number, excludeMessageId: number, limit: number = 5): Promise<Message[]> {
+    return query<Message>(
+      `SELECT * FROM messages
+       WHERE ticket_id = $1 AND type = 'email' AND id != $2
+       ORDER BY created_at DESC
+       LIMIT $3`,
+      [ticketId, excludeMessageId, limit]
+    );
+  },
+
   async getScheduledByTicketId(ticketId: number): Promise<Message[]> {
     return query<Message>(
       `SELECT * FROM messages
