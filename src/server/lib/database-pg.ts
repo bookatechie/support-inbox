@@ -582,6 +582,11 @@ export const messageQueries = {
     return queryOne<Message>('SELECT * FROM messages WHERE id = $1', [id]);
   },
 
+  async countByTicketId(ticketId: number): Promise<number> {
+    const result = await queryOne<{ count: string }>('SELECT COUNT(*) as count FROM messages WHERE ticket_id = $1', [ticketId]);
+    return parseInt(result?.count || '0', 10);
+  },
+
   async getByTicketId(ticketId: number): Promise<Message[]> {
     return query<Message>('SELECT * FROM messages WHERE ticket_id = $1 ORDER BY created_at ASC', [ticketId]);
   },

@@ -536,7 +536,9 @@ export async function replyToTicket(
       const recentMessages = await messageQueries.getRecentEmailsByTicketId(ticketId, messageId, 1);
       quotedMessage = recentMessages[0] || null;
     }
-    const isFirstMessage = threadingMessages.length === 0;
+    // First message if only our just-created message exists on the ticket (matches original logic)
+    const totalMessages = await messageQueries.countByTicketId(ticketId);
+    const isFirstMessage = totalMessages === 1;
 
     const emailMessageId = await sendReplyEmail(
       ticket,
@@ -631,7 +633,8 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
   const threadingMessages = await messageQueries.getThreadingInfoByTicketId(message.ticket_id);
   const recentMessages = await messageQueries.getRecentEmailsByTicketId(message.ticket_id, message.id, 1);
   const quotedMessage = recentMessages[0] || null;
-  const isFirstMessage = threadingMessages.length === 0;
+  const totalMessages = await messageQueries.countByTicketId(message.ticket_id);
+  const isFirstMessage = totalMessages <= 1;
 
   // Parse stored recipient emails (stored as JSON strings)
   const toEmails = message.to_emails ? JSON.parse(message.to_emails) : undefined;
