@@ -652,7 +652,7 @@ export const messageQueries = {
     return query<Message>(
       `SELECT id, ticket_id, sender_email, sender_name, body, type, message_id,
               CASE WHEN LENGTH(body_html) > 100000 THEN NULL ELSE body_html END as body_html,
-              body_html_stripped, email_metadata, created_at, updated_at,
+              body_html_stripped, email_metadata, created_at,
               tracking_token, sent_at, scheduled_at, to_emails, cc_emails
        FROM messages
        WHERE ticket_id = $1 AND type = 'email' AND id != $2
