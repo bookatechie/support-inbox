@@ -534,7 +534,7 @@ export async function replyToTicket(
       const specificMessage = await messageQueries.getById(request.reply_to_message_id);
       previousEmailMessages = specificMessage ? [specificMessage] : [];
     } else {
-      previousEmailMessages = await messageQueries.getRecentEmailsByTicketId(ticketId, messageId, 5);
+      previousEmailMessages = await messageQueries.getRecentEmailsByTicketId(ticketId, messageId, 1);
     }
     const isFirstMessage = previousEmailMessages.length === 0;
 
@@ -630,7 +630,7 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
   await messageQueries.updateTrackingToken(trackingToken, message.id);
 
   // Get only the recent email messages needed for quoting (avoids loading all messages for the ticket)
-  const previousMessages = await messageQueries.getRecentEmailsByTicketId(message.ticket_id, message.id, 5);
+  const previousMessages = await messageQueries.getRecentEmailsByTicketId(message.ticket_id, message.id, 1);
   const isFirstMessage = previousMessages.length === 0;
 
   // Parse stored recipient emails (stored as JSON strings)
