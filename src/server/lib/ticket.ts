@@ -527,27 +527,16 @@ export async function replyToTicket(
     const trackingToken = crypto.randomBytes(32).toString('hex');
     await messageQueries.updateTrackingToken(trackingToken, messageId);
 
-    // Check if this is the first message to customer (only the message we just created exists)
-    const messages = await getMessagesByTicketId(ticketId);
-    const isFirstMessage = messages.length === 1;
-
-    // Collect previous email messages to include as quoted text in reply
-    // Exclude the message we just created from the quoted messages
+    // Get recent email messages for quoting (avoids loading all messages including huge HTML bodies)
     let previousEmailMessages;
-
     if (request.reply_to_message_id) {
       // Replying to a specific message - only quote that message
-      const specificMessage = messages.find(m => m.id === request.reply_to_message_id);
+      const specificMessage = await messageQueries.getById(request.reply_to_message_id);
       previousEmailMessages = specificMessage ? [specificMessage] : [];
     } else {
-      // Default behavior: quote last 5 email messages (excluding the one we just created)
-      // Filter: only email messages (not notes) and exclude current message
-      // Sort in reverse chronological order (most recent first) for better context
-      previousEmailMessages = messages
-        .filter(m => m.type === 'email' && m.id !== messageId)
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 5); // Limit to last 5 messages to avoid email bloat
+      previousEmailMessages = await messageQueries.getRecentEmailsByTicketId(ticketId, messageId, 5);
     }
+    const isFirstMessage = previousEmailMessages.length === 0;
 
     // Database already stores cid: references, which work for both email and browser display
     // (Browser display converts cid: to /api/attachments/:id URLs on the frontend)
