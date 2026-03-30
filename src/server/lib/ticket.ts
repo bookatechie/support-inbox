@@ -527,32 +527,30 @@ export async function replyToTicket(
     const trackingToken = crypto.randomBytes(32).toString('hex');
     await messageQueries.updateTrackingToken(trackingToken, messageId);
 
-    // Get recent email messages for quoting (avoids loading all messages including huge HTML bodies)
-    let previousEmailMessages;
+    // Get threading info (all message IDs, lightweight) and quoted message (1 most recent, with body)
+    const threadingMessages = await messageQueries.getThreadingInfoByTicketId(ticketId);
+    let quotedMessage;
     if (request.reply_to_message_id) {
-      // Replying to a specific message - only quote that message
-      const specificMessage = await messageQueries.getById(request.reply_to_message_id);
-      previousEmailMessages = specificMessage ? [specificMessage] : [];
+      quotedMessage = await messageQueries.getById(request.reply_to_message_id);
     } else {
-      previousEmailMessages = await messageQueries.getRecentEmailsByTicketId(ticketId, messageId, 1);
+      const recentMessages = await messageQueries.getRecentEmailsByTicketId(ticketId, messageId, 1);
+      quotedMessage = recentMessages[0] || null;
     }
-    const isFirstMessage = previousEmailMessages.length === 0;
-
-    // Database already stores cid: references, which work for both email and browser display
-    // (Browser display converts cid: to /api/attachments/:id URLs on the frontend)
+    const isFirstMessage = threadingMessages.length === 0;
 
     const emailMessageId = await sendReplyEmail(
       ticket,
-      finalHtmlBody,  // Use final body with signature already included
+      finalHtmlBody,
       senderName,
       isFirstMessage,
       emailAttachments.length > 0 ? emailAttachments : undefined,
       request.to_emails,
       request.cc_emails,
       trackingToken,
-      user.agent_email,  // Use agent's personalized email if configured
-      previousEmailMessages,  // Pass previous messages for quoting
-      request.from_email  // Override sender email if provided
+      user.agent_email,
+      quotedMessage,
+      request.from_email,
+      threadingMessages
     );
 
     // Store the Message-ID for email threading
@@ -629,9 +627,11 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
   const trackingToken = crypto.randomBytes(32).toString('hex');
   await messageQueries.updateTrackingToken(trackingToken, message.id);
 
-  // Get only the recent email messages needed for quoting (avoids loading all messages for the ticket)
-  const previousMessages = await messageQueries.getRecentEmailsByTicketId(message.ticket_id, message.id, 1);
-  const isFirstMessage = previousMessages.length === 0;
+  // Get threading info (all message IDs) and quoted message (1 most recent)
+  const threadingMessages = await messageQueries.getThreadingInfoByTicketId(message.ticket_id);
+  const recentMessages = await messageQueries.getRecentEmailsByTicketId(message.ticket_id, message.id, 1);
+  const quotedMessage = recentMessages[0] || null;
+  const isFirstMessage = threadingMessages.length === 0;
 
   // Parse stored recipient emails (stored as JSON strings)
   const toEmails = message.to_emails ? JSON.parse(message.to_emails) : undefined;
@@ -649,8 +649,9 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
       ccEmails,
       trackingToken,
       message.sender_email,  // agentPersonalEmail - use stored sender
-      previousMessages,
-      message.sender_email  // fromEmailOverride - use stored sender
+      quotedMessage,
+      message.sender_email,  // fromEmailOverride - use stored sender
+      threadingMessages
     );
   } catch (error) {
     logger?.error({ err: error, messageId: message.id, ticketId: message.ticket_id }, 'Failed to send scheduled message, will retry on next interval');

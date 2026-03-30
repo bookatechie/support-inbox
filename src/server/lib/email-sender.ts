@@ -66,8 +66,9 @@ export async function sendReplyEmail(
   ccEmails?: string[],
   trackingToken?: string,
   agentPersonalEmail?: string | null,
-  previousMessages?: Array<{ sender_email: string; sender_name: string | null; body_html: string | null; body: string; created_at: string; message_id: string | null; email_metadata: string | null }>,
-  fromEmailOverride?: string | null
+  quotedMessage?: { sender_email: string; sender_name: string | null; body_html: string | null; body: string; created_at: string } | null,
+  fromEmailOverride?: string | null,
+  threadingMessages?: Array<{ sender_email: string; message_id: string; email_metadata: string | null }>
 ): Promise<string> {
   const transport = getTransporter();
 
@@ -79,27 +80,23 @@ export async function sendReplyEmail(
     finalBody = `${finalBody}${trackingPixel}`;
   }
 
-  // Include quoted previous messages for context (most recent first, then older messages)
-  if (previousMessages && previousMessages.length > 0) {
-    // Add separator before quoted content
+  // Quote the single most recent previous message for context
+  if (quotedMessage) {
     finalBody += '<br><br><hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;">';
 
-    // Quote each previous message in reverse chronological order (most recent first)
-    for (const msg of previousMessages) {
-      const messageDate = new Date(msg.created_at).toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+    const messageDate = new Date(quotedMessage.created_at).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
 
-      const senderName = msg.sender_name || msg.sender_email;
-      const messageBody = msg.body_html || msg.body.replace(/\n/g, '<br>');
+    const senderName = quotedMessage.sender_name || quotedMessage.sender_email;
+    const messageBody = quotedMessage.body_html || quotedMessage.body.replace(/\n/g, '<br>');
 
-      finalBody += `<br><div style="color: #666; font-size: 0.9em;">On ${messageDate}, ${senderName} wrote:</div>`;
-      finalBody += `<blockquote style="border-left: 3px solid #ccc; padding-left: 10px; margin: 10px 0; color: #666;">${messageBody}</blockquote>`;
-    }
+    finalBody += `<br><div style="color: #666; font-size: 0.9em;">On ${messageDate}, ${senderName} wrote:</div>`;
+    finalBody += `<blockquote style="border-left: 3px solid #ccc; padding-left: 10px; margin: 10px 0; color: #666;">${messageBody}</blockquote>`;
   }
 
   // Convert HTML to plain text for fallback (strip HTML tags)
@@ -119,16 +116,13 @@ export async function sendReplyEmail(
     logger?.debug({ inlineImages: attachments.filter(a => a.cid).map(a => ({ filename: a.filename, cid: a.cid })), hasCidRefs: finalBody.includes('cid:') }, 'Sending email with inline images');
   }
 
-  // Build proper References header with all message IDs in the thread
-  // Per RFC 5322, we need to maintain the full thread chain by:
-  // 1. Getting the References from the most recent incoming message (if any)
-  // 2. Appending the In-Reply-To message ID
-  // This is how Chatwoot and other proper email systems maintain threading
+  // Build threading headers from all messages in the thread (lightweight, no body content)
   let referencesHeader: string | undefined;
+  let inReplyToHeader: string | undefined;
 
-  if (previousMessages && previousMessages.length > 0) {
+  if (threadingMessages && threadingMessages.length > 0) {
     // Find the most recent incoming message (from customer) to get its References chain
-    const mostRecentIncomingMessage = previousMessages.find(
+    const mostRecentIncomingMessage = threadingMessages.find(
       m => m.sender_email === ticket.customer_email || m.sender_email === ticket.reply_to_email
     );
 
@@ -146,17 +140,15 @@ export async function sendReplyEmail(
       }
     }
 
-    // Append the In-Reply-To message ID (most recent message)
-    const inReplyToId = previousMessages[0]?.message_id;
-    if (inReplyToId && !referencesArray.includes(inReplyToId)) {
-      referencesArray.push(inReplyToId);
+    // In-Reply-To should be the most recent message
+    inReplyToHeader = threadingMessages[0].message_id;
+    if (inReplyToHeader && !referencesArray.includes(inReplyToHeader)) {
+      referencesArray.push(inReplyToHeader);
     }
 
     // If no References found from metadata, fall back to building from message IDs
     if (referencesArray.length === 0) {
-      const messageIds = previousMessages
-        .map(m => m.message_id)
-        .filter((id): id is string => id !== null && id !== undefined);
+      const messageIds = threadingMessages.map(m => m.message_id);
 
       if (ticket.message_id && !messageIds.includes(ticket.message_id)) {
         referencesArray = [ticket.message_id, ...messageIds];
@@ -172,8 +164,9 @@ export async function sendReplyEmail(
       referencesHeader = referencesArray.join(' ');
     }
   } else if (ticket.message_id) {
-    // Fallback to ticket's message_id if no previous messages provided
+    // Fallback to ticket's message_id if no threading messages
     referencesHeader = ticket.message_id;
+    inReplyToHeader = ticket.message_id;
   }
 
   const mailOptions = {
@@ -186,12 +179,7 @@ export async function sendReplyEmail(
     subject: isFirstMessage ? ticket.subject : `Re: ${ticket.subject}`,
     text: plainText,
     html: finalBody,
-    // Threading headers to keep conversation grouped
-    // In-Reply-To should be the most recent message ID
-    inReplyTo: previousMessages && previousMessages.length > 0 && previousMessages[0].message_id
-      ? previousMessages[0].message_id
-      : ticket.message_id || undefined,
-    // References should contain all previous message IDs
+    inReplyTo: inReplyToHeader,
     references: referencesHeader,
     attachments: attachments,
   };

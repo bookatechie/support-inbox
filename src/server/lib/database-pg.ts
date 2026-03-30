@@ -662,6 +662,17 @@ export const messageQueries = {
     );
   },
 
+  /** Get all message_id/email_metadata for threading headers (no body content) */
+  async getThreadingInfoByTicketId(ticketId: number): Promise<Array<{ sender_email: string; message_id: string; email_metadata: string | null }>> {
+    return query<{ sender_email: string; message_id: string; email_metadata: string | null }>(
+      `SELECT sender_email, message_id, email_metadata
+       FROM messages
+       WHERE ticket_id = $1 AND type = 'email' AND message_id IS NOT NULL
+       ORDER BY created_at DESC`,
+      [ticketId]
+    );
+  },
+
   async getScheduledByTicketId(ticketId: number): Promise<Message[]> {
     return query<Message>(
       `SELECT * FROM messages
