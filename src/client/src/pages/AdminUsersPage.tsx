@@ -375,7 +375,7 @@ export function AdminUsersPage() {
           <FormModal
             open={!!editingUser}
             onOpenChange={(open: boolean) => !open && cancelEdit()}
-            title={`Edit User: ${editingUser?.name}`}
+            title={`Edit User: ${editingUser?.name} (id:${editingUser?.id})`}
             onSubmit={handleUpdate}
             onCancel={cancelEdit}
             isSubmitting={isUpdating}
