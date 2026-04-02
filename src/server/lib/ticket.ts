@@ -16,7 +16,7 @@ import {
   getTicketById,
   getMessagesByTicketId,
 } from './database-pg.js';
-import { sendReplyEmail } from './email-sender.js';
+import { sendReplyEmail, sendNewEmail } from './email-sender.js';
 import { saveAttachment, getAttachmentPath, readAttachment } from './file-storage.js';
 import { stripHtml } from './email-parser.js';
 import {
@@ -375,6 +375,25 @@ export async function createTicket(
       [request.customer_email],  // toEmails - message is to the customer
       null   // ccEmails
     );
+
+    // Send the email and capture the real Message-ID (SES replaces Message-ID headers)
+    if (request.send_email !== false) {
+      try {
+        const emailMessageId = await sendNewEmail(
+          request.customer_email,
+          request.subject,
+          bodyHtml || bodyText,
+          senderName,
+          senderEmail
+        );
+
+        if (emailMessageId) {
+          await messageQueries.updateMessageId(emailMessageId, messageId);
+        }
+      } catch (error) {
+        logger?.error({ err: error, ticketId }, 'Failed to send email for new ticket');
+      }
+    }
 
     message = (await messageQueries.getById(messageId))!;
     attachments = await attachmentQueries.getByMessageId(messageId);
