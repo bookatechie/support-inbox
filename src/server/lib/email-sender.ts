@@ -18,6 +18,29 @@ let transporter: Transporter | null = null;
 let logger: Logger | null = null;
 
 /**
+ * Extract the real Message-ID from SMTP response.
+ * SES SMTP responses look like: "250 Ok 0100019d5029e2bc-a85a883f-..."
+ * We convert that to a proper Message-ID: "<0100019d5029e2bc-a85a883f-...@email.amazonses.com>"
+ * Falls back to nodemailer's locally-generated messageId if parsing fails.
+ */
+function extractMessageId(info: { messageId?: string; response?: string }): string {
+  if (info.response) {
+    // SES SMTP: "250 Ok <ses-id>" or "250 Ok ses-id"
+    const match = info.response.match(/^250 Ok\s+(.+)$/i);
+    if (match) {
+      const sesId = match[1].trim();
+      // If it already looks like a Message-ID with angle brackets, use as-is
+      if (sesId.startsWith('<') && sesId.endsWith('>')) {
+        return sesId;
+      }
+      // Otherwise, construct the SES Message-ID format
+      return `<${sesId}@email.amazonses.com>`;
+    }
+  }
+  return info.messageId || '';
+}
+
+/**
  * Set the logger for this module
  */
 export function setEmailSenderLogger(log: Logger): void {
@@ -186,8 +209,9 @@ export async function sendReplyEmail(
 
   try {
     const info = await transport.sendMail(mailOptions);
-    logger?.info({ messageId: info.messageId, to: recipientEmails, cc: ccEmails }, 'Email sent');
-    return info.messageId || '';
+    const messageId = extractMessageId(info);
+    logger?.info({ messageId, response: info.response, to: recipientEmails, cc: ccEmails }, 'Email sent');
+    return messageId;
   } catch (error) {
     logger?.error({ err: error }, 'Failed to send email');
     throw new Error('Failed to send email');
@@ -288,8 +312,9 @@ export async function sendNewEmail(
 
   try {
     const info = await transport.sendMail(mailOptions);
-    logger?.info({ to, messageId: info.messageId }, 'New email sent');
-    return info.messageId || null;
+    const messageId = extractMessageId(info);
+    logger?.info({ to, messageId, response: info.response }, 'New email sent');
+    return messageId || null;
   } catch (error) {
     logger?.error({ err: error, to }, 'Failed to send new email');
     throw new Error('Failed to send email');
