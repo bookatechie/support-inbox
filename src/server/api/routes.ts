@@ -517,8 +517,6 @@ export default async function routes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Missing required fields: subject and customer_email' });
     }
 
-    const ticket = await createTicket(ticketRequest, user, request.log);
-
     // Determine assignee: assignee_email > from_email > creator
     const effectiveAssigneeEmail = ticketRequest.assignee_email || ticketRequest.from_email;
     let assigneeId: number | null = user.id;
@@ -527,17 +525,16 @@ export default async function routes(fastify: FastifyInstance) {
       const assignee = await userQueries.getByAgentEmail(effectiveAssigneeEmail);
       if (assignee) {
         assigneeId = assignee.id;
-        request.log.info(`Assigning ticket #${ticket.id} to ${assignee.name} via agent_email: ${effectiveAssigneeEmail}`);
+        request.log.info(`Assigning ticket to ${assignee.name} via agent_email: ${effectiveAssigneeEmail}`);
       } else {
         request.log.warn(`Could not find user with agent_email: ${effectiveAssigneeEmail}, leaving unassigned`);
         assigneeId = null;
       }
     }
 
-    // Assign ticket (only if we have a valid assignee)
-    if (assigneeId !== null) {
-      await ticketQueries.updateAssignee(assigneeId, ticket.id);
-    }
+    const ticket = await createTicket(ticketRequest, user, request.log, {
+      assigneeId,
+    });
 
     // Apply tags if provided
     if (ticketRequest.tags && Array.isArray(ticketRequest.tags)) {
@@ -1433,22 +1430,16 @@ export default async function routes(fastify: FastifyInstance) {
     }
 
     try {
-      // If from_email provided, look up the agent to get their name and use them as assignee
-      let senderName = user.name;
+      // If from_email provided, look up the agent to use them as assignee
       let assigneeId = user.id;
-      const senderEmail = from_email || user.agent_email;
       if (from_email) {
         const agent = await userQueries.getByAgentEmail(from_email) || await getUserByEmail(from_email);
         if (agent) {
-          senderName = agent.name;
           assigneeId = agent.id;
         }
       }
 
-      // Send email via SMTP
-      const messageId = await sendNewEmail(to, subject, body, senderName, senderEmail);
-
-      // Create ticket for tracking
+      // Create ticket and send email (createTicket handles sending internally)
       const ticket = await createTicket(
         {
           subject,
@@ -1458,23 +1449,18 @@ export default async function routes(fastify: FastifyInstance) {
           from_email: from_email || user.agent_email || undefined,
         },
         user,
-        request.log
+        request.log,
+        {
+          assigneeId,
+          status: 'awaiting_customer',
+        }
       );
 
-      // Update ticket with message_id from sent email and assign to sender
-      if (messageId) {
-        await ticketQueries.updateMessageId(messageId, ticket.id);
-      }
-      await ticketQueries.updateAssignee(assigneeId, ticket.id);
-      await ticketQueries.updateStatus('awaiting_customer', ticket.id);
-
-      // Refresh ticket to get updated data
-      const updatedTicket = getTicketById(ticket.id);
+      const updatedTicket = await getTicketById(ticket.id);
 
       return reply.status(201).send({
         success: true,
         ticket: updatedTicket,
-        messageId
       });
     } catch (error: any) {
       request.log.error(error, 'Failed to send email');
