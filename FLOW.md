@@ -13,37 +13,37 @@ flowchart TD
     A[IMAP Poll - Check for UNSEEN emails] --> B{New unseen emails?}
     B -- No --> A
     B -- Yes --> C[Parse email via mailparser]
-    C --> D[Extract TO/CC/BCC recipients]
-    C --> E[Extract Message-ID, In-Reply-To, References]
-    C --> F[Extract attachments]
-    D & E & F --> G{Duplicate check: Message-ID already in DB?}
+    C --> C1[Extract TO/CC/BCC recipients]
+    C1 --> C2[Extract Message-ID, In-Reply-To, References]
+    C2 --> C3[Extract attachments]
+    C3 --> G{Duplicate check: Message-ID already in DB?}
     G -- Yes --> H[Skip email, mark as seen]
     G -- No --> I{Auto-generated? Precedence: bulk/junk}
     I -- Yes --> H
     I -- No --> J{Is this a reply? Check In-Reply-To & References headers}
 
-    J -- "Reply found via In-Reply-To" --> K[Add message to existing ticket]
-    J -- "Reply found via References" --> K
+    J -- "Match found via In-Reply-To" --> K[Add message to existing ticket]
+    J -- "Match found via References" --> K
     J -- "No match found" --> L[Create new ticket]
 
-    L --> L1[Status = 'new', Priority = 'normal']
+    L --> L1["Status = 'new', Priority = 'normal'"]
     L1 --> L2{Any TO/CC address matches an agent's agent_email?}
-    L2 -- Yes --> L3[Auto-assign ticket to that agent]
+    L2 -- Yes --> L3[Auto-assign ticket to first matching agent]
     L2 -- No --> L4[Ticket left unassigned]
-    L3 & L4 --> L5[Save attachments - convert HEIC to JPEG]
+    L3 & L4 --> L5[Save attachments - convert HEIC to JPEG if needed]
     L5 --> L6[Store email_metadata JSON: subject, to, cc, bcc, inReplyTo, references, headers]
-    L6 --> L7[Emit SSE 'new-ticket' event]
-    L7 --> L8[Fire 'new_ticket' webhook]
+    L6 --> L7["Emit SSE 'new-ticket' event"]
+    L7 --> L8["Fire 'new_ticket' webhook"]
     L8 --> H
 
     K --> K1{Current ticket status?}
-    K1 -- "awaiting_customer or resolved" --> K2[Change status to 'open']
+    K1 -- "awaiting_customer or resolved" --> K2["Change status to 'open'"]
     K1 -- "Any other status" --> K3[Keep current status]
     K2 & K3 --> K4[Save attachments]
-    K4 --> K5[Store TO/CC in message record]
-    K5 --> K6[Emit SSE 'new-message' event]
-    K6 --> K7[Emit SSE 'ticket-update' event]
-    K7 --> K8[Fire 'customer_reply' webhook]
+    K4 --> K5[Store TO/CC in message record and email_metadata]
+    K5 --> K6["Emit SSE 'new-message' event"]
+    K6 --> K7["Emit SSE 'ticket-update' event"]
+    K7 --> K8["Fire 'customer_reply' webhook"]
     K8 --> H
 ```
 
@@ -57,47 +57,47 @@ When an agent sends a reply from the UI via `POST /tickets/:id/reply`.
 flowchart TD
     A[Agent submits reply] --> B{Message type?}
     B -- "email reply" --> C[Append agent's signature to HTML body]
-    B -- "internal note" --> N1[Store as note - no signature]
+    B -- "internal note" --> N1[Skip signature]
 
-    C --> D{Ticket currently unassigned?}
+    C --> D{Ticket currently unassigned AND not scheduled?}
     D -- Yes --> E[Auto-assign ticket to replying agent]
     E --> E1[Log assignment in audit trail]
-    E1 --> E2[Emit SSE 'ticket-update' for assignment]
+    E1 --> E2["Emit SSE 'ticket-update' for assignment"]
     D -- No --> F[Keep current assignee]
     E2 & F --> G[Create message record in DB]
-
     G --> G1[Store to_emails and cc_emails on message]
+
+    N1 --> N2["Create message with type='note'"]
+    N2 --> N3["to_emails = null, cc_emails = null"]
+
     G1 --> H{Attachments provided?}
     H -- Yes --> I[Save attachments to storage]
     I --> I1[Build emailAttachments array for sending]
-    H -- No --> J[Continue]
+    H -- No --> J[Continue without attachments]
     I1 & J --> K{Scheduled for later?}
 
     K -- Yes --> K1[Store scheduled_at on message]
-    K1 --> K2[No email sent yet, no status change]
+    K1 --> COMMON
     K -- No --> L[Generate tracking token for email opens]
     L --> M[Retrieve threading info: all message IDs for ticket]
     M --> M1[Get quoted message for email body]
     M1 --> O[Send email via SMTP]
 
-    O --> O1{Is this the first message on the ticket?}
+    O --> O1{First message on the ticket?}
     O1 -- Yes --> O2[sendNewEmail - no threading headers]
-    O1 -- No --> O3[sendReplyEmail - with In-Reply-To & References headers]
+    O1 -- No --> O3[sendReplyEmail - with In-Reply-To & References]
     O2 & O3 --> P[Extract real Message-ID from SES SMTP response]
     P --> P1[Store Message-ID in DB for future threading]
-    P1 --> Q[Update ticket status to 'resolved']
+    P1 --> Q["Update ticket status to 'resolved'"]
+    Q --> COMMON
 
-    Q --> R[Emit SSE 'new-message' event]
-    R --> S[Emit SSE 'ticket-update' event]
-    S --> T[Fire 'new_reply' webhook]
-
-    N1 --> N2[Store message with type = 'note']
-    N2 --> N3[to_emails = null, cc_emails = null]
-    N3 --> N4[No email sent to customer]
-    N4 --> N5[Emit SSE 'new-message' event]
-    N5 --> N6[Emit SSE 'ticket-update' event]
-    N6 --> N7[No webhook fired for notes]
+    N3 --> COMMON["Emit SSE 'new-message' event"]
+    COMMON --> COMMON2["Emit SSE 'ticket-update' event"]
+    COMMON2 --> COMMON3["Fire 'new_reply' webhook (includes type in payload)"]
 ```
+
+> **Note:** The `new_reply` webhook fires for all reply types including notes and scheduled messages.
+> The webhook payload includes `message.type` so consumers can distinguish between `email` and `note`.
 
 ---
 
@@ -108,11 +108,12 @@ When a ticket is created manually via `POST /tickets` (e.g., from automation or 
 ```mermaid
 flowchart TD
     A["POST /tickets with subject, customer_email, optional message_body"] --> B[Validate required fields]
-    B --> C{Resolve assignee}
-    C --> C1["assignee_email provided? → look up user"]
-    C --> C2["from_email provided? → look up user"]
-    C --> C3["Neither → assign to creating user"]
-    C1 & C2 & C3 --> D["Create ticket in DB (status from request or 'new', priority from request or 'normal')"]
+    B --> C{assignee_email provided?}
+    C -- Yes --> C1[Look up user by assignee_email]
+    C -- No --> C2{from_email provided?}
+    C2 -- Yes --> C2a[Look up user by from_email]
+    C2 -- No --> C3[Assign to creating user]
+    C1 & C2a & C3 --> D["Create ticket in DB (status from request or 'new', priority from request or 'normal')"]
 
     D --> E{message_body provided?}
     E -- Yes --> F[Detect HTML vs plain text]
@@ -144,45 +145,39 @@ When a ticket's metadata is changed via `PATCH /tickets/:id`.
 
 ```mermaid
 flowchart TD
-    A["PATCH /tickets/:id with changes"] --> B{What changed?}
+    A["PATCH /tickets/:id with changes"] --> B[Load current ticket from DB]
 
     B --> C{Status changed?}
-    C -- Yes --> C1["Update status (e.g., new → open → resolved → awaiting_customer)"]
-    C1 --> C2[Log old→new in audit trail]
-    C -- No --> D[Skip]
+    C -- Yes --> C1["Update status + log old→new in audit trail"]
+    C -- No --> C1x[Skip]
+    C1 & C1x --> E{Priority changed?}
 
-    B --> E{Priority changed?}
-    E -- Yes --> E1["Update priority (low/normal/high/urgent)"]
-    E1 --> E2[Log old→new in audit trail]
-    E -- No --> F[Skip]
+    E -- Yes --> E1["Update priority + log old→new in audit trail"]
+    E -- No --> E1x[Skip]
+    E1 & E1x --> G{Assignee changed?}
 
-    B --> G{Assignee changed?}
-    G -- Yes --> G1[Update assignee_id]
-    G1 --> G2[Log old→new in audit trail]
-    G -- "assignee_email provided" --> G3[Resolve email to user ID first]
-    G3 --> G1
-    G -- No --> H[Skip]
+    G -- "assignee_email provided" --> G0[Resolve email to user ID first]
+    G0 --> G1["Update assignee_id + log in audit trail"]
+    G -- "assignee_id changed" --> G1
+    G -- No --> G1x[Skip]
+    G1 & G1x --> I{Customer email changed?}
 
-    B --> I{Customer email changed?}
-    I -- Yes --> I1[Update customer_email]
-    I1 --> I2[Log in audit trail]
-    I -- No --> J[Skip]
+    I -- Yes --> I1["Update customer_email + log in audit trail"]
+    I -- No --> I1x[Skip]
+    I1 & I1x --> K{Customer name changed?}
 
-    B --> K{Customer name changed?}
-    K -- Yes --> K1[Update customer_name]
-    K1 --> K2[Log in audit trail]
-    K -- No --> L[Skip]
+    K -- Yes --> K1["Update customer_name + log in audit trail"]
+    K -- No --> K1x[Skip]
+    K1 & K1x --> M{Follow-up date changed?}
 
-    B --> M{Follow-up date changed?}
-    M -- Yes --> M1[Update follow_up_at]
-    M1 --> M2[Log in audit trail]
-    M -- No --> N2[Skip]
+    M -- Yes --> M1["Update follow_up_at + log in audit trail"]
+    M -- No --> M1x[Skip]
+    M1 & M1x --> O{Any actual changes detected?}
 
-    C2 & D & E2 & F & G2 & H & I2 & J & K2 & L & M2 & N2 --> O{Any actual changes detected?}
-    O -- Yes --> P[Emit SSE 'ticket-update' event]
-    P --> Q[Fire 'ticket_update' webhook with changes object]
-    O -- No --> R[Return ticket unchanged]
+    O -- Yes --> P["Emit SSE 'ticket-update' event"]
+    P --> Q["Fire 'ticket_update' webhook with changes object"]
     Q --> S[Return updated ticket]
+    O -- No --> R[Return ticket unchanged]
 ```
 
 ---
@@ -193,21 +188,26 @@ When an agent schedules a reply to be sent later.
 
 ```mermaid
 flowchart TD
-    A[Agent creates reply with scheduled_at in the future] --> B[Message stored in DB with scheduled_at timestamp]
-    B --> C[No email sent immediately]
-    C --> D[No status change to 'resolved']
-    D --> E[No 'new_reply' webhook fired]
+    subgraph "At Creation Time"
+        A[Agent creates reply with scheduled_at in the future] --> B[Message stored in DB with scheduled_at timestamp]
+        B --> C[No email sent immediately]
+        C --> D["No status change to 'resolved'"]
+        D --> E["Emit SSE 'new-message' + 'ticket-update' events"]
+        E --> E1["Fire 'new_reply' webhook (message.type in payload)"]
+    end
 
-    F[Scheduler checks for due messages] --> G{scheduled_at <= now?}
-    G -- Yes --> H[Retrieve message and ticket]
-    H --> I[Parse stored to_emails and cc_emails from JSON]
-    I --> J[Get threading info for ticket]
-    J --> K[Send email via SMTP with threading headers]
-    K --> L[Extract and store real Message-ID]
-    L --> M[Update ticket status to 'resolved']
-    M --> N[Emit SSE 'new-message' event]
-    N --> O[Emit SSE 'ticket-update' event]
-    G -- No --> F
+    subgraph "When Scheduled Time Arrives"
+        F[Scheduler checks for due messages] --> G{scheduled_at <= now?}
+        G -- No --> F
+        G -- Yes --> H[Retrieve message and ticket]
+        H --> I[Parse stored to_emails and cc_emails from JSON]
+        I --> J[Get threading info for ticket]
+        J --> K[Send email via SMTP with threading headers]
+        K --> L[Extract and store real Message-ID]
+        L --> M["Update ticket status to 'resolved'"]
+        M --> N["Emit SSE 'new-message' event"]
+        N --> O["Emit SSE 'ticket-update' event"]
+    end
 ```
 
 ---
@@ -294,8 +294,10 @@ flowchart TD
         A1[New ticket from email] -->|"new_ticket"| W
         A2[New ticket from API with message] -->|"new_ticket"| W
         A3[Customer replies to ticket] -->|"customer_reply"| W
-        A4[Agent sends reply] -->|"new_reply"| W
-        A5[Ticket metadata updated] -->|"ticket_update"| W
+        A4[Agent sends email reply] -->|"new_reply"| W
+        A5["Agent sends note (type='note' in payload)"] -->|"new_reply"| W
+        A6["Agent schedules message (fires immediately)"] -->|"new_reply"| W
+        A7[Ticket metadata updated] -->|"ticket_update"| W
     end
 
     W{webhookUrl configured?} -- No --> X[No webhook sent]
@@ -312,11 +314,10 @@ flowchart TD
     Z2 -- No --> Z4[Log error - no retry]
 
     subgraph "Does NOT trigger webhook"
-        N1[Internal notes]
-        N2[Scheduled messages at creation time]
-        N3[Tag changes]
-        N4[Presence/composing events]
-        N5[Ticket update with no actual changes]
+        N1[Tag changes]
+        N2[Presence/composing events]
+        N3[Ticket update with no actual changes]
+        N4[New ticket from API without message body]
     end
 ```
 
@@ -362,23 +363,23 @@ stateDiagram-v2
     [*] --> new: Ticket created (email or API)
 
     new --> open: Manual status change
-    new --> resolved: Agent replies
+    new --> resolved: Agent sends email reply (auto)
     new --> awaiting_customer: Manual status change
 
-    open --> resolved: Agent replies
+    open --> resolved: Agent sends email reply (auto)
     open --> awaiting_customer: Manual status change
     open --> new: Manual status change
 
-    resolved --> open: Customer replies
+    resolved --> open: Customer replies (auto)
     resolved --> new: Manual status change
     resolved --> awaiting_customer: Manual status change
 
-    awaiting_customer --> open: Customer replies
-    awaiting_customer --> resolved: Agent replies or manual
+    awaiting_customer --> open: Customer replies (auto)
+    awaiting_customer --> resolved: Agent sends email reply (auto) or manual
     awaiting_customer --> new: Manual status change
 
     note right of new: Default status for new tickets
-    note right of resolved: Auto-set when agent sends reply
+    note right of resolved: Auto-set when agent sends email reply\n(NOT notes, NOT scheduled at creation)
     note right of open: Auto-set when customer replies\nto resolved/awaiting ticket
 ```
 
@@ -422,14 +423,19 @@ flowchart TD
     C --> D["to_emails = null, cc_emails = null"]
     D --> E[No email sent to customer]
     E --> F[No tracking token generated]
-    F --> G["Emit SSE 'new-message' event (visible to all agents)"]
-    G --> H[No webhook fired]
+    F --> G[No status change]
+    G --> H["Emit SSE 'new-message' event (visible to all agents)"]
+    H --> H1["Emit SSE 'ticket-update' event"]
+    H1 --> H2["Fire 'new_reply' webhook (message.type = 'note' in payload)"]
 
     I["Agent deletes note via DELETE /messages/:id"] --> J{Message type = 'note'?}
     J -- Yes --> K[Delete message from DB]
     K --> L["Emit SSE 'message-deleted' event"]
     J -- No --> M["Return 403 - only notes can be deleted"]
 ```
+
+> **Note:** Internal notes DO trigger the `new_reply` webhook. The `message.type` field in the
+> payload will be `'note'`, allowing webhook consumers to filter or handle them differently.
 
 ---
 

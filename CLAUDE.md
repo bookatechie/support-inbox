@@ -97,6 +97,10 @@ The PostgreSQL schema is defined in `src/server/lib/database-pg.ts`. Key tables:
 - **drafts**: Auto-saved reply drafts
 - **email_opens**: Email open tracking
 
+## Process Flow Diagrams
+
+For detailed Mermaid diagrams of all system flows (email processing, agent replies, ticket lifecycle, webhooks, SSE events, threading, CC/TO handling, attachments, notes, scheduling, and more), see **[FLOW.md](FLOW.md)**.
+
 ## Email Flow Architecture
 
 ### Incoming Messages (Customer → Support)
