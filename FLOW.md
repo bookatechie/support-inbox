@@ -91,9 +91,10 @@ flowchart TD
     P1 --> Q["Update ticket status to 'resolved'"]
     Q --> COMMON
 
-    N3 --> COMMON["Emit SSE 'new-message' event"]
+    N3 --> NOCHANGE[No email sent, no status change]
+    NOCHANGE --> COMMON["Emit SSE 'new-message' event"]
     COMMON --> COMMON2["Emit SSE 'ticket-update' event"]
-    COMMON2 --> COMMON3["Fire 'new_reply' webhook (includes type in payload)"]
+    COMMON2 --> COMMON3["Fire 'new_reply' webhook (includes message.type in payload)"]
 ```
 
 > **Note:** The `new_reply` webhook fires for all reply types including notes and scheduled messages.
@@ -145,39 +146,45 @@ When a ticket's metadata is changed via `PATCH /tickets/:id`.
 
 ```mermaid
 flowchart TD
-    A["PATCH /tickets/:id with changes"] --> B[Load current ticket from DB]
+    A["PATCH /tickets/:id with changes"] --> B{What changed?}
 
     B --> C{Status changed?}
-    C -- Yes --> C1["Update status + log old→new in audit trail"]
-    C -- No --> C1x[Skip]
-    C1 & C1x --> E{Priority changed?}
+    C -- Yes --> C1["Update status (e.g., new → open → resolved → awaiting_customer)"]
+    C1 --> C2[Log old→new in audit trail]
+    C -- No --> D[Skip]
 
-    E -- Yes --> E1["Update priority + log old→new in audit trail"]
-    E -- No --> E1x[Skip]
-    E1 & E1x --> G{Assignee changed?}
+    B --> E{Priority changed?}
+    E -- Yes --> E1["Update priority (low/normal/high/urgent)"]
+    E1 --> E2[Log old→new in audit trail]
+    E -- No --> F[Skip]
 
-    G -- "assignee_email provided" --> G0[Resolve email to user ID first]
-    G0 --> G1["Update assignee_id + log in audit trail"]
-    G -- "assignee_id changed" --> G1
-    G -- No --> G1x[Skip]
-    G1 & G1x --> I{Customer email changed?}
+    B --> G{Assignee changed?}
+    G -- Yes --> G1[Update assignee_id]
+    G1 --> G2[Log old→new in audit trail]
+    G -- "assignee_email provided" --> G3[Resolve email to user ID first]
+    G3 --> G1
+    G -- No --> H[Skip]
 
-    I -- Yes --> I1["Update customer_email + log in audit trail"]
-    I -- No --> I1x[Skip]
-    I1 & I1x --> K{Customer name changed?}
+    B --> I{Customer email changed?}
+    I -- Yes --> I1[Update customer_email]
+    I1 --> I2[Log in audit trail]
+    I -- No --> J[Skip]
 
-    K -- Yes --> K1["Update customer_name + log in audit trail"]
-    K -- No --> K1x[Skip]
-    K1 & K1x --> M{Follow-up date changed?}
+    B --> K{Customer name changed?}
+    K -- Yes --> K1[Update customer_name]
+    K1 --> K2[Log in audit trail]
+    K -- No --> L[Skip]
 
-    M -- Yes --> M1["Update follow_up_at + log in audit trail"]
-    M -- No --> M1x[Skip]
-    M1 & M1x --> O{Any actual changes detected?}
+    B --> M{Follow-up date changed?}
+    M -- Yes --> M1[Update follow_up_at]
+    M1 --> M2[Log in audit trail]
+    M -- No --> N2[Skip]
 
-    O -- Yes --> P["Emit SSE 'ticket-update' event"]
-    P --> Q["Fire 'ticket_update' webhook with changes object"]
-    Q --> S[Return updated ticket]
+    C2 & D & E2 & F & G2 & H & I2 & J & K2 & L & M2 & N2 --> O{Any actual changes detected?}
+    O -- Yes --> P[Emit SSE 'ticket-update' event]
+    P --> Q[Fire 'ticket_update' webhook with changes object]
     O -- No --> R[Return ticket unchanged]
+    Q --> S[Return updated ticket]
 ```
 
 ---
@@ -193,7 +200,7 @@ flowchart TD
         B --> C[No email sent immediately]
         C --> D["No status change to 'resolved'"]
         D --> E["Emit SSE 'new-message' + 'ticket-update' events"]
-        E --> E1["Fire 'new_reply' webhook (message.type in payload)"]
+        E --> E1["Fire 'new_reply' webhook (message includes scheduled_at)"]
     end
 
     subgraph "When Scheduled Time Arrives"
@@ -294,10 +301,8 @@ flowchart TD
         A1[New ticket from email] -->|"new_ticket"| W
         A2[New ticket from API with message] -->|"new_ticket"| W
         A3[Customer replies to ticket] -->|"customer_reply"| W
-        A4[Agent sends email reply] -->|"new_reply"| W
-        A5["Agent sends note (type='note' in payload)"] -->|"new_reply"| W
-        A6["Agent schedules message (fires immediately)"] -->|"new_reply"| W
-        A7[Ticket metadata updated] -->|"ticket_update"| W
+        A4[Agent sends reply, note, or scheduled message] -->|"new_reply"| W
+        A5[Ticket metadata updated] -->|"ticket_update"| W
     end
 
     W{webhookUrl configured?} -- No --> X[No webhook sent]
@@ -317,7 +322,7 @@ flowchart TD
         N1[Tag changes]
         N2[Presence/composing events]
         N3[Ticket update with no actual changes]
-        N4[New ticket from API without message body]
+        N4[Message deletion]
     end
 ```
 
@@ -363,23 +368,23 @@ stateDiagram-v2
     [*] --> new: Ticket created (email or API)
 
     new --> open: Manual status change
-    new --> resolved: Agent sends email reply (auto)
+    new --> resolved: Agent sends email reply
     new --> awaiting_customer: Manual status change
 
-    open --> resolved: Agent sends email reply (auto)
+    open --> resolved: Agent sends email reply
     open --> awaiting_customer: Manual status change
     open --> new: Manual status change
 
-    resolved --> open: Customer replies (auto)
+    resolved --> open: Customer replies
     resolved --> new: Manual status change
     resolved --> awaiting_customer: Manual status change
 
-    awaiting_customer --> open: Customer replies (auto)
-    awaiting_customer --> resolved: Agent sends email reply (auto) or manual
+    awaiting_customer --> open: Customer replies
+    awaiting_customer --> resolved: Agent sends email reply or manual
     awaiting_customer --> new: Manual status change
 
     note right of new: Default status for new tickets
-    note right of resolved: Auto-set when agent sends email reply\n(NOT notes, NOT scheduled at creation)
+    note right of resolved: Auto-set when agent sends email reply\n(not for notes or scheduled messages)
     note right of open: Auto-set when customer replies\nto resolved/awaiting ticket
 ```
 
@@ -423,19 +428,16 @@ flowchart TD
     C --> D["to_emails = null, cc_emails = null"]
     D --> E[No email sent to customer]
     E --> F[No tracking token generated]
-    F --> G[No status change]
+    F --> G["No status change to 'resolved'"]
     G --> H["Emit SSE 'new-message' event (visible to all agents)"]
     H --> H1["Emit SSE 'ticket-update' event"]
-    H1 --> H2["Fire 'new_reply' webhook (message.type = 'note' in payload)"]
+    H1 --> H2["Fire 'new_reply' webhook (type='note' in payload)"]
 
     I["Agent deletes note via DELETE /messages/:id"] --> J{Message type = 'note'?}
     J -- Yes --> K[Delete message from DB]
     K --> L["Emit SSE 'message-deleted' event"]
     J -- No --> M["Return 403 - only notes can be deleted"]
 ```
-
-> **Note:** Internal notes DO trigger the `new_reply` webhook. The `message.type` field in the
-> payload will be `'note'`, allowing webhook consumers to filter or handle them differently.
 
 ---
 

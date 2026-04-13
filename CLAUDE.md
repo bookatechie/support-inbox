@@ -31,6 +31,7 @@ Support Inbox is a modern, lightweight email-based customer support system with 
 - **Frontend**: `src/client/` - React app with pages, components, hooks
 - **Types**: Server types in `src/server/lib/types.ts`, client types in `src/client/src/types/index.ts`
 - **UI Components**: shadcn/ui components in `src/client/src/components/ui/`
+- **Process Flows**: [`FLOW.md`](FLOW.md) - Mermaid diagrams of all system flows (email ingestion, replies, webhooks, SSE, status transitions, threading, etc.)
 
 ## Development Commands
 
