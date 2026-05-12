@@ -38,6 +38,7 @@ import type {
   TicketWithMessages,
   UserSafe,
   ChangeSource,
+  MessageType,
 } from './types.js';
 
 // Logger interface for Pino/Fastify logger compatibility
@@ -361,23 +362,27 @@ export async function createTicket(
       if (agent) senderName = agent.name;
     }
 
+    const messageType: MessageType = request.type || 'email';
+    const isEmail = messageType === 'email';
+
     const messageId = await messageQueries.create(
       ticketId,
       senderEmail,
       senderName,
       bodyText,
-      'email',
+      messageType,
       request.message_id || null,
       bodyHtml,
       bodyHtmlStripped,
       null,  // email_metadata
       null,  // scheduledAt
-      [request.customer_email],  // toEmails - message is to the customer
+      isEmail ? [request.customer_email] : null,  // toEmails - only email-type messages have recipients
       null   // ccEmails
     );
 
     // Send the email and capture the real Message-ID (SES replaces Message-ID headers)
-    if (request.send_email !== false) {
+    // Only 'email'-type messages are dispatched to the customer.
+    if (isEmail && request.send_email !== false) {
       try {
         const emailMessageId = await sendNewEmail(
           request.customer_email,

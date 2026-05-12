@@ -181,6 +181,7 @@ export interface CreateTicketRequest {
   follow_up_at?: string | null;
   tags?: (number | string)[];  // Array of tag IDs or tag names
   send_email?: boolean;  // Whether to send the email (default: true). Set false if caller sends externally.
+  type?: MessageType;  // Initial message type. Defaults to 'email'. Any non-email type skips sending to the customer.
 }
 
 export interface CreateTicketOptions {
