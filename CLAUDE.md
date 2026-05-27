@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ Public Repository
+
+This is a **public repository**. NEVER commit anything confidential or proprietary — no secrets, credentials, API keys, tokens, connection strings, internal hostnames/IPs, customer data, or other private operational details. When in doubt, keep it out of version control (use the git-ignored `tmp/` folder for local-only notes — see below).
+
+## Local Reference Notes
+
+At the start of each new session, check the `tmp/` folder for Markdown (`.md`) files — they hold local, un-checked-in reference notes (e.g. production/ops details) that may be relevant to the task at hand. The `tmp/` folder is git-ignored, so these notes never get committed.
+
 ## Project Overview
 
 Support Inbox is a modern, lightweight email-based customer support system with real-time collaboration features. It's a self-hosted alternative to platforms like Intercom or Zendesk, designed for small teams who want professional support tools without the complexity and cost of SaaS platforms.
