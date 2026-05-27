@@ -26,6 +26,7 @@ import {
   sendTicketUpdateWebhook,
 } from './webhook.js';
 import { config } from './config.js';
+import { evaluateRulesForTicket } from './rules-engine.js';
 import type {
   Ticket,
   Message,
@@ -218,6 +219,23 @@ export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger,
   const message = (await messageQueries.getById(messageId))!;
   const attachments = await attachmentQueries.getByMessageId(messageId);
 
+  // Evaluate routing rules (sub-ms, fire-and-forget for webhooks)
+  try {
+    await evaluateRulesForTicket(
+      ticket,
+      message,
+      attachments,
+      { toEmails: email.to, ccEmails: email.cc, fromDaemon: true }
+    );
+    // Re-fetch ticket incase rules modified assignee/priority/status
+    const updatedTicket = await getTicketById(ticketId);
+    if (updatedTicket) {
+      Object.assign(ticket, updatedTicket);
+    }
+  } catch (err) {
+    logger?.error({ err: err instanceof Error ? err.message : String(err), ticketId }, 'Rules engine evaluation failed');
+  }
+
   // Emit SSE event
   if (sseEmitter) {
     sseEmitter.emit('new-ticket', ticket);
@@ -355,7 +373,7 @@ export async function createTicket(
     const bodyHtmlStripped = isHtml ? bodyText : null;
 
     // Sender is the agent (from_email or the authenticated user), not the customer
-    let senderEmail = request.from_email || user.agent_email || config.smtp.from;
+    const senderEmail = request.from_email || user.agent_email || config.smtp.from;
     let senderName = user.name;
     if (request.from_email) {
       const agent = await userQueries.getByAgentEmail(request.from_email);
@@ -406,6 +424,25 @@ export async function createTicket(
 
   const ticket = (await getTicketById(ticketId))!;
 
+  // Evaluate routing rules if there's a message (manual support ticket)
+  if (message) {
+    try {
+      await evaluateRulesForTicket(
+        ticket,
+        message,
+        attachments,
+        { fromDaemon: false }
+      );
+      // Re-fetch ticket in case rules modified assignee/priority/status
+      const updatedTicket = await getTicketById(ticketId);
+      if (updatedTicket) {
+        Object.assign(ticket, updatedTicket);
+      }
+    } catch (err) {
+      logger?.error({ err: err instanceof Error ? err.message : String(err), ticketId }, 'Rules engine evaluation failed for manual ticket');
+    }
+  }
+
   // Emit SSE event
   if (sseEmitter) {
     sseEmitter.emit('new-ticket', ticket);
@@ -451,14 +488,6 @@ export async function replyToTicket(
 
     // Log auto-assignment to audit trail
     await logTicketChange(ticketId, 'assignee_id', null, user.id, user, 'email_reply', 'Auto-assigned when agent replied');
-
-    // Emit SSE event for assignment
-    if (sseEmitter) {
-      const updatedTicket = await getTicketById(ticketId);
-      if (updatedTicket) {
-        sseEmitter.emit('ticket-update', updatedTicket);
-      }
-    }
   }
 
   // Build final HTML body with signature appended (if not a note and user has signature)

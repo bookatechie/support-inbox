@@ -7,6 +7,7 @@ import fastifyJwt from '@fastify/jwt';
 import fastifyMultipart from '@fastify/multipart';
 import bcrypt from 'bcryptjs';
 import {
+  routingRuleQueries,
   getAllTickets,
   getTicketsFiltered,
   countTicketsFiltered,
@@ -35,6 +36,7 @@ import {
 } from '../lib/ticket.js';
 import { checkEmailsNow } from '../workers/email-daemon.js';
 import { handleSSE, sseEmitter, getClientCount } from './sse.js';
+import { evaluateRulesDryRun } from '../lib/rules-engine.js';
 import { sendNewEmail } from '../lib/email-sender.js';
 import { sanitizeUser, sanitizeUsers } from '../lib/utils.js';
 import { config } from '../lib/config.js';
@@ -1788,6 +1790,149 @@ export default async function routes(fastify: FastifyInstance) {
       .header('Pragma', 'no-cache')
       .header('Expires', '0')
       .send(transparentGif);
+  });
+
+  // ============================================================================
+  // Routing Rules (Admin only)
+  // ============================================================================
+
+  /**
+   * GET /api/routing-rules
+   */
+  fastify.get('/routing-rules', { onRequest: [fastify.authenticate] }, async (_request, reply) => {
+    try {
+      const rules = await routingRuleQueries.getAll();
+      return reply.send(rules);
+    } catch (error) {
+      fastify.log.error(error, 'Failed to fetch routing rules');
+      return reply.status(500).send({ error: 'Failed to fetch routing rules' });
+    }
+  });
+
+  /**
+   * POST /api/routing-rules
+   */
+  fastify.post<{
+    Body: {
+      name: string;
+      sort_order?: number;
+      condition_groups: Array<{
+        combinator: 'and' | 'or';
+        conditions: Array<{ field: string; operator: string; value: unknown; case_sensitive?: boolean }>;
+      }>;
+      actions: {
+        set_assignee_id?: number | null;
+        set_priority?: string;
+        set_status?: string;
+        add_tags?: string[];
+        remove_tags?: string[];
+        set_follow_up_at?: string | null;
+        webhooks?: Array<{ url: string; method?: string }>;
+      };
+      active?: boolean;
+      stop_processing?: boolean;
+    };
+  }>('/routing-rules', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { name, sort_order, condition_groups, actions, active, stop_processing } = request.body;
+    if (!name || !condition_groups || !actions) {
+      return reply.status(400).send({ error: 'Missing required fields: name, condition_groups, actions' });
+    }
+    try {
+      const created = await routingRuleQueries.create(
+        name,
+        sort_order ?? 0,
+        condition_groups as any,
+        actions as any,
+        active ?? true,
+        stop_processing ?? true
+      );
+      return reply.status(201).send(created);
+    } catch (error) {
+      fastify.log.error(error, 'Failed to create routing rule');
+      return reply.status(500).send({ error: 'Failed to create routing rule' });
+    }
+  });
+
+  /**
+   * PATCH /api/routing-rules/:id
+   */
+  fastify.patch<{
+    Params: { id: string };
+    Body: {
+      name?: string;
+      sort_order?: number;
+      condition_groups?: Array<{
+        combinator: 'and' | 'or';
+        conditions: Array<{ field: string; operator: string; value: unknown; case_sensitive?: boolean }>;
+      }>;
+      actions?: {
+        set_assignee_id?: number | null;
+        set_priority?: string;
+        set_status?: string;
+        add_tags?: string[];
+        remove_tags?: string[];
+        set_follow_up_at?: string | null;
+        webhooks?: Array<{ url: string; method?: string }>;
+      };
+      active?: boolean;
+      stop_processing?: boolean;
+    };
+  }>('/routing-rules/:id', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const id = parseInt(request.params.id);
+    const existing = await routingRuleQueries.getById(id);
+    if (!existing) return reply.status(404).send({ error: 'Rule not found' });
+
+    try {
+      const updated = await routingRuleQueries.update(
+        id,
+        request.body.name ?? existing.name,
+        request.body.sort_order ?? existing.sort_order,
+        (request.body.condition_groups as any) ?? existing.condition_groups,
+        (request.body.actions as any) ?? existing.actions,
+        request.body.active ?? existing.active,
+        request.body.stop_processing ?? existing.stop_processing
+      );
+      return reply.send(updated);
+    } catch (error) {
+      fastify.log.error(error, 'Failed to update routing rule');
+      return reply.status(500).send({ error: 'Failed to update routing rule' });
+    }
+  });
+
+  /**
+   * DELETE /api/routing-rules/:id
+   */
+  fastify.delete<{ Params: { id: string } }>('/routing-rules/:id', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const id = parseInt(request.params.id);
+    try {
+      await routingRuleQueries.delete(id);
+      return reply.send({ success: true });
+    } catch (error) {
+      fastify.log.error(error, 'Failed to delete routing rule');
+      return reply.status(500).send({ error: 'Failed to delete routing rule' });
+    }
+  });
+
+  /**
+   * POST /api/routing-rules/dry-run
+   */
+  fastify.post<{
+    Body: {
+      ticket: { id: number; subject: string; customer_email: string; status: string; priority: string; assignee_id: number | null; created_at: string; updated_at: string; customer_name?: string | null };
+      message?: { id?: number; sender_email?: string; sender_name?: string | null; body?: string; body_html?: string | null; type?: string; to_emails?: string | string[] | null; created_at?: string | null };
+    };
+  }>('/routing-rules/dry-run', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { ticket, message } = request.body;
+    try {
+      const results = await evaluateRulesDryRun(
+        ticket as any,
+        (message as any) || ({} as any)
+      );
+      return reply.send(results);
+    } catch (error) {
+      fastify.log.error(error, 'Failed to dry-run routing rules');
+      return reply.status(500).send({ error: 'Failed to dry-run routing rules' });
+    }
   });
 
   // ============================================================================

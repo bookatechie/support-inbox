@@ -22,6 +22,8 @@ import { startScheduledEmailWorker, stopScheduledEmailWorker } from "./workers/s
 import { verifyEmailConnection, setEmailSenderLogger } from "./lib/email-sender.js";
 import { setFileStorageLogger, initFileStorage } from "./lib/file-storage.js";
 import { setWebhookLogger } from "./lib/webhook.js";
+import { setRulesEngineLogger } from "./lib/rules-engine.js";
+import { setRuleWebhookLogger } from "./lib/rule-webhook.js";
 import apiRoutes from "./api/routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -76,6 +78,8 @@ async function initialize() {
   setEmailSenderLogger(log);
   setFileStorageLogger(log);
   setWebhookLogger(log);
+  setRulesEngineLogger(log);
+  setRuleWebhookLogger(log);
 
   // 2. Test database connection (now that logger is set)
   testDatabaseConnection();

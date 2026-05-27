@@ -149,6 +149,67 @@ export type TicketStatus = 'new' | 'open' | 'awaiting_customer' | 'resolved';
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type UserRole = 'agent' | 'admin';
 
+// Routing Rules Engine Types
+export type RuleConditionOperator =
+  | 'equals'
+  | 'not_equals'
+  | 'contains'
+  | 'not_contains'
+  | 'starts_with'
+  | 'ends_with'
+  | 'regex'
+  | 'in'
+  | 'not_in';
+
+export interface RuleCondition {
+  field: 'subject' | 'body' | 'body_html' | 'sender_email' | 'customer_email' | 'customer_domain' | 'to_email' | 'attachment_count' | 'has_attachments';
+  operator: RuleConditionOperator;
+  value: string | string[] | number | boolean;
+  case_sensitive?: boolean;
+}
+
+export interface RuleConditionGroup {
+  combinator: 'and' | 'or';
+  conditions: RuleCondition[];
+}
+
+export interface RuleWebhookAction {
+  url: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH';
+}
+
+export interface RuleActions {
+  set_assignee_id?: number | null;
+  set_priority?: TicketPriority;
+  set_status?: TicketStatus;
+  add_tags?: string[];
+  remove_tags?: string[];
+  set_follow_up_at?: string | null;
+  add_internal_note?: string;
+  // Support multiple webhooks per rule
+  webhooks?: RuleWebhookAction[];
+}
+
+export interface RoutingRule {
+  id: number;
+  name: string;
+  active: boolean;
+  sort_order: number;
+  condition_groups: RuleConditionGroup[];
+  actions: RuleActions;
+  // When true (default), stop evaluating further rules after this one matches
+  stop_processing: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RuleEvaluationResult {
+  matched: boolean;
+  rule: RoutingRule | null;
+  actions_applied: Partial<RuleActions> | null;
+  audit: string[];
+}
+
 // Extended Types
 export interface TicketWithMessages extends Ticket {
   messages: MessageWithAttachments[];

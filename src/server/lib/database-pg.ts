@@ -42,6 +42,9 @@ import type {
   UserRole,
   TicketHistoryEntry,
   TicketHistoryCreateRequest,
+  RoutingRule,
+  RuleConditionGroup,
+  RuleActions,
 } from './types.js';
 
 // ============================================================================
@@ -1323,3 +1326,98 @@ export async function ensureDefaultUser(): Promise<void> {
 process.on('exit', () => {
   pool.end();
 });
+
+// ============================================================================
+// Routing Rules
+// ============================================================================
+
+export const routingRuleQueries = {
+  async getAll(): Promise<RoutingRule[]> {
+    const rows = await query<any>(
+      'SELECT * FROM routing_rules ORDER BY sort_order ASC, id ASC'
+    );
+    return rows.map(parseRule);
+  },
+
+  async getActive(): Promise<RoutingRule[]> {
+    const rows = await query<any>(
+      'SELECT * FROM routing_rules WHERE active = TRUE ORDER BY sort_order ASC, id ASC'
+    );
+    return rows.map(parseRule);
+  },
+
+  async getById(id: number): Promise<RoutingRule | undefined> {
+    const row = await queryOne<any>('SELECT * FROM routing_rules WHERE id = $1', [id]);
+    return row ? parseRule(row) : undefined;
+  },
+
+  async create(
+    name: string,
+    sortOrder: number,
+    conditionGroups: RuleConditionGroup[],
+    actions: RuleActions,
+    active: boolean = true,
+    stopProcessing: boolean = true
+  ): Promise<RoutingRule> {
+    const row = await queryOne<any>(
+      `INSERT INTO routing_rules (name, sort_order, condition_groups, actions, active, stop_processing)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [name, sortOrder, JSON.stringify(conditionGroups), JSON.stringify(actions), active, stopProcessing]
+    );
+    return parseRule(row!);
+  },
+
+  async update(
+    id: number,
+    name: string,
+    sortOrder: number,
+    conditionGroups: RuleConditionGroup[],
+    actions: RuleActions,
+    active: boolean,
+    stopProcessing: boolean
+  ): Promise<RoutingRule | undefined> {
+    const row = await queryOne<any>(
+      `UPDATE routing_rules
+       SET name = $1, sort_order = $2, condition_groups = $3, actions = $4, active = $5, stop_processing = $6
+       WHERE id = $7
+       RETURNING *`,
+      [name, sortOrder, JSON.stringify(conditionGroups), JSON.stringify(actions), active, stopProcessing, id]
+    );
+    return row ? parseRule(row) : undefined;
+  },
+
+  async delete(id: number): Promise<void> {
+    await execute('DELETE FROM routing_rules WHERE id = $1', [id]);
+  },
+
+  async reorder(newOrder: { id: number; sort_order: number }[]): Promise<void> {
+    for (const { id, sort_order } of newOrder) {
+      await execute('UPDATE routing_rules SET sort_order = $1 WHERE id = $2', [sort_order, id]);
+    }
+  },
+};
+
+function parseRule(row: any): RoutingRule {
+  return {
+    id: row.id,
+    name: row.name,
+    active: row.active,
+    sort_order: row.sort_order,
+    condition_groups: row.condition_groups || [],
+    actions: row.actions || {},
+    stop_processing: row.stop_processing ?? true,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+// Re-export types for downstream consumers
+export type {
+  ChangeSource,
+  TicketHistoryEntry,
+  TicketHistoryCreateRequest,
+  RoutingRule,
+  RuleConditionGroup,
+  RuleActions,
+} from './types.js';
