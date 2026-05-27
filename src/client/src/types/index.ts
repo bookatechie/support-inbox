@@ -22,9 +22,13 @@ export interface RuleWebhookAction {
 }
 
 export interface RuleActions {
-  assign_to?: number;
+  set_assignee_id?: number | null;
   set_priority?: 'low' | 'normal' | 'high' | 'urgent';
+  set_status?: 'new' | 'open' | 'awaiting_customer' | 'resolved';
   add_tags?: string[];
+  remove_tags?: string[];
+  set_follow_up_at?: string | null;
+  add_internal_note?: string;
   webhooks?: RuleWebhookAction[];
 }
 
@@ -42,8 +46,8 @@ export interface RoutingRule {
 
 export interface RuleEvaluationResult {
   matched: boolean;
-  rule: RoutingRule;
-  actions_applied: RuleActions;
+  rule: RoutingRule | null;
+  actions_applied: Partial<RuleActions> | null;
   audit: string[];
 }
 

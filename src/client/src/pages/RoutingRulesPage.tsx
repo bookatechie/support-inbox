@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { routingRules as routingRulesApi } from '@/lib/api';
+import { routingRules as routingRulesApi, users as usersApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import type {
   RoutingRule,
@@ -13,6 +13,7 @@ import type {
   RuleConditionGroup,
   RuleActions,
   CreateRoutingRuleRequest,
+  User,
 } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -76,6 +77,7 @@ const OPERATOR_OPTIONS = [
   'not_in',
 ];
 
+const STATUS_OPTIONS = ['new', 'open', 'awaiting_customer', 'resolved'];
 const PRIORITY_OPTIONS = ['low', 'normal', 'high', 'urgent'];
 
 function emptyCondition(): RuleCondition {
@@ -103,8 +105,9 @@ function summarizeConditions(groups: RuleConditionGroup[]): string {
 
 function summarizeActions(actions: RuleActions): string {
   const parts: string[] = [];
-  if (actions.assign_to) parts.push(`assign→${actions.assign_to}`);
+  if (actions.set_assignee_id !== undefined) parts.push(`assign→${actions.set_assignee_id || 'unassigned'}`);
   if (actions.set_priority) parts.push(`priority=${actions.set_priority}`);
+  if (actions.set_status) parts.push(`status=${actions.set_status}`);
   if (actions.add_tags?.length) parts.push(`+tags=${actions.add_tags.join(',')}`);
   if (actions.webhooks?.length) parts.push(`webhooks=${actions.webhooks.length}`);
   return parts.length ? parts.join(', ') : 'No actions';
@@ -136,7 +139,11 @@ export function RoutingRulesPage() {
   const [formWebhookMethod, setFormWebhookMethod] = useState<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'>('POST');
   const [formAssignTo, setFormAssignTo] = useState('');
   const [formPriority, setFormPriority] = useState('');
+  const [formStatus, setFormStatus] = useState('');
   const [formTags, setFormTags] = useState('');
+
+  // Users for dropdown
+  const [users, setUsers] = useState<User[]>([]);
 
   // Form submission states
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -148,6 +155,11 @@ export function RoutingRulesPage() {
   const [dryRunSender, setDryRunSender] = useState('');
   const [dryRunResults, setDryRunResults] = useState<any[]>([]);
   const [isDryRunning, setIsDryRunning] = useState(false);
+
+  // Load users for assignment dropdown
+  useEffect(() => {
+    usersApi.getAll().then(setUsers).catch(() => setUsers([]));
+  }, []);
 
   // Admin check
   if (currentUser?.role !== 'admin') {
@@ -199,6 +211,7 @@ export function RoutingRulesPage() {
     setFormWebhookMethod('POST');
     setFormAssignTo('');
     setFormPriority('');
+    setFormStatus('');
     setFormTags('');
     setError('');
   };
@@ -215,8 +228,9 @@ export function RoutingRulesPage() {
     );
     const actions = JSON.parse(JSON.stringify(rule.actions)) as RuleActions;
     setFormActions(actions);
-    setFormAssignTo(actions.assign_to ? String(actions.assign_to) : '');
+    setFormAssignTo(actions.set_assignee_id !== undefined ? String(actions.set_assignee_id) : '');
     setFormPriority(actions.set_priority || '');
+    setFormStatus(actions.set_status || '');
     setFormTags(actions.add_tags?.join(', ') || '');
     if (actions.webhooks?.length) {
       setFormWebhookUrl(actions.webhooks[0].url);
@@ -230,8 +244,15 @@ export function RoutingRulesPage() {
 
   const buildActionsFromForm = (): RuleActions => {
     const actions: RuleActions = {};
-    if (formAssignTo.trim()) actions.assign_to = parseInt(formAssignTo, 10);
-    if (formPriority) actions.set_priority = formPriority as any;
+    if (formAssignTo && formAssignTo !== 'none') {
+      actions.set_assignee_id = parseInt(formAssignTo, 10);
+    }
+    if (formPriority && formPriority !== 'none') {
+      actions.set_priority = formPriority as any;
+    }
+    if (formStatus && formStatus !== 'none') {
+      actions.set_status = formStatus as any;
+    }
     if (formTags.trim()) actions.add_tags = formTags.split(',').map((t) => t.trim()).filter(Boolean);
     if (formWebhookUrl.trim()) {
       actions.webhooks = [
@@ -577,16 +598,22 @@ export function RoutingRulesPage() {
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold">Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <Label htmlFor="assignTo">Assign To (User ID)</Label>
-            <Input
-              id="assignTo"
-              value={formAssignTo}
-              onChange={(e) => setFormAssignTo(e.target.value)}
-              placeholder="e.g. 2"
-              type="number"
-            />
+            <Label htmlFor="assignTo">Assign To</Label>
+            <Select value={formAssignTo} onValueChange={setFormAssignTo}>
+              <SelectTrigger id="assignTo">
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {users.map((u) => (
+                  <SelectItem key={u.id} value={String(u.id)}>
+                    {u.name} ({u.id})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label htmlFor="setPriority">Set Priority</Label>
@@ -598,6 +625,20 @@ export function RoutingRulesPage() {
                 <SelectItem value="none">None</SelectItem>
                 {PRIORITY_OPTIONS.map((p) => (
                   <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="setStatus">Set Status</Label>
+            <Select value={formStatus} onValueChange={setFormStatus}>
+              <SelectTrigger id="setStatus">
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {STATUS_OPTIONS.map((s) => (
+                  <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
