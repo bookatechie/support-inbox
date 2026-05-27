@@ -12,7 +12,10 @@ import type {
   RuleCondition,
   RuleConditionGroup,
   RuleActions,
+  RuleEvaluationResult,
   CreateRoutingRuleRequest,
+  TicketStatus,
+  TicketPriority,
   User,
 } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -48,7 +51,6 @@ import {
   Shield,
   Play,
   ArrowUpDown,
-  Check,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -86,10 +88,6 @@ function emptyCondition(): RuleCondition {
 
 function emptyConditionGroup(): RuleConditionGroup {
   return { combinator: 'and', conditions: [emptyCondition()] };
-}
-
-function emptyActions(): RuleActions {
-  return {};
 }
 
 function summarizeConditions(groups: RuleConditionGroup[]): string {
@@ -134,7 +132,6 @@ export function RoutingRulesPage() {
   const [formConditionGroups, setFormConditionGroups] = useState<RuleConditionGroup[]>([
     emptyConditionGroup(),
   ]);
-  const [formActions, setFormActions] = useState<RuleActions>(emptyActions());
   const [formWebhookUrl, setFormWebhookUrl] = useState('');
   const [formWebhookMethod, setFormWebhookMethod] = useState<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'>('POST');
   const [formAssignTo, setFormAssignTo] = useState('');
@@ -153,31 +150,10 @@ export function RoutingRulesPage() {
   const [dryRunSubject, setDryRunSubject] = useState('');
   const [dryRunBody, setDryRunBody] = useState('');
   const [dryRunSender, setDryRunSender] = useState('');
-  const [dryRunResults, setDryRunResults] = useState<any[]>([]);
+  const [dryRunResults, setDryRunResults] = useState<RuleEvaluationResult[]>([]);
   const [isDryRunning, setIsDryRunning] = useState(false);
 
-  // Load users for assignment dropdown
-  useEffect(() => {
-    usersApi.getAll().then(setUsers).catch(() => setUsers([]));
-  }, []);
-
-  // Admin check
-  if (currentUser?.role !== 'admin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="p-8 text-center">
-          <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Access Denied</h2>
-          <p className="text-muted-foreground mb-4">
-            Only administrators can access this page
-          </p>
-          <Link to="/tickets">
-            <Button>Back to Tickets</Button>
-          </Link>
-        </Card>
-      </div>
-    );
-  }
+  const isAdmin = currentUser?.role === 'admin';
 
   const loadRules = async (isInitialLoad = false) => {
     try {
@@ -196,9 +172,30 @@ export function RoutingRulesPage() {
     }
   };
 
+  // Load users (for the assignment dropdown) and rules — admin only
   useEffect(() => {
+    if (!isAdmin) return;
+    usersApi.getAll().then(setUsers).catch(() => setUsers([]));
     loadRules(true);
-  }, []);
+  }, [isAdmin]);
+
+  // Admin check
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Access Denied</h2>
+          <p className="text-muted-foreground mb-4">
+            Only administrators can access this page
+          </p>
+          <Link to="/tickets">
+            <Button>Back to Tickets</Button>
+          </Link>
+        </Card>
+      </div>
+    );
+  }
 
   const resetForm = () => {
     setFormName('');
@@ -206,7 +203,6 @@ export function RoutingRulesPage() {
     setFormSortOrder(0);
     setFormStopProcessing(true);
     setFormConditionGroups([emptyConditionGroup()]);
-    setFormActions(emptyActions());
     setFormWebhookUrl('');
     setFormWebhookMethod('POST');
     setFormAssignTo('');
@@ -227,7 +223,6 @@ export function RoutingRulesPage() {
         : [emptyConditionGroup()]
     );
     const actions = JSON.parse(JSON.stringify(rule.actions)) as RuleActions;
-    setFormActions(actions);
     setFormAssignTo(actions.set_assignee_id !== undefined ? String(actions.set_assignee_id) : '');
     setFormPriority(actions.set_priority || '');
     setFormStatus(actions.set_status || '');
@@ -248,10 +243,10 @@ export function RoutingRulesPage() {
       actions.set_assignee_id = parseInt(formAssignTo, 10);
     }
     if (formPriority && formPriority !== 'none') {
-      actions.set_priority = formPriority as any;
+      actions.set_priority = formPriority as TicketPriority;
     }
     if (formStatus && formStatus !== 'none') {
-      actions.set_status = formStatus as any;
+      actions.set_status = formStatus as TicketStatus;
     }
     if (formTags.trim()) actions.add_tags = formTags.split(',').map((t) => t.trim()).filter(Boolean);
     if (formWebhookUrl.trim()) {
@@ -259,7 +254,6 @@ export function RoutingRulesPage() {
         {
           url: formWebhookUrl.trim(),
           method: formWebhookMethod,
-          headers: { 'X-Source': 'box' },
         },
       ];
     }
@@ -391,7 +385,7 @@ export function RoutingRulesPage() {
     groupIdx: number,
     condIdx: number,
     field: keyof RuleCondition,
-    value: any
+    value: RuleCondition['value']
   ) => {
     const groups = [...formConditionGroups];
     groups[groupIdx].conditions[condIdx] = {
@@ -665,7 +659,7 @@ export function RoutingRulesPage() {
           </div>
           <div>
             <Label htmlFor="webhookMethod">Method</Label>
-            <Select value={formWebhookMethod} onValueChange={(v: any) => setFormWebhookMethod(v)}>
+            <Select value={formWebhookMethod} onValueChange={(v) => setFormWebhookMethod(v as typeof formWebhookMethod)}>
               <SelectTrigger id="webhookMethod">
                 <SelectValue />
               </SelectTrigger>
@@ -879,7 +873,7 @@ export function RoutingRulesPage() {
                       <Badge variant={r.matched ? 'default' : 'secondary'}>
                         {r.matched ? 'MATCHED' : 'No match'}
                       </Badge>
-                      <span className="font-medium">{r.rule.name}</span>
+                      <span className="font-medium">{r.rule?.name}</span>
                     </div>
                     {r.matched && (
                       <div className="text-xs text-muted-foreground space-y-0.5">
