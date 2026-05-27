@@ -20,6 +20,7 @@ const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then(m => ({ 
 const CannedResponsesPage = lazy(() => import('./pages/CannedResponsesPage').then(m => ({ default: m.CannedResponsesPage })));
 const CalendarPage = lazy(() => import('./pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const RoutingRulesPage = lazy(() => import('./pages/RoutingRulesPage').then(m => ({ default: m.RoutingRulesPage })));
 
 // Loading component
 const PageLoader = () => (
@@ -116,6 +117,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <ReportsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/routing-rules"
+                element={
+                  <ProtectedRoute>
+                    <RoutingRulesPage />
                   </ProtectedRoute>
                 }
               />

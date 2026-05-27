@@ -22,6 +22,10 @@ import type {
   PaginatedTicketsResponse,
   Tag,
   TicketHistoryEntry,
+  RoutingRule,
+  CreateRoutingRuleRequest,
+  UpdateRoutingRuleRequest,
+  RuleEvaluationResult,
 } from '@/types';
 
 // Authentication
@@ -218,6 +222,33 @@ export const users = {
 // Tags
 export const tags = {
   getAll: () => request<Tag[]>('/tags'),
+};
+
+export const routingRules = {
+  getAll: () => request<RoutingRule[]>('/routing-rules'),
+
+  create: (data: CreateRoutingRuleRequest) =>
+    request<RoutingRule>('/routing-rules', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: number, data: UpdateRoutingRuleRequest) =>
+    request<RoutingRule>(`/routing-rules/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: number) =>
+    request<{ success: boolean }>(`/routing-rules/${id}`, {
+      method: 'DELETE',
+    }),
+
+  dryRun: (ticket: { id: number; subject: string; customer_email: string; status: string; priority: string; assignee_id: number | null; created_at: string; updated_at: string; customer_name?: string | null }, message?: { sender_email?: string; body?: string; type?: string }) =>
+    request<RuleEvaluationResult[]>('/routing-rules/dry-run', {
+      method: 'POST',
+      body: JSON.stringify({ ticket, message }),
+    }),
 };
 
 // Utility

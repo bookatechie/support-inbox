@@ -3,6 +3,68 @@
  * Matches backend types from server/lib/types.ts
  */
 
+// Rule Engine Types
+export interface RuleCondition {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 'regex' | 'in' | 'not_in';
+  value: string | number | string[];
+}
+
+export interface RuleConditionGroup {
+  combinator: 'and' | 'or';
+  conditions: RuleCondition[];
+}
+
+export interface RuleWebhookAction {
+  url: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  headers?: Record<string, string>;
+}
+
+export interface RuleActions {
+  assign_to?: number;
+  set_priority?: 'low' | 'normal' | 'high' | 'urgent';
+  add_tags?: string[];
+  webhooks?: RuleWebhookAction[];
+}
+
+export interface RoutingRule {
+  id: number;
+  name: string;
+  active: boolean;
+  sort_order: number;
+  condition_groups: RuleConditionGroup[];
+  actions: RuleActions;
+  stop_processing: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RuleEvaluationResult {
+  matched: boolean;
+  rule: RoutingRule;
+  actions_applied: RuleActions;
+  audit: string[];
+}
+
+export interface CreateRoutingRuleRequest {
+  name: string;
+  active?: boolean;
+  sort_order?: number;
+  condition_groups: RuleConditionGroup[];
+  actions: RuleActions;
+  stop_processing?: boolean;
+}
+
+export interface UpdateRoutingRuleRequest {
+  name?: string;
+  active?: boolean;
+  sort_order?: number;
+  condition_groups?: RuleConditionGroup[];
+  actions?: RuleActions;
+  stop_processing?: boolean;
+}
+
 // Database Models
 export interface Ticket {
   id: number;
