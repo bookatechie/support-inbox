@@ -240,7 +240,15 @@ function extractFieldValue(
     case 'to_email': {
       // Prefer explicit toEmails from context, then fall back to message
       const ctxTo = context?.toEmails || [];
-      const msgTo = message!.to_emails ? (JSON.parse(message!.to_emails) as string[]) : [];
+      let msgTo: string[] = [];
+      if (message!.to_emails) {
+        try {
+          const parsed = JSON.parse(message!.to_emails);
+          if (Array.isArray(parsed)) msgTo = parsed as string[];
+        } catch {
+          engineLogger?.error({ value: message!.to_emails }, 'Failed to parse message.to_emails as JSON');
+        }
+      }
       return [...new Set([...ctxTo, ...msgTo])];
     }
     case 'attachment_count':
@@ -282,7 +290,13 @@ function matchValue(
     }
     case 'regex': {
       const av = stringifyIfArray(a, caseSensitive);
-      return typeof av === 'string' ? new RegExp(String(e), caseSensitive ? '' : 'i').test(av) : false;
+      if (typeof av !== 'string') return false;
+      try {
+        return new RegExp(String(e), caseSensitive ? '' : 'i').test(av);
+      } catch {
+        engineLogger?.error({ pattern: String(e) }, 'Invalid regex pattern in routing rule condition');
+        return false;
+      }
     }
     case 'in':
       return isInSet(a, e, caseSensitive);
