@@ -137,7 +137,7 @@ export interface TicketHistoryCreateRequest {
   field_name: string;
   old_value: string | null;
   new_value: string | null;
-  changed_by_user_id: number;
+  changed_by_user_id: number | null;
   changed_by_email: string;
   changed_by_name: string;
   change_source?: ChangeSource;

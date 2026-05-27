@@ -22,6 +22,7 @@ import {
   tagQueries,
   ticketTagQueries,
   ticketQueries,
+  ticketHistoryQueries,
 } from './database-pg.js';
 import { sendWebhookFromRule } from './rule-webhook.js';
 
@@ -72,7 +73,7 @@ export async function evaluateRulesForTicket(
       const actions = rule.actions;
 
       // Apply inline actions
-      const appliedActions = await applyActions(rule.id, actions, ticket, audit);
+      const appliedActions = await applyActions(rule.id, rule.name, actions, ticket, audit);
 
       // Fire webhooks if configured (fire-and-forget, non-blocking)
       if (actions.webhooks && actions.webhooks.length > 0) {
@@ -351,26 +352,56 @@ function isInSet(actual: unknown, expectedSet: unknown, caseSensitive: boolean):
 
 async function applyActions(
   ruleId: number,
+  ruleName: string,
   actions: RuleActions,
   ticket: Ticket,
   auditLog: string[]
 ): Promise<Partial<RuleActions>> {
   const applied: Partial<RuleActions> = {};
 
+  const logChange = async (
+    fieldName: string,
+    oldValue: string | null,
+    newValue: string | null
+  ) => {
+    try {
+      await ticketHistoryQueries.create({
+        ticket_id: ticket.id,
+        field_name: fieldName,
+        old_value: oldValue,
+        new_value: newValue,
+        changed_by_user_id: null,
+        changed_by_email: 'system',
+        changed_by_name: 'Routing Rule',
+        change_source: 'automation',
+        notes: `Applied by rule: ${ruleName} (id:${ruleId})`,
+      });
+    } catch (err) {
+      engineLogger?.error({ err, ticketId: ticket.id, ruleId, field: fieldName }, 'Failed to log routing rule history');
+    }
+  };
+
   if (actions.set_assignee_id !== undefined) {
+    const oldAssignee = ticket.assignee_id !== null ? String(ticket.assignee_id) : null;
+    const newAssignee = actions.set_assignee_id !== null ? String(actions.set_assignee_id) : null;
     await ticketQueries.updateAssignee(actions.set_assignee_id || null, ticket.id);
+    await logChange('assignee_id', oldAssignee, newAssignee);
     auditLog.push(`Set assignee → ${actions.set_assignee_id || 'unassigned'}`);
     applied.set_assignee_id = actions.set_assignee_id;
   }
 
   if (actions.set_priority) {
+    const oldPriority = ticket.priority;
     await ticketQueries.updatePriority(actions.set_priority, ticket.id);
+    await logChange('priority', oldPriority, actions.set_priority);
     auditLog.push(`Set priority → ${actions.set_priority}`);
     applied.set_priority = actions.set_priority;
   }
 
   if (actions.set_status) {
+    const oldStatus = ticket.status;
     await ticketQueries.updateStatus(actions.set_status, ticket.id);
+    await logChange('status', oldStatus, actions.set_status);
     auditLog.push(`Set status → ${actions.set_status}`);
     applied.set_status = actions.set_status;
   }
@@ -386,6 +417,7 @@ async function applyActions(
         await ticketTagQueries.addTagToTicket(ticket.id, tag.id);
       }
     }
+    await logChange('tags', null, `+${actions.add_tags.join(', ')}`);
     auditLog.push(`Added tags: ${actions.add_tags.join(', ')}`);
     applied.add_tags = actions.add_tags;
   }
@@ -397,12 +429,16 @@ async function applyActions(
         await ticketTagQueries.removeTagFromTicket(ticket.id, tag.id);
       }
     }
+    await logChange('tags', null, `-${actions.remove_tags.join(', ')}`);
     auditLog.push(`Removed tags: ${actions.remove_tags.join(', ')}`);
     applied.remove_tags = actions.remove_tags;
   }
 
   if (actions.set_follow_up_at !== undefined) {
+    const oldFollowUp = ticket.follow_up_at;
+    const newFollowUp = actions.set_follow_up_at;
     await ticketQueries.updateFollowUp(actions.set_follow_up_at || null, ticket.id);
+    await logChange('follow_up_at', oldFollowUp, newFollowUp);
     auditLog.push(`Set follow-up → ${actions.set_follow_up_at || 'cleared'}`);
     applied.set_follow_up_at = actions.set_follow_up_at;
   }
