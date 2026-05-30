@@ -6,7 +6,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { routingRules as routingRulesApi, users as usersApi } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
 import type {
   RoutingRule,
   RuleCondition,
@@ -48,7 +47,6 @@ import {
   Plus,
   Edit,
   Trash2,
-  Shield,
   Play,
   ArrowUpDown,
   X,
@@ -112,7 +110,6 @@ function summarizeActions(actions: RuleActions): string {
 }
 
 export function RoutingRulesPage() {
-  const { user: currentUser } = useAuth();
   const [rules, setRules] = useState<RoutingRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -153,8 +150,6 @@ export function RoutingRulesPage() {
   const [dryRunResults, setDryRunResults] = useState<RuleEvaluationResult[]>([]);
   const [isDryRunning, setIsDryRunning] = useState(false);
 
-  const isAdmin = currentUser?.role === 'admin';
-
   const loadRules = async (isInitialLoad = false) => {
     try {
       if (isInitialLoad) {
@@ -172,30 +167,11 @@ export function RoutingRulesPage() {
     }
   };
 
-  // Load users (for the assignment dropdown) and rules — admin only
+  // Load users (for the assignment dropdown) and rules
   useEffect(() => {
-    if (!isAdmin) return;
     usersApi.getAll().then(setUsers).catch(() => setUsers([]));
     loadRules(true);
-  }, [isAdmin]);
-
-  // Admin check
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="p-8 text-center">
-          <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Access Denied</h2>
-          <p className="text-muted-foreground mb-4">
-            Only administrators can access this page
-          </p>
-          <Link to="/tickets">
-            <Button>Back to Tickets</Button>
-          </Link>
-        </Card>
-      </div>
-    );
-  }
+  }, []);
 
   const resetForm = () => {
     setFormName('');

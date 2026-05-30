@@ -896,22 +896,20 @@ export function TicketsPage() {
                   </DropdownMenuItem>
                 </Link>
 
-                {user?.role === 'admin' && (
-                  <>
-                    <Link to="/routing-rules">
-                      <DropdownMenuItem>
-                        <Route className="h-4 w-4 mr-2" />
-                        Routing Rules
-                      </DropdownMenuItem>
-                    </Link>
+                <Link to="/routing-rules">
+                  <DropdownMenuItem>
+                    <Route className="h-4 w-4 mr-2" />
+                    Routing Rules
+                  </DropdownMenuItem>
+                </Link>
 
-                    <Link to="/admin/users">
-                      <DropdownMenuItem>
-                        <Users className="h-4 w-4 mr-2" />
-                        Manage Users
-                      </DropdownMenuItem>
-                    </Link>
-                  </>
+                {user?.role === 'admin' && (
+                  <Link to="/admin/users">
+                    <DropdownMenuItem>
+                      <Users className="h-4 w-4 mr-2" />
+                      Manage Users
+                    </DropdownMenuItem>
+                  </Link>
                 )}
 
                 <DropdownMenuItem onClick={openProfileModal}>
@@ -1350,22 +1348,20 @@ export function TicketsPage() {
                 </Button>
               </Link>
 
-              {user?.role === 'admin' && (
-                <>
-                  <Link to="/routing-rules" onClick={() => setShowMobileMenu(false)}>
-                    <Button variant="ghost" className="w-full justify-start">
-                      <Route className="h-4 w-4 mr-2" />
-                      Routing Rules
-                    </Button>
-                  </Link>
+              <Link to="/routing-rules" onClick={() => setShowMobileMenu(false)}>
+                <Button variant="ghost" className="w-full justify-start">
+                  <Route className="h-4 w-4 mr-2" />
+                  Routing Rules
+                </Button>
+              </Link>
 
-                  <Link to="/admin/users" onClick={() => setShowMobileMenu(false)}>
-                    <Button variant="ghost" className="w-full justify-start">
-                      <Users className="h-4 w-4 mr-2" />
-                      Manage Users
-                    </Button>
-                  </Link>
-                </>
+              {user?.role === 'admin' && (
+                <Link to="/admin/users" onClick={() => setShowMobileMenu(false)}>
+                  <Button variant="ghost" className="w-full justify-start">
+                    <Users className="h-4 w-4 mr-2" />
+                    Manage Users
+                  </Button>
+                </Link>
               )}
 
               <Button variant="ghost" className="w-full justify-start" onClick={() => {

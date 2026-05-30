@@ -1818,9 +1818,6 @@ export default async function routes(fastify: FastifyInstance) {
    * GET /api/routing-rules
    */
   fastify.get('/routing-rules', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-    if (request.user!.role !== 'admin') {
-      return reply.status(403).send({ error: 'Only admins can manage routing rules' });
-    }
     try {
       const rules = await routingRuleQueries.getAll();
       return reply.send(rules);
@@ -1854,9 +1851,6 @@ export default async function routes(fastify: FastifyInstance) {
       stop_processing?: boolean;
     };
   }>('/routing-rules', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-    if (request.user!.role !== 'admin') {
-      return reply.status(403).send({ error: 'Only admins can manage routing rules' });
-    }
     const { name, sort_order, condition_groups, actions, active, stop_processing } = request.body;
     if (!name || !condition_groups || !actions) {
       return reply.status(400).send({ error: 'Missing required fields: name, condition_groups, actions' });
@@ -1906,9 +1900,6 @@ export default async function routes(fastify: FastifyInstance) {
       stop_processing?: boolean;
     };
   }>('/routing-rules/:id', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-    if (request.user!.role !== 'admin') {
-      return reply.status(403).send({ error: 'Only admins can manage routing rules' });
-    }
     const id = parseInt(request.params.id);
     const existing = await routingRuleQueries.getById(id);
     if (!existing) return reply.status(404).send({ error: 'Rule not found' });
@@ -1941,9 +1932,6 @@ export default async function routes(fastify: FastifyInstance) {
    * DELETE /api/routing-rules/:id
    */
   fastify.delete<{ Params: { id: string } }>('/routing-rules/:id', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-    if (request.user!.role !== 'admin') {
-      return reply.status(403).send({ error: 'Only admins can manage routing rules' });
-    }
     const id = parseInt(request.params.id);
     try {
       await routingRuleQueries.delete(id);
@@ -1963,9 +1951,6 @@ export default async function routes(fastify: FastifyInstance) {
       message?: { id?: number; sender_email?: string; sender_name?: string | null; body?: string; body_html?: string | null; type?: string; to_emails?: string | string[] | null; created_at?: string | null };
     };
   }>('/routing-rules/dry-run', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-    if (request.user!.role !== 'admin') {
-      return reply.status(403).send({ error: 'Only admins can manage routing rules' });
-    }
     const { ticket, message } = request.body;
     try {
       const results = await evaluateRulesDryRun(
