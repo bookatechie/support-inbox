@@ -289,12 +289,21 @@ export async function sendNewEmail(
   subject: string,
   body: string,
   agentName: string,
-  agentPersonalEmail?: string | null
+  agentPersonalEmail?: string | null,
+  trackingToken?: string
 ): Promise<string | null> {
   const transport = getTransporter();
 
+  let finalBody = body;
+
+  // Add tracking pixel if tracking token provided (parity with sendReplyEmail)
+  if (trackingToken) {
+    const trackingPixel = `<img src="${config.serverUrl}/api/track/${trackingToken}" alt="" width="1" height="1" style="display:none;" />`;
+    finalBody = `${finalBody}${trackingPixel}`;
+  }
+
   // Convert HTML to plain text for fallback
-  const plainText = body.replace(/<[^>]*>/g, '').replace(/\n\n+/g, '\n\n');
+  const plainText = finalBody.replace(/<[^>]*>/g, '').replace(/\n\n+/g, '\n\n');
 
   // Use agent's personalized email if configured, otherwise use shared inbox
   const fromAddress = agentPersonalEmail || config.smtp.from;
@@ -307,7 +316,7 @@ export async function sendNewEmail(
     to,
     subject,
     text: plainText,
-    html: body,
+    html: finalBody,
   };
 
   try {

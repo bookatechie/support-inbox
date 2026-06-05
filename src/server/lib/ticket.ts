@@ -402,12 +402,17 @@ export async function createTicket(
     // Only 'email'-type messages are dispatched to the customer.
     if (isEmail && request.send_email !== false) {
       try {
+        // Generate tracking token for email open tracking (parity with reply/scheduled sends)
+        const trackingToken = crypto.randomBytes(32).toString('hex');
+        await messageQueries.updateTrackingToken(trackingToken, messageId);
+
         const emailMessageId = await sendNewEmail(
           request.customer_email,
           request.subject,
           bodyHtml || bodyText,
           senderName,
-          senderEmail
+          senderEmail,
+          trackingToken
         );
 
         if (emailMessageId) {

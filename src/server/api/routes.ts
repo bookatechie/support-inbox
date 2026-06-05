@@ -39,6 +39,7 @@ import { handleSSE, sseEmitter, getClientCount } from './sse.js';
 import { evaluateRulesDryRun } from '../lib/rules-engine.js';
 import { isValidTicketStatus, isValidTicketPriority } from '../lib/validation.js';
 import { sendNewEmail } from '../lib/email-sender.js';
+import crypto from 'crypto';
 import { sanitizeUser, sanitizeUsers } from '../lib/utils.js';
 import { config } from '../lib/config.js';
 import type {
@@ -848,13 +849,17 @@ export default async function routes(fastify: FastifyInstance) {
         null   // ccEmails
       );
 
-      // Send the email directly
+      // Send the email directly (with open tracking, parity with all other sends)
+      const trackingToken = crypto.randomBytes(32).toString('hex');
+      await messageQueries.updateTrackingToken(trackingToken, newMessageId);
+
       const emailMessageId = await sendNewEmail(
         to_email,
         `Fwd: ${originalTicket.subject}`,
         htmlBody,
         request.user!.name,
-        request.user!.agent_email
+        request.user!.agent_email,
+        trackingToken
       );
 
       // Update message with email message ID for threading
