@@ -24,6 +24,7 @@ import {
   tagQueries,
   ticketTagQueries,
   ticketHistoryQueries,
+  type CustomerAggregateFacet,
 } from '../lib/database-pg.js';
 import { readAttachment, saveAttachment, deleteTicketAttachments } from '../lib/file-storage.js';
 import {
@@ -373,6 +374,70 @@ export default async function routes(fastify: FastifyInstance) {
         total: totalCount,
       },
     });
+  });
+
+  /**
+   * POST /tickets/aggregate
+   * Generic per-customer ticket aggregation.
+   *
+   * Collapses what would otherwise be one lookup per customer into a single
+   * call: given a cohort of customer emails and one or more named "facets"
+   * (each a set of generic ticket filters), returns, per email, the count of
+   * tickets matching each facet plus the latest matching message timestamp.
+   *
+   * The endpoint is tenant-agnostic — the caller supplies every filter value:
+   *
+   * {
+   *   "customer_email": ["a@x.com", "b@y.com"],
+   *   "facets": {
+   *     "<name>": {
+   *       "status"?: ["open","new"],      // ticket status in this set
+   *       "last_sender_email"?: "x@y.com",// latest message sent by (ILIKE)
+   *       "min_message_count"?: 2,         // ticket has >= N messages
+   *       "tag"?: "vip",                  // ticket has this tag
+   *       "exclude_tag"?: "automated"     // ticket lacks this tag
+   *     }
+   *   }
+   * }
+   *
+   * Response:
+   * { "results": { "a@x.com": { "<name>": { "count": 2, "last_message_at": "..." } } } }
+   */
+  fastify.post<{
+    Body: {
+      customer_email?: string[];
+      facets?: Record<string, CustomerAggregateFacet>;
+    };
+  }>('/tickets/aggregate', {
+    onRequest: [fastify.authenticate],
+  }, async (request, reply) => {
+    const { customer_email, facets } = request.body || {};
+
+    if (!Array.isArray(customer_email) || customer_email.length === 0) {
+      return reply.status(400).send({ error: 'customer_email must be a non-empty array of email addresses' });
+    }
+    if (customer_email.length > 5000) {
+      return reply.status(400).send({ error: 'customer_email is limited to 5000 addresses per request' });
+    }
+    if (!facets || typeof facets !== 'object' || Array.isArray(facets) || Object.keys(facets).length === 0) {
+      return reply.status(400).send({ error: 'facets must be a non-empty object of named filter sets' });
+    }
+    if (Object.keys(facets).length > 20) {
+      return reply.status(400).send({ error: 'a maximum of 20 facets is allowed per request' });
+    }
+
+    const raw = await ticketQueries.aggregateByCustomer(customer_email, facets);
+
+    // Normalize timestamps to ISO 8601 UTC to match the rest of the API.
+    const results: Record<string, Record<string, { count: number; last_message_at: string | null }>> = {};
+    for (const [email, facetMap] of Object.entries(raw)) {
+      results[email] = {};
+      for (const [name, val] of Object.entries(facetMap)) {
+        results[email][name] = { count: val.count, last_message_at: toISOString(val.last_message_at) };
+      }
+    }
+
+    return reply.send({ results });
   });
 
   /**

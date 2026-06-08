@@ -116,6 +116,24 @@ async function execute(text: string, params?: any[]): Promise<void> {
 // Typed Query Helpers (matching SQLite interface)
 // ============================================================================
 
+/**
+ * A single named filter set for {@link ticketQueries.aggregateByCustomer}.
+ * Every field is a generic ticket attribute supplied by the caller, so this
+ * stays tenant-agnostic — no domain-specific logic lives in the inbox.
+ */
+export interface CustomerAggregateFacet {
+  /** Ticket status is one of these values (e.g. ['open','new']). */
+  status?: string[];
+  /** The ticket's most recent message was sent by this address (ILIKE match). */
+  last_sender_email?: string;
+  /** The ticket has at least this many messages. */
+  min_message_count?: number;
+  /** The ticket carries this tag (by name). */
+  tag?: string;
+  /** The ticket does NOT carry this tag (by name). */
+  exclude_tag?: string;
+}
+
 export const ticketQueries = {
   async getAll(): Promise<(Ticket & { message_count: number; last_message_preview: string | null; attachment_count: number; last_message_sender_email: string | null; last_message_sender_name: string | null; last_message_at: string | null })[]> {
     return query(`
@@ -456,6 +474,125 @@ export const ticketQueries = {
   ): Promise<(Ticket & { message_count: number; last_message_preview: string | null; attachment_count: number; last_message_sender_email: string | null; last_message_sender_name: string | null; last_message_at: string | null; total_count: number })[]> {
     // Delegate to getTicketsFiltered which already handles this case
     return getTicketsFiltered(options);
+  },
+
+  /**
+   * Generic per-customer aggregation.
+   *
+   * Given a set of customer emails and one or more named "facets" (each a
+   * combination of generic ticket filters), returns, for every requested
+   * email, the count of that customer's tickets matching each facet plus the
+   * most recent matching message timestamp.
+   *
+   * This is a tenant-agnostic reporting primitive: the caller supplies all
+   * filter values (statuses, sender address, tag names, ...), so no
+   * domain-specific behaviour lives here. Emails are matched case-insensitively.
+   *
+   * Returns a complete shape — every requested email has an entry for every
+   * facet, defaulting to { count: 0, last_message_at: null }. Timestamps are
+   * raw PostgreSQL strings; callers normalize them to ISO 8601.
+   */
+  async aggregateByCustomer(
+    emails: string[],
+    facets: Record<string, CustomerAggregateFacet>
+  ): Promise<Record<string, Record<string, { count: number; last_message_at: string | null }>>> {
+    const normalizedEmails = [...new Set(emails.map(e => e.trim().toLowerCase()).filter(Boolean))];
+    const facetNames = Object.keys(facets);
+
+    // Seed a complete, predictable result shape.
+    const results: Record<string, Record<string, { count: number; last_message_at: string | null }>> = {};
+    for (const email of normalizedEmails) {
+      results[email] = {};
+      for (const name of facetNames) {
+        results[email][name] = { count: 0, last_message_at: null };
+      }
+    }
+
+    if (normalizedEmails.length === 0 || facetNames.length === 0) {
+      return results;
+    }
+
+    // Run one grouped aggregate per facet, then merge into the seeded shape.
+    for (const name of facetNames) {
+      const facet = facets[name] || {};
+      const params: any[] = [normalizedEmails];
+      let p = 2; // $1 is the email array
+
+      const cohortClauses: string[] = ['LOWER(t.customer_email) = ANY($1::text[])'];
+      if (facet.status && facet.status.length > 0) {
+        cohortClauses.push(`t.status = ANY($${p++}::text[])`);
+        params.push(facet.status);
+      }
+
+      const havingClauses: string[] = [];
+      if (facet.last_sender_email) {
+        havingClauses.push(`stats.last_sender ILIKE $${p++}`);
+        params.push(facet.last_sender_email);
+      }
+      if (typeof facet.min_message_count === 'number') {
+        havingClauses.push(`stats.msg_count >= $${p++}`);
+        params.push(facet.min_message_count);
+      }
+      if (facet.tag) {
+        havingClauses.push(
+          `EXISTS (SELECT 1 FROM ticket_tags tt JOIN tags tg ON tg.id = tt.tag_id WHERE tt.ticket_id = stats.id AND tg.name = $${p++})`
+        );
+        params.push(facet.tag);
+      }
+      if (facet.exclude_tag) {
+        havingClauses.push(
+          `NOT EXISTS (SELECT 1 FROM ticket_tags tt JOIN tags tg ON tg.id = tt.tag_id WHERE tt.ticket_id = stats.id AND tg.name = $${p++})`
+        );
+        params.push(facet.exclude_tag);
+      }
+
+      const cohortWhere = cohortClauses.join(' AND ');
+      const havingWhere = havingClauses.length > 0 ? `WHERE ${havingClauses.join(' AND ')}` : '';
+
+      const sql = `
+        WITH cohort AS (
+          SELECT t.id, LOWER(t.customer_email) AS email
+          FROM tickets t
+          WHERE ${cohortWhere}
+        ),
+        msg AS (
+          SELECT ticket_id, COUNT(*) AS msg_count, MAX(created_at) AS last_at
+          FROM messages
+          WHERE ticket_id IN (SELECT id FROM cohort)
+          GROUP BY ticket_id
+        ),
+        last_sender AS (
+          SELECT DISTINCT ON (ticket_id) ticket_id, sender_email
+          FROM messages
+          WHERE ticket_id IN (SELECT id FROM cohort)
+          ORDER BY ticket_id, created_at DESC
+        ),
+        stats AS (
+          SELECT c.id, c.email,
+                 COALESCE(msg.msg_count, 0) AS msg_count,
+                 last_sender.sender_email AS last_sender,
+                 msg.last_at
+          FROM cohort c
+          LEFT JOIN msg ON msg.ticket_id = c.id
+          LEFT JOIN last_sender ON last_sender.ticket_id = c.id
+        )
+        SELECT email, COUNT(*)::int AS count, MAX(last_at)::text AS last_message_at
+        FROM stats
+        ${havingWhere}
+        GROUP BY email
+      `;
+
+      const rows = await query<{ email: string; count: number; last_message_at: string | null }>(sql, params);
+      for (const row of rows) {
+        if (!results[row.email]) results[row.email] = {};
+        results[row.email][name] = {
+          count: Number(row.count) || 0,
+          last_message_at: row.last_message_at,
+        };
+      }
+    }
+
+    return results;
   },
 
   // Get report data for analytics dashboard
