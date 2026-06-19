@@ -8,7 +8,7 @@ This is a **public repository**. NEVER commit anything confidential or proprieta
 
 ## Local Reference Notes
 
-At the start of each new session, check the `tmp/` folder for Markdown (`.md`) files — they hold local, un-checked-in reference notes (e.g. production/ops details) that may be relevant to the task at hand. The `tmp/` folder is git-ignored, so these notes never get committed.
+Local, un-checked-in reference notes (e.g. production/ops details) live in `CLAUDE.local.md`, which Claude Code loads automatically each session. It is git-ignored, so these notes never get committed. Keep any confidential operational details there, not in this file.
 
 ## Project Overview
 

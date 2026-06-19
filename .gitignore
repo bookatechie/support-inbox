@@ -3,6 +3,8 @@
 # Claude Code - ignore local config but include shared skills
 .claude/*
 !.claude/skills/
+# Local-only Claude memory (ops/prod notes, never commit)
+CLAUDE.local.md
 
 # Dependencies
 node_modules/
@@ -37,10 +39,6 @@ Thumbs.db
 
 # Test coverage
 coverage/
-
-# Temporary files
-tmp/
-temp/
 
 # Deployment
 fly.toml
