@@ -12,7 +12,10 @@ import type { ParsedEmail, ParsedAttachment } from './types.js';
  * Parse raw email message (from IMAP) into structured format
  */
 export async function parseEmail(rawEmail: Buffer | string): Promise<ParsedEmail> {
-  const parsed: ParsedMail = await simpleParser(rawEmail);
+  // keepCidLinks: by default mailparser inlines every cid: image into the HTML as a
+  // base64 data: URI, duplicating each image (already saved as an attachment) into
+  // messages.body_html. Keep the cid: links; saveMessageAttachments rewrites them.
+  const parsed: ParsedMail = await simpleParser(rawEmail, { keepCidLinks: true });
 
   // Extract sender
   const from = extractFirstAddress(parsed.from);
@@ -75,6 +78,7 @@ export async function parseEmail(rawEmail: Buffer | string): Promise<ParsedEmail
           content: att.content,
           contentType: att.contentType || 'application/octet-stream',
           size: att.size || att.content.length,
+          cid: att.cid,
         });
       }
     }

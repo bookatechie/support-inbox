@@ -757,6 +757,10 @@ export const messageQueries = {
     await execute('DELETE FROM messages WHERE id = $1', [id]);
   },
 
+  async updateBodyHtml(id: number, bodyHtml: string): Promise<void> {
+    await execute('UPDATE messages SET body_html = $1 WHERE id = $2', [bodyHtml, id]);
+  },
+
   async updateTrackingToken(token: string, id: number): Promise<void> {
     await execute('UPDATE messages SET tracking_token = $1 WHERE id = $2', [token, id]);
   },

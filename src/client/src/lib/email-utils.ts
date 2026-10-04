@@ -73,6 +73,10 @@ export function getMessageBodyHtml(body: string, bodyHtml: string | null, attach
       if (src.includes('/api/track/') || (img.width === 1 && img.height === 1)) {
         img.remove();
       } else {
+        // Inbound inline images are stored as /api/attachments/:id links (server rewrites cid:)
+        if (/^\/api\/attachments\/\d+$/.test(src)) {
+          img.setAttribute('src', `${src}?token=${localStorage.getItem('authToken')}`);
+        }
         img.setAttribute('loading', 'lazy');
         img.setAttribute('decoding', 'async');
       }

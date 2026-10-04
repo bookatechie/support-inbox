@@ -110,13 +110,16 @@ async function convertHeicToJpeg(
 }
 
 /**
- * Save attachments for a message
+ * Save attachments for a message, and point the message HTML's cid: image links
+ * at the saved attachments (/api/attachments/:id; the client adds the auth token)
  */
 async function saveMessageAttachments(
   messageId: number,
   ticketId: number,
-  attachments: ParsedAttachment[]
+  attachments: ParsedAttachment[],
+  bodyHtml: string | null
 ): Promise<void> {
+  let html = bodyHtml;
   for (const attachment of attachments) {
     try {
       let content = attachment.content;
@@ -137,7 +140,7 @@ async function saveMessageAttachments(
       const filePath = await saveAttachment(filename, content, ticketId);
 
       // Save to database
-      await attachmentQueries.create(
+      const attachmentId = await attachmentQueries.create(
         messageId,
         filename,
         filePath,
@@ -145,10 +148,18 @@ async function saveMessageAttachments(
         contentType
       );
 
+      if (html && attachment.cid) {
+        html = html.split(`cid:${attachment.cid}`).join(`/api/attachments/${attachmentId}`);
+      }
+
       logger?.debug({ filename, size }, 'Saved attachment');
     } catch (error) {
       logger?.error({ err: error, filename: attachment.filename }, 'Failed to save attachment');
     }
+  }
+
+  if (html && html !== bodyHtml) {
+    await messageQueries.updateBodyHtml(messageId, html);
   }
 }
 
@@ -212,7 +223,7 @@ export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger,
 
   // Save attachments if any
   if (email.attachments && email.attachments.length > 0) {
-    await saveMessageAttachments(messageId, ticketId, email.attachments);
+    await saveMessageAttachments(messageId, ticketId, email.attachments, email.bodyHtml);
   }
 
   const ticket = (await getTicketById(ticketId))!;
@@ -293,7 +304,7 @@ export async function addMessageToTicket(ticketId: number, email: ParsedEmail): 
 
   // Save attachments if any
   if (email.attachments && email.attachments.length > 0) {
-    await saveMessageAttachments(messageId, ticketId, email.attachments);
+    await saveMessageAttachments(messageId, ticketId, email.attachments, email.bodyHtml);
   }
 
   // Update ticket status to 'open' if it was awaiting customer or resolved

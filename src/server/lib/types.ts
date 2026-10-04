@@ -323,6 +323,7 @@ export interface ParsedAttachment {
   content: Buffer;
   contentType: string;
   size: number;
+  cid?: string; // Content-ID of an inline image, referenced from the HTML as cid:<cid>
 }
 
 // SSE Event Types
