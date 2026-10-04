@@ -24,6 +24,11 @@ let currentBackoffMs = 0;
 const MAX_BACKOFF_MS = 300000; // 5 minutes max backoff
 const BASE_BACKOFF_MS = 30000; // 30 seconds base backoff
 
+// Emails stay UNSEEN until processed, so a failure (e.g. a DB timeout) is retried on the
+// next poll. After this many failed attempts an email is marked seen so it can't block the inbox.
+const MAX_PROCESS_ATTEMPTS = 5;
+const failedAttempts = new Map<number, number>(); // IMAP UID -> failed attempts
+
 /**
  * Start email daemon
  */
@@ -140,7 +145,7 @@ async function checkEmails(config: ImapConfig): Promise<void> {
     const searchCriteria = ['UNSEEN'];
     const fetchOptions = {
       bodies: [''], // Fetch entire message
-      markSeen: true,
+      markSeen: false, // Marked seen below, only once processed
     };
 
     const messages: Message[] = await connection.search(searchCriteria, fetchOptions);
@@ -154,10 +159,21 @@ async function checkEmails(config: ImapConfig): Promise<void> {
 
     // Process each message
     for (const message of messages) {
+      const uid = message.attributes.uid;
       try {
         await processMessage(message);
+        failedAttempts.delete(uid);
+        await connection.addFlags(uid, '\\Seen');
       } catch (error) {
-        logger.error(error, 'Error processing message');
+        const attempts = (failedAttempts.get(uid) ?? 0) + 1;
+        if (attempts >= MAX_PROCESS_ATTEMPTS) {
+          failedAttempts.delete(uid);
+          logger.error({ err: error, uid, attempts }, 'Error processing message - giving up, marking seen');
+          await connection.addFlags(uid, '\\Seen').catch(() => {});
+        } else {
+          failedAttempts.set(uid, attempts);
+          logger.error({ err: error, uid, attempts }, 'Error processing message - will retry next poll');
+        }
       }
     }
   } catch (error) {
