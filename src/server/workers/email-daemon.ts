@@ -269,14 +269,35 @@ async function checkEmails(config: ImapConfig): Promise<void> {
 }
 
 /**
- * Find assignee by checking if any To/CC addresses match agent_email
+ * Pick an assignee for a new ticket from the agents it was addressed to (by agent_email,
+ * active agents only, case-insensitive). To beats CC: if exactly one agent is in To they get
+ * it; otherwise, if exactly one agent is in CC they get it. Several agents at the same level
+ * is ambiguous, so the ticket stays unassigned for someone to pick up. Routing rules run
+ * afterwards and can override this.
  */
-async function findAssigneeByEmail(toAddresses: string[]): Promise<number | undefined> {
-  for (const email of toAddresses) {
-    const user = await userQueries.getByAgentEmail(email.toLowerCase());
-    if (user) {
-      logger.info(`Auto-assigning to ${user.name} (${user.agent_email})`);
-      return user.id;
+async function findAssigneeByEmail(to: string[], cc: string[]): Promise<number | undefined> {
+  const agentsByEmail = new Map(
+    (await userQueries.getAll())
+      .filter(u => u.active && u.agent_email)
+      .map(u => [u.agent_email!.trim().toLowerCase(), u] as const)
+  );
+  const agentsIn = (addresses: string[]) => [
+    ...new Map(
+      addresses
+        .map(a => agentsByEmail.get(a.trim().toLowerCase()))
+        .filter((u): u is NonNullable<typeof u> => !!u)
+        .map(u => [u.id, u] as const)
+    ).values(),
+  ];
+
+  for (const [field, agents] of [['To', agentsIn(to)], ['CC', agentsIn(cc)]] as const) {
+    if (agents.length === 1) {
+      logger.info(`Auto-assigning to ${agents[0].name} (${agents[0].agent_email}, in ${field})`);
+      return agents[0].id;
+    }
+    if (agents.length > 1) {
+      logger.info({ agents: agents.map(a => a.agent_email), field }, 'Several agents addressed - leaving ticket unassigned');
+      return undefined;
     }
   }
   return undefined;
@@ -339,7 +360,7 @@ async function processMessage(message: Message): Promise<void> {
     }
 
     // Check if email was sent to a specific agent's email address
-    const assigneeId = await findAssigneeByEmail([...parsed.to, ...parsed.cc]);
+    const assigneeId = await findAssigneeByEmail(parsed.to, parsed.cc);
 
     // Create new ticket with optional auto-assignment
     await createTicketFromEmail(parsed, logger, assigneeId);

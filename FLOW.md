@@ -27,9 +27,9 @@ flowchart TD
     J -- "No match found" --> L[Create new ticket]
 
     L --> L1["Status = 'new', Priority = 'normal'"]
-    L1 --> L2{Any TO/CC address matches an agent's agent_email?}
-    L2 -- Yes --> L3[Auto-assign ticket to first matching agent]
-    L2 -- No --> L4[Ticket left unassigned]
+    L1 --> L2{"Exactly one active agent (by agent_email) in TO? Else exactly one in CC?"}
+    L2 -- Yes --> L3[Auto-assign ticket to that agent]
+    L2 -- "No / several agents tie" --> L4[Ticket left unassigned]
     L3 & L4 --> L5[Save attachments - convert HEIC to JPEG if needed]
     L5 --> L6[Store email_metadata JSON: subject, to, cc, bcc, inReplyTo, references, headers]
     L6 --> L7["Emit SSE 'new-ticket' event"]
@@ -263,10 +263,10 @@ flowchart TD
     B --> D["Store in email_metadata JSON for auditing"]
 
     subgraph "Auto-Assignment Check (New Tickets Only)"
-        E["Combine TO + CC into single list"] --> F["For each address: check if it matches a user's agent_email"]
-        F --> G{Match found?}
-        G -- Yes --> H["Auto-assign ticket to first matching agent"]
-        G -- No --> I["Ticket left unassigned"]
+        E["Match TO, then CC, against active users' agent_email (case-insensitive)"] --> F["Agents found in TO; if none, agents found in CC"]
+        F --> G{Exactly one agent?}
+        G -- Yes --> H["Auto-assign ticket to that agent"]
+        G -- "None, or several (tie)" --> I["Ticket left unassigned (routing rules may still assign)"]
     end
 
     B --> E

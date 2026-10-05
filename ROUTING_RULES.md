@@ -22,9 +22,11 @@ IMAP poll → Parse email → Deduplicate (Message-ID) → Skip auto-generated
 When an email is **not** a reply to an existing thread:
 
 1. **Extract TO/CC addresses** from parsed email
-2. **Auto-assign by `agent_email`** — check if any TO/CC address matches a user's `agent_email` field
-   - First match wins
-   - Example: `agent@company.com` → assigned to that agent
+2. **Auto-assign by `agent_email`** — match TO/CC addresses against active users' `agent_email` (case-insensitive)
+   - TO beats CC: exactly one agent in TO → assigned to them; else exactly one agent in CC → assigned to them
+   - Several agents at the same level (e.g. two agents in TO) → left unassigned, since there's no clear owner
+   - Example: `To: anna@company.com` → Anna; `To: support@…, Cc: ben@company.com` → Ben; `To: anna@…, ben@…` → unassigned
+   - For anything more specific, use a routing rule with a `to_email` condition and a `set_assignee_id` action: rules run next and override this
 3. **Create ticket** with `status: 'new'`, `priority: 'normal'`
 4. **Run Routing Rules Engine** — evaluate all active rules in `sort_order` ASC
    - Rules check ticket fields + first message fields
