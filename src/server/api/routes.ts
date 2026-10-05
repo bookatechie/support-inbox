@@ -116,6 +116,18 @@ function parseFilterParams(query: {
   };
 }
 
+/** Image types safe to render inline (no SVG — it can carry script) */
+const INLINE_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+
+/**
+ * Build a Content-Disposition header with a quote-safe ASCII fallback and an
+ * RFC 5987 UTF-8 filename (filenames come from email senders)
+ */
+function contentDisposition(type: 'inline' | 'attachment', filename: string): string {
+  const fallback = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  return `${type}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
 /**
  * Convert PostgreSQL timestamp (without timezone) to ISO 8601 UTC string
  * PostgreSQL 'timestamp without time zone' stores UTC timestamps
@@ -1653,17 +1665,20 @@ export default async function routes(fastify: FastifyInstance) {
       // Read file from storage (local or S3)
       const fileBuffer = await readAttachment(attachment.file_path);
 
-      // Check if file can be viewed in browser (PDFs and images)
+      // Only raster images and PDFs are shown inline. Everything else (incl. SVG, HTML,
+      // which can carry script) downloads. Mime type comes from the email sender, so
+      // don't let the browser sniff and sandbox the response.
       const mimeType = attachment.mime_type || 'application/octet-stream';
-      const isViewable = mimeType.startsWith('image/') || mimeType === 'application/pdf';
+      const isPdf = mimeType === 'application/pdf';
+      const isViewable = INLINE_IMAGE_MIMES.has(mimeType) || isPdf;
 
-      // Set headers - use 'inline' for viewable files, 'attachment' for downloads
       reply.header('Content-Type', mimeType);
-      reply.header('Content-Disposition',
-        isViewable
-          ? `inline; filename="${attachment.filename}"`
-          : `attachment; filename="${attachment.filename}"`
-      );
+      reply.header('Content-Disposition', contentDisposition(isViewable ? 'inline' : 'attachment', attachment.filename));
+      reply.header('X-Content-Type-Options', 'nosniff');
+      if (!isPdf) {
+        // Chrome's PDF viewer won't render under a sandbox CSP; PDFs can't script the origin anyway
+        reply.header('Content-Security-Policy', "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'");
+      }
       reply.header('Content-Length', fileBuffer.length);
 
       // Send file
