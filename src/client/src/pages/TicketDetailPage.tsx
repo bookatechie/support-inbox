@@ -1275,7 +1275,7 @@ export function TicketDetailPage() {
                 onChange={setReplyContent}
                 placeholder="Type your reply here... (Press / for templates)"
                 disabled={isSending}
-                className={isInternal ? 'border-yellow-300 bg-yellow-50' : ''}
+                className={isInternal ? 'border-yellow-300 bg-yellow-50 dark:border-yellow-700/60 dark:bg-yellow-950/30' : ''}
                 cannedResponses={cannedResponses}
                 variables={{
                   customer_name: ticket.customer_name || ticket.customer_email || 'Customer',

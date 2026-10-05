@@ -145,7 +145,7 @@ export function MessageItem({
               needsCardPadding
                 ? `p-4 ${
                     message.type === 'note'
-                      ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:text-foreground [&_*]:dark:!text-inherit'
+                      ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-700/60 dark:text-foreground [&_*]:dark:!text-inherit'
                       : ''
                   }`
                 : 'p-0 overflow-hidden'
