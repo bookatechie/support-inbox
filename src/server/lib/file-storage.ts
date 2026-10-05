@@ -89,13 +89,11 @@ class LocalStorage implements StorageBackend {
   }
 
   async read(relativePath: string): Promise<Buffer> {
-    const fullPath = path.join(this.baseDir, relativePath);
-    return await fs.readFile(fullPath);
+    return await fs.readFile(this.getFullPath(relativePath));
   }
 
   async delete(relativePath: string): Promise<void> {
-    const fullPath = path.join(this.baseDir, relativePath);
-    await fs.unlink(fullPath);
+    await fs.unlink(this.getFullPath(relativePath));
   }
 
   async deleteTicketFiles(ticketId: number): Promise<void> {
@@ -109,7 +107,12 @@ class LocalStorage implements StorageBackend {
   }
 
   getFullPath(relativePath: string): string {
-    return path.join(this.baseDir, relativePath);
+    const base = path.resolve(this.baseDir);
+    const fullPath = path.resolve(base, relativePath);
+    if (!fullPath.startsWith(base + path.sep)) {
+      throw new Error('Attachment path escapes attachments directory');
+    }
+    return fullPath;
   }
 }
 
@@ -297,6 +300,16 @@ export async function saveAttachment(
   ticketId: number
 ): Promise<string> {
   return await storage.save(filename, content, ticketId);
+}
+
+/**
+ * Check that a client-supplied path is one saveAttachment() returned for this ticket:
+ * <ticket-dir>/<uuid><ext>. Paths come back from the browser on reply, so never trust them.
+ */
+export function isUploadedAttachmentPath(filePath: string, ticketId: number): boolean {
+  const dir = USE_S3 ? `${S3_PREFIX}/ticket-${ticketId}/` : `ticket-${ticketId}/`;
+  if (!filePath.startsWith(dir)) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\.[^/\\]*)?$/.test(filePath.slice(dir.length));
 }
 
 /**

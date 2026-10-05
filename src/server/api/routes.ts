@@ -26,7 +26,7 @@ import {
   ticketHistoryQueries,
   type CustomerAggregateFacet,
 } from '../lib/database-pg.js';
-import { readAttachment, saveAttachment, deleteTicketAttachments } from '../lib/file-storage.js';
+import { readAttachment, saveAttachment, deleteTicketAttachments, isUploadedAttachmentPath } from '../lib/file-storage.js';
 import {
   createTicket,
   updateTicket,
@@ -765,6 +765,11 @@ export default async function routes(fastify: FastifyInstance) {
 
     if (!replyRequest.body) {
       return reply.status(400).send({ error: 'Reply body required' });
+    }
+
+    // filePath comes back from the client: only accept paths /upload issued for this ticket
+    if (replyRequest.uploadedFiles?.some(f => typeof f.filePath !== 'string' || !isUploadedAttachmentPath(f.filePath, ticketId))) {
+      return reply.status(400).send({ error: 'Invalid attachment' });
     }
 
     try {
