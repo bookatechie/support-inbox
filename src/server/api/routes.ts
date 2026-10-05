@@ -44,6 +44,7 @@ import crypto from 'crypto';
 import { sanitizeUser, sanitizeUsers } from '../lib/utils.js';
 import { config } from '../lib/config.js';
 import type {
+  Ticket,
   UserSafe,
   JwtPayload,
   LoginRequest,
@@ -687,29 +688,40 @@ export default async function routes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     const { ticket_ids, updates } = request.body;
 
-    if (!ticket_ids || !Array.isArray(ticket_ids) || ticket_ids.length === 0) {
-      return reply.status(400).send({ error: 'ticket_ids array required' });
+    if (!ticket_ids || !Array.isArray(ticket_ids) || ticket_ids.length === 0 || !ticket_ids.every(id => Number.isInteger(id) && id > 0)) {
+      return reply.status(400).send({ error: 'ticket_ids must be a non-empty array of ticket ids' });
     }
 
     if (!updates || Object.keys(updates).length === 0) {
       return reply.status(400).send({ error: 'updates object required' });
     }
 
-    try {
-      const updatedTickets = [];
-      for (const ticketId of ticket_ids) {
-        const ticket = updateTicket(ticketId, updates, request.user!);
-        updatedTickets.push(ticket);
+    // One at a time (each update is several queries on a small pool); keep going past
+    // failures so one bad ticket doesn't block the rest, then report them
+    const updatedTickets: Ticket[] = [];
+    const failed: Array<{ id: number; error: string }> = [];
+    for (const ticketId of ticket_ids) {
+      try {
+        updatedTickets.push(await updateTicket(ticketId, updates, request.user!));
+      } catch (error: any) {
+        failed.push({ id: ticketId, error: error.message });
       }
-
-      return reply.send({
-        success: true,
-        updated: updatedTickets.length,
-        tickets: updatedTickets
-      });
-    } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
     }
+
+    if (failed.length > 0) {
+      request.log.error({ failed }, 'Bulk update: some tickets failed');
+      return reply.status(500).send({
+        error: `Failed to update ${failed.length} of ${ticket_ids.length} tickets`,
+        updated: updatedTickets.length,
+        failed,
+      });
+    }
+
+    return reply.send({
+      success: true,
+      updated: updatedTickets.length,
+      tickets: updatedTickets,
+    });
   });
 
   /**
