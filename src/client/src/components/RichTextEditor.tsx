@@ -655,12 +655,19 @@ export function RichTextEditor({
         )}
       </div>
 
-      {/* Editor Content */}
-      <div className={cn(
-        'p-4 overflow-hidden',
-        fillHeight ? 'flex-1 overflow-y-auto min-h-0' : 'min-h-[200px]',
-        !showVariablesBar || Object.keys(variables).length === 0 ? 'rounded-b-md' : ''
-      )}>
+      {/* Editor Content - a click anywhere in the box (padding, empty space below the text) focuses the editor */}
+      <div
+        className={cn(
+          'p-4 overflow-hidden cursor-text',
+          fillHeight ? 'flex-1 overflow-y-auto min-h-0' : 'min-h-[200px]',
+          !showVariablesBar || Object.keys(variables).length === 0 ? 'rounded-b-md' : ''
+        )}
+        onMouseDown={(e) => {
+          if (disabled || (e.target as HTMLElement).closest('.ProseMirror')) return;
+          e.preventDefault(); // keep focus from landing on the wrapper
+          editor.commands.focus('end');
+        }}
+      >
         <EditorContent
           editor={editor}
           className={cn(
