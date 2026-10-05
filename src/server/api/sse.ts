@@ -133,6 +133,10 @@ sseEmitter.on('user-composing', (data: { ticketId: number; userEmail: string; us
   broadcast('user-composing', data);
 });
 
+sseEmitter.on('ticket-tags-updated', (data: { ticketId: number; tags: unknown[] }) => {
+  broadcast('ticket-tags-updated', data);
+});
+
 /**
  * Get count of connected clients
  */

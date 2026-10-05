@@ -611,7 +611,7 @@ export function TicketsPage() {
         reloadTimeoutRef.current = setTimeout(() => {
           loadTickets(false);
         }, 300);
-      } else if (event.type === 'ticket-update') {
+      } else if (event.type === 'ticket-update' || event.type === 'ticket-tags-updated') {
         // Debounce reload to prevent rapid refetches during bulk operations
         if (reloadTimeoutRef.current) {
           clearTimeout(reloadTimeoutRef.current);

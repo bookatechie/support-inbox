@@ -290,6 +290,7 @@ async function tagAutoReply(ticketId: number, kind: AutoReplyKind): Promise<void
   try {
     const tagId = (await tagQueries.getByName(kind))?.id ?? await tagQueries.create(kind);
     await ticketTagQueries.addTagToTicket(ticketId, tagId);
+    sseEmitter?.emit('ticket-tags-updated', { ticketId, tags: await ticketTagQueries.getByTicketId(ticketId) });
     await logAutoReplyChange(ticketId, 'tags', null, `+${kind}`, `Auto-reply received (${kind})`);
   } catch (error) {
     logger?.error({ err: error, ticketId, kind }, 'Failed to tag auto-reply');

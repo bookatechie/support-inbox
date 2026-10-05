@@ -258,6 +258,7 @@ export type SSEEventType =
   | 'viewer-joined'
   | 'viewer-left'
   | 'user-composing'
+  | 'ticket-tags-updated'
   | 'auth-error';
 
 export interface SSEEvent {

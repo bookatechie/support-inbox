@@ -5,10 +5,11 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { tickets as ticketsApi, drafts as draftsApi, users as usersApi, cannedResponses as cannedResponsesApi, messages as messagesApi } from '@/lib/api';
 import { useSSE } from '@/hooks/useSSE';
 import { useAuth } from '@/contexts/AuthContext';
-import type { TicketWithMessages, NewMessageEvent, MessageDeletedEvent, User, CannedResponse, UserComposingEvent, Attachment, TicketHistoryEntry } from '@/types';
+import type { TicketWithMessages, NewMessageEvent, MessageDeletedEvent, User, CannedResponse, UserComposingEvent, Attachment, TicketHistoryEntry, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -346,8 +347,17 @@ export function TicketDetailPage() {
   }, [editedCustomerEmail, changeContactDialogOpen]);
 
   // Real-time updates for new messages
+  const queryClient = useQueryClient();
   useSSE({
     onEvent: (event) => {
+      if (event.type === 'ticket-tags-updated') {
+        // Tags changed (by another agent, a rule, or an auto-reply): update TagManager's cache
+        const { ticketId, tags } = event.data as { ticketId: number; tags: Tag[] };
+        if (ticketId === Number(id)) {
+          queryClient.setQueryData(['tickets', ticketId, 'tags'], tags);
+        }
+      }
+
       if (event.type === 'new-message') {
         const messageEvent = event as NewMessageEvent;
         if (messageEvent.data.ticketId === Number(id)) {
