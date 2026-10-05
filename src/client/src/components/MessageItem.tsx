@@ -135,6 +135,25 @@ export function MessageItem({
           </div>
         </div>
 
+        {/* Recipients, when the email header below doesn't already show them (plain-text
+            emails and our own replies) */}
+        {(() => {
+          if (message.type !== 'email' || (message.email_metadata && message.body_html)) return null;
+          const parse = (json: string | null): string[] => {
+            try { return json ? JSON.parse(json) : []; } catch { return []; }
+          };
+          const to = parse(message.to_emails);
+          const cc = parse(message.cc_emails);
+          if (to.length === 0 && cc.length === 0) return null;
+          return (
+            <div className="text-xs text-muted-foreground mb-2 break-words">
+              {to.length > 0 && <span><span className="font-medium">To:</span> {to.join(', ')}</span>}
+              {to.length > 0 && cc.length > 0 && <span className="mx-1.5">•</span>}
+              {cc.length > 0 && <span><span className="font-medium">CC:</span> {cc.join(', ')}</span>}
+            </div>
+          );
+        })()}
+
         {(() => {
           const hasEmailMetadata = message.email_metadata && message.body_html;
           const useIframe = message.body_html && !isSimpleHtml(message.body_html);

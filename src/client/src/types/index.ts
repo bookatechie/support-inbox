@@ -114,6 +114,8 @@ export interface Message {
   created_at: string;
   scheduled_at: string | null; // NULL = sent immediately, timestamp = scheduled for later
   sent_at: string | null; // NULL = not sent yet, timestamp = when actually sent
+  to_emails: string | null; // JSON array of To addresses
+  cc_emails: string | null; // JSON array of CC addresses
 }
 
 export interface Attachment {
