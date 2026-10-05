@@ -294,17 +294,8 @@ export const ticketQueries = {
     );
   },
 
-  async getByStatus(status: TicketStatus): Promise<Ticket[]> {
-    return query<Ticket>(`SELECT ${TICKET_COLUMNS} FROM tickets WHERE status = $1 ORDER BY created_at DESC`, [status]);
-  },
 
-  async getByAssignee(assigneeId: number): Promise<Ticket[]> {
-    return query<Ticket>(`SELECT ${TICKET_COLUMNS} FROM tickets WHERE assignee_id = $1 ORDER BY created_at DESC`, [assigneeId]);
-  },
 
-  async getUnassigned(): Promise<Ticket[]> {
-    return query<Ticket>(`SELECT ${TICKET_COLUMNS} FROM tickets WHERE assignee_id IS NULL ORDER BY created_at DESC`);
-  },
 
   async countByCustomerEmail(email: string): Promise<number> {
     const result = await queryOne<{ count: number }>('SELECT COUNT(*) as count FROM tickets WHERE customer_email = $1', [email]);
@@ -760,9 +751,6 @@ export const ticketQueries = {
 };
 
 export const messageQueries = {
-  async getAll(): Promise<Message[]> {
-    return query<Message>('SELECT * FROM messages ORDER BY created_at ASC');
-  },
 
   async getById(id: number): Promise<Message | undefined> {
     return queryOne<Message>('SELECT * FROM messages WHERE id = $1', [id]);

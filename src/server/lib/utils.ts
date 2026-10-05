@@ -41,34 +41,6 @@ export function sanitizeUsers(users: User[]): UserSafe[] {
 }
 
 /**
- * Parse integer safely with default value
- */
-export function parseIntSafe(value: string | number | undefined, defaultValue: number): number {
-  if (value === undefined || value === null || value === '') {
-    return defaultValue;
-  }
-
-  const parsed = typeof value === 'string' ? parseInt(value, 10) : value;
-
-  return isNaN(parsed) ? defaultValue : parsed;
-}
-
-/**
- * Parse boolean from string
- */
-export function parseBoolean(value: string | boolean | undefined, defaultValue: boolean): boolean {
-  if (value === undefined || value === null || value === '') {
-    return defaultValue;
-  }
-
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  return value.toLowerCase() === 'true' || value === '1';
-}
-
-/**
  * Truncate string to max length
  */
 export function truncate(str: string, maxLength: number): string {
@@ -84,31 +56,6 @@ export function truncate(str: string, maxLength: number): string {
  */
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Format bytes to human-readable string
- */
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-}
-
-/**
- * Check if string is valid JSON
- */
-export function isValidJSON(str: string): boolean {
-  try {
-    JSON.parse(str);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

@@ -282,15 +282,6 @@ export function initFileStorage(): void {
  */
 
 /**
- * Ensure attachments directory exists (only for local storage)
- */
-export async function ensureAttachmentsDirectory(): Promise<void> {
-  if (storage instanceof LocalStorage) {
-    await storage.ensureDirectory();
-  }
-}
-
-/**
  * Save attachment to storage (local or S3)
  * Returns the path/key for database storage
  */
@@ -329,23 +320,6 @@ export function getAttachmentPath(path: string): string {
   }
   // For S3, return the key as-is (used for email attachments)
   return path;
-}
-
-/**
- * Check if attachment exists (local storage only)
- */
-export async function attachmentExists(path: string): Promise<boolean> {
-  if (storage instanceof LocalStorage) {
-    try {
-      const fullPath = storage.getFullPath(path);
-      await fs.access(fullPath);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  // For S3, assume it exists (could enhance with HeadObject call)
-  return true;
 }
 
 /**
