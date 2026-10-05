@@ -1303,26 +1303,30 @@ export async function getTicketsFiltered(options: {
 
   const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
+  // Count separately (an index-friendly COUNT over the filter) so the page query can stop
+  // after LIMIT rows instead of materializing every matching ticket
+  const countRow = await queryOne<{ total_count: string }>(
+    `SELECT COUNT(*) as total_count FROM tickets ${tagJoin} ${whereClause}`,
+    params
+  );
+  const totalCount = parseInt(countRow?.total_count || '0', 10);
+
   // Add limit and offset
   params.push(limit, offset);
   const limitOffsetClause = `LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
 
   const sortDirection = sortOrder.toUpperCase();
 
+  // Page and display use the same order (last activity, as the search path does), so
+  // infinite scroll doesn't skip or repeat tickets. ticket_tags' primary key is
+  // (ticket_id, tag_id), so the tag join can't duplicate tickets: no DISTINCT needed.
   const queryText = `
-    WITH filtered_tickets AS (
-      SELECT DISTINCT tickets.*
+    WITH paginated_tickets AS (
+      SELECT ${TICKET_COLUMNS}
       FROM tickets
       ${tagJoin}
       ${whereClause}
-    ),
-    total_count_cte AS (
-      SELECT COUNT(*) as total_count FROM filtered_tickets
-    ),
-    paginated_tickets AS (
-      SELECT filtered_tickets.*, (SELECT total_count FROM total_count_cte) as total_count
-      FROM filtered_tickets
-      ORDER BY filtered_tickets.updated_at ${sortDirection}
+      ORDER BY COALESCE(tickets.last_message_at, tickets.created_at) ${sortDirection}, tickets.id ${sortDirection}
       ${limitOffsetClause}
     )
     SELECT
@@ -1358,7 +1362,7 @@ export async function getTicketsFiltered(options: {
       INNER JOIN paginated_tickets ON messages.ticket_id = paginated_tickets.id
       GROUP BY messages.ticket_id
     ) att_stats ON att_stats.ticket_id = paginated_tickets.id
-    ORDER BY COALESCE(last_msg.last_message_at, paginated_tickets.created_at) ${sortDirection}
+    ORDER BY COALESCE(paginated_tickets.last_message_at, paginated_tickets.created_at) ${sortDirection}, paginated_tickets.id ${sortDirection}
   `;
 
   const tickets = await query<any>(queryText, params);
@@ -1367,35 +1371,8 @@ export async function getTicketsFiltered(options: {
     return [];
   }
 
-  // Batch load tags only for returned tickets
-  const ticketIds = tickets.map(t => t.id);
-  const allTicketTags = await query<{ ticket_id: number; id: number; name: string; created_at: string }>(
-    `SELECT ticket_tags.ticket_id, tags.id, tags.name, tags.created_at
-     FROM ticket_tags
-     INNER JOIN tags ON tags.id = ticket_tags.tag_id
-     WHERE ticket_tags.ticket_id = ANY($1)
-     ORDER BY tags.name`,
-    [ticketIds]
-  );
-
-  // Group tags by ticket_id
-  const tagsByTicketId = new Map<number, Tag[]>();
-  for (const row of allTicketTags) {
-    if (!tagsByTicketId.has(row.ticket_id)) {
-      tagsByTicketId.set(row.ticket_id, []);
-    }
-    tagsByTicketId.get(row.ticket_id)!.push({
-      id: row.id,
-      name: row.name,
-      created_at: row.created_at,
-    });
-  }
-
-  // Add tags to each ticket
-  return tickets.map(ticket => ({
-    ...ticket,
-    tags: tagsByTicketId.get(ticket.id) || [],
-  }));
+  // Tags are attached by the route (attachTagsToTickets), for both the search and filter paths
+  return tickets.map(ticket => ({ ...ticket, total_count: totalCount }));
 }
 
 export async function countTicketsFiltered(options: {
