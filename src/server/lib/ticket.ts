@@ -696,13 +696,46 @@ export async function replyToTicket(
 }
 
 /**
- * Send a scheduled message that is now due
+ * Send a scheduled message that is now due. The message is claimed (sent_at set) before
+ * sending, so a slow DB write after the send can't make the next poll send it again, and a
+ * cancel that races the send can't delete a message that is going out.
  */
 export async function sendScheduledMessage(message: Message): Promise<boolean> {
+  if (!(await messageQueries.claimScheduledForSending(message.id))) {
+    logger?.info({ messageId: message.id }, 'Scheduled message already sent or cancelled, skipping');
+    return false;
+  }
+
+  let emailMessageId: string;
+  try {
+    emailMessageId = await prepareAndSendScheduledMessage(message);
+  } catch (error) {
+    logger?.error({ err: error, messageId: message.id, ticketId: message.ticket_id }, 'Failed to send scheduled message, will retry on next interval');
+    await messageQueries.releaseScheduledClaim(message.id).catch(err => {
+      logger?.error({ err, messageId: message.id }, 'Failed to release scheduled message claim, it will not be retried');
+    });
+    return false;
+  }
+
+  // The email is out: failures from here on must not release the claim (that would resend it)
+  try {
+    if (emailMessageId) {
+      await messageQueries.updateMessageId(emailMessageId, message.id);
+    }
+    await ticketQueries.updateStatus('resolved', message.ticket_id);
+  } catch (err) {
+    logger?.error({ err, messageId: message.id, ticketId: message.ticket_id }, 'Scheduled message sent but post-send updates failed');
+  }
+
+  logger?.info({ messageId: message.id, ticketId: message.ticket_id }, 'Scheduled message sent');
+  return true;
+}
+
+/** Build and send a claimed scheduled message; returns the sent email's Message-ID */
+async function prepareAndSendScheduledMessage(message: Message): Promise<string> {
   const ticket = await getTicketById(message.ticket_id);
   if (!ticket) {
-    logger?.error({ ticketId: message.ticket_id, messageId: message.id }, 'Ticket not found for scheduled message');
-    return false;
+    throw new Error(`Ticket ${message.ticket_id} not found for scheduled message`);
   }
 
   // Get attachments
@@ -732,36 +765,20 @@ export async function sendScheduledMessage(message: Message): Promise<boolean> {
   const toEmails = message.to_emails ? JSON.parse(message.to_emails) : undefined;
   const ccEmails = message.cc_emails ? JSON.parse(message.cc_emails) : undefined;
 
-  let emailMessageId: string;
-  try {
-    emailMessageId = await sendReplyEmail(
-      ticket,
-      message.body_html || message.body,  // Signature already included in stored body
-      message.sender_name || 'Support',
-      isFirstMessage,
-      emailAttachments.length > 0 ? emailAttachments : undefined,
-      toEmails,
-      ccEmails,
-      trackingToken,
-      message.sender_email,  // agentPersonalEmail - use stored sender
-      quotedMessage,
-      message.sender_email,  // fromEmailOverride - use stored sender
-      threadingMessages
-    );
-  } catch (error) {
-    logger?.error({ err: error, messageId: message.id, ticketId: message.ticket_id }, 'Failed to send scheduled message, will retry on next interval');
-    return false;
-  }
-
-  if (emailMessageId) {
-    await messageQueries.updateMessageId(emailMessageId, message.id);
-  }
-
-  await messageQueries.updateSentAt(new Date().toISOString(), message.id);
-  await ticketQueries.updateStatus('resolved', message.ticket_id);
-
-  logger?.info({ messageId: message.id, ticketId: message.ticket_id }, 'Scheduled message sent');
-  return true;
+  return sendReplyEmail(
+    ticket,
+    message.body_html || message.body,  // Signature already included in stored body
+    message.sender_name || 'Support',
+    isFirstMessage,
+    emailAttachments.length > 0 ? emailAttachments : undefined,
+    toEmails,
+    ccEmails,
+    trackingToken,
+    message.sender_email,  // agentPersonalEmail - use stored sender
+    quotedMessage,
+    message.sender_email,  // fromEmailOverride - use stored sender
+    threadingMessages
+  );
 }
 
 /**

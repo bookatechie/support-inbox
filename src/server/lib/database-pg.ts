@@ -803,8 +803,21 @@ export const messageQueries = {
     await execute('UPDATE messages SET message_id = $1 WHERE id = $2', [messageId, id]);
   },
 
-  async updateSentAt(sentAt: string, id: number): Promise<void> {
-    await execute('UPDATE messages SET sent_at = $1 WHERE id = $2', [sentAt, id]);
+  /**
+   * Atomically claim a scheduled message for sending by setting sent_at. Returns false if it
+   * was already sent/claimed or cancelled (deleted), so it's sent at most once.
+   */
+  async claimScheduledForSending(id: number): Promise<boolean> {
+    const result = await queryOne<{ id: number }>(
+      'UPDATE messages SET sent_at = CURRENT_TIMESTAMP WHERE id = $1 AND sent_at IS NULL RETURNING id',
+      [id]
+    );
+    return result !== undefined;
+  },
+
+  /** Undo claimScheduledForSending after a failed send, so the next poll retries it */
+  async releaseScheduledClaim(id: number): Promise<void> {
+    await execute('UPDATE messages SET sent_at = NULL WHERE id = $1', [id]);
   },
 
   async getScheduledDue(): Promise<Message[]> {
