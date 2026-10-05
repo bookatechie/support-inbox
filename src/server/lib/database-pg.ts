@@ -3,6 +3,7 @@
  * Replacement for SQLite database (database.ts)
  */
 
+import { AsyncLocalStorage } from 'async_hooks';
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import { config } from './config.js';
@@ -98,18 +99,47 @@ export function testDatabaseConnection(): void {
 // Helper: Execute Query
 // ============================================================================
 
+// Inside withTransaction(), queries run on the transaction's client instead of the pool
+const transactionClient = new AsyncLocalStorage<pg.PoolClient>();
+
+function db(): pg.Pool | pg.PoolClient {
+  return transactionClient.getStore() ?? pool;
+}
+
+/**
+ * Run fn in a transaction: every query helper called inside it (directly or via
+ * ticketQueries etc.) uses the same client. Commits if fn resolves, rolls back if it throws.
+ */
+export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  let broken = false;
+  try {
+    await client.query('BEGIN');
+    const result = await transactionClient.run(client, fn);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {
+      broken = true; // don't return a connection in an unknown state to the pool
+    });
+    throw error;
+  } finally {
+    client.release(broken);
+  }
+}
+
 async function query<T = any>(text: string, params?: any[]): Promise<T[]> {
-  const result = await pool.query(text, params);
+  const result = await db().query(text, params);
   return result.rows as T[];
 }
 
 async function queryOne<T = any>(text: string, params?: any[]): Promise<T | undefined> {
-  const result = await pool.query(text, params);
+  const result = await db().query(text, params);
   return result.rows[0] as T | undefined;
 }
 
 async function execute(text: string, params?: any[]): Promise<void> {
-  await pool.query(text, params);
+  await db().query(text, params);
 }
 
 // ============================================================================

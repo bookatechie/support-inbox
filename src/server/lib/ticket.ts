@@ -15,6 +15,7 @@ import {
   userQueries,
   getTicketById,
   getMessagesByTicketId,
+  withTransaction,
 } from './database-pg.js';
 import { sendReplyEmail, sendNewEmail } from './email-sender.js';
 import { saveAttachment, getAttachmentPath, readAttachment } from './file-storage.js';
@@ -166,7 +167,7 @@ async function saveMessageAttachments(
 /**
  * Create a new ticket from parsed email
  */
-export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger, assigneeId?: number): Promise<Ticket> {
+export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger, assigneeId?: number): Promise<void> {
   // For forwarded emails, use the original sender as customer (if extracted)
   // Otherwise use Reply-To if set (for automated emails), or From
   const customerEmail = (email.isForwarded && email.forwardedFrom)
@@ -180,18 +181,6 @@ export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger,
     logger?.info({ forwardedFrom: email.forwardedFrom, forwardedFromName: email.forwardedFromName, forwarder: email.from }, 'Detected forwarded email, using original sender as customer');
   }
 
-  const ticketId = await ticketQueries.create(
-    email.subject,
-    customerEmail,
-    customerName,
-    email.replyTo,
-    email.messageId,
-    'new',
-    'normal',
-    assigneeId || null
-  );
-
-  // Create initial message
   const emailMetadata = JSON.stringify({
     subject: email.subject,
     to: email.to,
@@ -206,58 +195,83 @@ export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger,
     headers: email.headers,
   });
 
-  const messageId = await messageQueries.create(
-    ticketId,
-    email.from,
-    email.fromName,
-    email.body,
-    'email',  // type = email (customer-facing)
-    email.messageId,
-    email.bodyHtml,
-    email.bodyHtmlStripped,
-    emailMetadata,
-    null,  // scheduledAt
-    email.to,  // toEmails
-    email.cc   // ccEmails
-  );
-
-  // Save attachments if any
-  if (email.attachments && email.attachments.length > 0) {
-    await saveMessageAttachments(messageId, ticketId, email.attachments, email.bodyHtml);
-  }
-
-  const ticket = (await getTicketById(ticketId))!;
-  const message = (await messageQueries.getById(messageId))!;
-  const attachments = await attachmentQueries.getByMessageId(messageId);
-
-  // Evaluate routing rules (sub-ms, fire-and-forget for webhooks)
-  try {
-    await evaluateRulesForTicket(
-      ticket,
-      message,
-      attachments,
-      { toEmails: email.to, ccEmails: email.cc, fromDaemon: true }
+  // Ticket + initial message commit together: if either fails, nothing is saved and the
+  // email (still UNSEEN) is retried cleanly on the next poll - no orphan, message-less tickets.
+  const { ticketId, messageId } = await withTransaction(async () => {
+    const ticketId = await ticketQueries.create(
+      email.subject,
+      customerEmail,
+      customerName,
+      email.replyTo,
+      email.messageId,
+      'new',
+      'normal',
+      assigneeId || null
     );
-    // Re-fetch ticket incase rules modified assignee/priority/status
-    const updatedTicket = await getTicketById(ticketId);
-    if (updatedTicket) {
-      Object.assign(ticket, updatedTicket);
+
+    const messageId = await messageQueries.create(
+      ticketId,
+      email.from,
+      email.fromName,
+      email.body,
+      'email',  // type = email (customer-facing)
+      email.messageId,
+      email.bodyHtml,
+      email.bodyHtmlStripped,
+      emailMetadata,
+      null,  // scheduledAt
+      email.to,  // toEmails
+      email.cc   // ccEmails
+    );
+
+    return { ticketId, messageId };
+  });
+
+  // From here the email is saved, and a retry would skip it as already processed. So nothing
+  // below may throw: log failures instead, and still run the remaining steps.
+  try {
+    // Save attachments if any
+    if (email.attachments && email.attachments.length > 0) {
+      await saveMessageAttachments(messageId, ticketId, email.attachments, email.bodyHtml);
     }
   } catch (err) {
-    logger?.error({ err: err instanceof Error ? err.message : String(err), ticketId }, 'Rules engine evaluation failed');
+    logger?.error({ err, ticketId }, 'Failed to save attachments for new ticket');
   }
 
-  // Emit SSE event
-  if (sseEmitter) {
-    sseEmitter.emit('new-ticket', ticket);
-  }
+  try {
+    const ticket = (await getTicketById(ticketId))!;
+    const message = (await messageQueries.getById(messageId))!;
+    const attachments = await attachmentQueries.getByMessageId(messageId);
 
-  // Send webhook notification (fire-and-forget, handles errors internally)
-  sendNewTicketWebhook(ticket, message, attachments, logger);
+    // Evaluate routing rules (sub-ms, fire-and-forget for webhooks)
+    try {
+      await evaluateRulesForTicket(
+        ticket,
+        message,
+        attachments,
+        { toEmails: email.to, ccEmails: email.cc, fromDaemon: true }
+      );
+      // Re-fetch ticket incase rules modified assignee/priority/status
+      const updatedTicket = await getTicketById(ticketId);
+      if (updatedTicket) {
+        Object.assign(ticket, updatedTicket);
+      }
+    } catch (err) {
+      logger?.error({ err: err instanceof Error ? err.message : String(err), ticketId }, 'Rules engine evaluation failed');
+    }
+
+    // Emit SSE event
+    if (sseEmitter) {
+      sseEmitter.emit('new-ticket', ticket);
+    }
+
+    // Send webhook notification (fire-and-forget, handles errors internally)
+    sendNewTicketWebhook(ticket, message, attachments, logger);
+  } catch (err) {
+    logger?.error({ err, ticketId }, 'Ticket saved but rules/notifications failed');
+  }
 
   logger?.info({ ticketId, subject: email.subject, attachments: email.attachments?.length || 0 }, 'Created ticket from email');
-
-  return ticket;
 }
 
 /**
