@@ -29,6 +29,19 @@ const BASE_BACKOFF_MS = 30000; // 30 seconds base backoff
 const MAX_PROCESS_ATTEMPTS = 5;
 const failedAttempts = new Map<number, number>(); // IMAP UID -> failed attempts
 
+// One mail check at a time: a slow DB can make a check outlast the poll interval, and
+// overlapping checks would fetch and process the same UNSEEN emails twice.
+let inFlightCheck: Promise<void> | null = null;
+
+function runCheck(config: ImapConfig): Promise<void> {
+  if (!inFlightCheck) {
+    inFlightCheck = checkEmails(config).finally(() => {
+      inFlightCheck = null;
+    });
+  }
+  return inFlightCheck;
+}
+
 /**
  * Start email daemon
  */
@@ -82,8 +95,13 @@ async function checkEmailsWithRetry(config: ImapConfig): Promise<void> {
     return;
   }
 
+  if (inFlightCheck) {
+    logger.debug('Skipping email check (previous check still running)');
+    return;
+  }
+
   try {
-    await checkEmails(config);
+    await runCheck(config);
 
     // Success - reset failure counter and backoff
     if (consecutiveFailures > 0) {
@@ -307,7 +325,7 @@ async function processMessage(message: Message): Promise<void> {
  */
 export async function checkEmailsNow(): Promise<number> {
   try {
-    await checkEmails(config.imap);
+    await runCheck(config.imap); // joins a check already in progress
     logger.info('Manual email check completed successfully');
     return 1; // Success
   } catch (error) {
