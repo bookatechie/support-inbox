@@ -928,27 +928,41 @@ export async function getTicketWithMessages(ticketId: number): Promise<TicketWit
     return ts.replace(' ', 'T') + 'Z';
   };
 
-  // Add attachments and email opens to each message, and normalize timestamps
-  const messagesWithAttachments = await Promise.all(messages.map(async (message) => {
-    const emailOpens = (await emailOpenQueries.getByMessageId(message.id)).map(open => ({
-      ...open,
-      opened_at: toISO(open.opened_at),
-    }));
-    const firstOpen = emailOpens.length > 0 ? emailOpens[0] : null;
+  // Load attachments and email opens for all messages in two queries (not two per message)
+  const messageIds = messages.map(m => m.id);
+  const [allOpens, allAttachments] = messageIds.length > 0
+    ? await Promise.all([
+        emailOpenQueries.getByMessageIds(messageIds),
+        attachmentQueries.getByMessageIds(messageIds),
+      ])
+    : [[], []];
 
-    const attachments = (await attachmentQueries.getByMessageId(message.id)).map(att => ({
-      ...att,
-      created_at: toISO(att.created_at),
-    }));
+  const opensByMessage = new Map<number, typeof allOpens>();
+  for (const open of allOpens) {
+    const list = opensByMessage.get(open.message_id) ?? [];
+    list.push({ ...open, opened_at: toISO(open.opened_at) });
+    opensByMessage.set(open.message_id, list);
+  }
+  const attachmentsByMessage = new Map<number, typeof allAttachments>();
+  for (const att of allAttachments) {
+    const list = attachmentsByMessage.get(att.message_id) ?? [];
+    list.push({ ...att, created_at: toISO(att.created_at) });
+    attachmentsByMessage.set(att.message_id, list);
+  }
+
+  // Add attachments and email opens to each message, and normalize timestamps
+  const messagesWithAttachments = messages.map(message => {
+    const emailOpens = opensByMessage.get(message.id) ?? [];
+    const firstOpen = emailOpens.length > 0 ? emailOpens[0] : null;
 
     return {
       ...message,
       created_at: toISO(message.created_at),
-      attachments,
+      attachments: attachmentsByMessage.get(message.id) ?? [],
       email_opens: emailOpens,
       first_opened_at: firstOpen?.opened_at || null,
     };
-  }));
+  });
 
   // Get count of all tickets from this customer
   const customerTicketCount = await ticketQueries.countByCustomerEmail(ticket.customer_email);

@@ -128,6 +128,16 @@ export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// Explicit column lists: everything except search_vector (a tsvector as large as the text it
+// indexes, never used outside SQL), so it isn't shipped to the app and on to the browser.
+const TICKET_COLUMNS = `tickets.id, tickets.subject, tickets.customer_email, tickets.customer_name,
+  tickets.reply_to_email, tickets.status, tickets.priority, tickets.assignee_id, tickets.message_id,
+  tickets.last_message_at, tickets.created_at, tickets.updated_at, tickets.follow_up_at`;
+const MESSAGE_COLUMNS = `messages.id, messages.ticket_id, messages.sender_email, messages.sender_name,
+  messages.body, messages.body_html, messages.body_html_stripped, messages.email_metadata, messages.type,
+  messages.tracking_token, messages.message_id, messages.created_at, messages.scheduled_at,
+  messages.sent_at, messages.to_emails, messages.cc_emails`;
+
 async function query<T = any>(text: string, params?: any[]): Promise<T[]> {
   const result = await db().query(text, params);
   return result.rows as T[];
@@ -168,7 +178,7 @@ export const ticketQueries = {
   async getAll(): Promise<(Ticket & { message_count: number; last_message_preview: string | null; attachment_count: number; last_message_sender_email: string | null; last_message_sender_name: string | null; last_message_at: string | null })[]> {
     return query(`
       SELECT
-        tickets.*,
+        ${TICKET_COLUMNS},
         COALESCE(msg_count.message_count, 0) as message_count,
         last_msg.last_message_preview,
         COALESCE(att_stats.attachment_count, 0) as attachment_count,
@@ -202,11 +212,11 @@ export const ticketQueries = {
   },
 
   async getById(id: number): Promise<Ticket | undefined> {
-    return queryOne<Ticket>('SELECT * FROM tickets WHERE id = $1', [id]);
+    return queryOne<Ticket>(`SELECT ${TICKET_COLUMNS} FROM tickets WHERE id = $1`, [id]);
   },
 
   async getByMessageId(messageId: string): Promise<Ticket | undefined> {
-    return queryOne<Ticket>('SELECT * FROM tickets WHERE message_id = $1', [messageId]);
+    return queryOne<Ticket>(`SELECT ${TICKET_COLUMNS} FROM tickets WHERE message_id = $1`, [messageId]);
   },
 
   async create(subject: string, customerEmail: string, customerName: string | null, replyToEmail: string | null, messageId: string | null, status: TicketStatus, priority: TicketPriority, assigneeId: number | null, followUpAt: string | null = null): Promise<number> {
@@ -253,7 +263,7 @@ export const ticketQueries = {
 
   async getByFollowUpDateRange(startDate: string, endDate: string): Promise<Ticket[]> {
     return query<Ticket>(
-      `SELECT * FROM tickets
+      `SELECT ${TICKET_COLUMNS} FROM tickets
        WHERE follow_up_at >= $1 AND follow_up_at < $2
        ORDER BY follow_up_at ASC`,
       [startDate, endDate]
@@ -262,7 +272,7 @@ export const ticketQueries = {
 
   async getWithFollowUps(): Promise<Ticket[]> {
     return query<Ticket>(
-      `SELECT * FROM tickets
+      `SELECT ${TICKET_COLUMNS} FROM tickets
        WHERE follow_up_at IS NOT NULL
        ORDER BY follow_up_at ASC`
     );
@@ -270,7 +280,7 @@ export const ticketQueries = {
 
   async search(searchQuery: string): Promise<Ticket[]> {
     return query<Ticket>(
-      `SELECT tickets.*
+      `SELECT ${TICKET_COLUMNS}
        FROM tickets
        WHERE search_vector @@ plainto_tsquery('english', $1)
        ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC`,
@@ -279,15 +289,15 @@ export const ticketQueries = {
   },
 
   async getByStatus(status: TicketStatus): Promise<Ticket[]> {
-    return query<Ticket>('SELECT * FROM tickets WHERE status = $1 ORDER BY created_at DESC', [status]);
+    return query<Ticket>(`SELECT ${TICKET_COLUMNS} FROM tickets WHERE status = $1 ORDER BY created_at DESC`, [status]);
   },
 
   async getByAssignee(assigneeId: number): Promise<Ticket[]> {
-    return query<Ticket>('SELECT * FROM tickets WHERE assignee_id = $1 ORDER BY created_at DESC', [assigneeId]);
+    return query<Ticket>(`SELECT ${TICKET_COLUMNS} FROM tickets WHERE assignee_id = $1 ORDER BY created_at DESC`, [assigneeId]);
   },
 
   async getUnassigned(): Promise<Ticket[]> {
-    return query<Ticket>('SELECT * FROM tickets WHERE assignee_id IS NULL ORDER BY created_at DESC');
+    return query<Ticket>(`SELECT ${TICKET_COLUMNS} FROM tickets WHERE assignee_id IS NULL ORDER BY created_at DESC`);
   },
 
   async countByCustomerEmail(email: string): Promise<number> {
@@ -426,7 +436,7 @@ export const ticketQueries = {
         GROUP BY id
       ),
       filtered_tickets AS (
-        SELECT tickets.*, search_tickets.rank
+        SELECT ${TICKET_COLUMNS}, search_tickets.rank
         FROM tickets
         INNER JOIN search_tickets ON tickets.id = search_tickets.id
         ${tagJoin}
@@ -758,7 +768,7 @@ export const messageQueries = {
   },
 
   async getByTicketId(ticketId: number): Promise<Message[]> {
-    return query<Message>('SELECT * FROM messages WHERE ticket_id = $1 ORDER BY created_at ASC', [ticketId]);
+    return query<Message>(`SELECT ${MESSAGE_COLUMNS} FROM messages WHERE ticket_id = $1 ORDER BY created_at ASC`, [ticketId]);
   },
 
   async create(ticketId: number, senderEmail: string, senderName: string | null, body: string, type: string, messageId: string | null, bodyHtml: string | null, bodyHtmlStripped: string | null, emailMetadata: string | null, scheduledAt: string | null = null, toEmails: string[] | null = null, ccEmails: string[] | null = null): Promise<number> {
@@ -902,6 +912,11 @@ export const emailOpenQueries = {
     return query('SELECT * FROM email_opens WHERE message_id = $1 ORDER BY opened_at ASC', [messageId]);
   },
 
+  /** Opens for several messages in one query (ordered by opened_at) */
+  async getByMessageIds(messageIds: number[]): Promise<any[]> {
+    return query('SELECT * FROM email_opens WHERE message_id = ANY($1) ORDER BY opened_at ASC', [messageIds]);
+  },
+
   async getByTrackingToken(token: string): Promise<any[]> {
     return query('SELECT * FROM email_opens WHERE tracking_token = $1 ORDER BY opened_at ASC', [token]);
   },
@@ -914,6 +929,11 @@ export const emailOpenQueries = {
 export const attachmentQueries = {
   async getByMessageId(messageId: number): Promise<Attachment[]> {
     return query<Attachment>('SELECT * FROM attachments WHERE message_id = $1 ORDER BY created_at ASC', [messageId]);
+  },
+
+  /** Attachments for several messages in one query (ordered by created_at) */
+  async getByMessageIds(messageIds: number[]): Promise<Attachment[]> {
+    return query<Attachment>('SELECT * FROM attachments WHERE message_id = ANY($1) ORDER BY created_at ASC, id ASC', [messageIds]);
   },
 
   async create(messageId: number, filename: string, filePath: string, sizeBytes: number | null, mimeType: string | null): Promise<number> {
