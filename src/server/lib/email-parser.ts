@@ -6,7 +6,7 @@
 import { simpleParser, ParsedMail, AddressObject } from 'mailparser';
 import EmailForwardParser from 'email-forward-parser';
 import EmailReplyParser from 'email-reply-parser';
-import type { ParsedEmail, ParsedAttachment } from './types.js';
+import type { ParsedEmail, ParsedAttachment, AutoReplyKind } from './types.js';
 
 /**
  * Parse raw email message (from IMAP) into structured format
@@ -50,6 +50,8 @@ export async function parseEmail(rawEmail: Buffer | string): Promise<ParsedEmail
   const xMailer = parsed.headers.get('x-mailer');
   const userAgent = parsed.headers.get('user-agent');
   const emailClient = typeof xMailer === 'string' ? xMailer : (typeof userAgent === 'string' ? userAgent : null);
+
+  const autoReply = detectAutoReply(parsed.headers, from);
 
   // Convert headers map to plain object for storage
   const headers: Record<string, string | string[]> = {};
@@ -128,7 +130,35 @@ export async function parseEmail(rawEmail: Buffer | string): Promise<ParsedEmail
     isForwarded,
     forwardedFrom,
     forwardedFromName,
+    autoReply,
   };
+}
+
+/**
+ * Out-of-office / vacation auto-replies and delivery failures (bounces). These are kept and
+ * reopen the ticket like any reply (the agent needs to follow up), but the ticket is tagged so
+ * it's clear the customer didn't actually answer.
+ */
+function detectAutoReply(headers: Map<string, unknown>, from: string | null): AutoReplyKind | null {
+  const header = (name: string): string => {
+    const value = headers.get(name);
+    if (typeof value === 'string') return value.toLowerCase();
+    if (value && typeof value === 'object' && 'value' in value) return String(value.value).toLowerCase();
+    return '';
+  };
+
+  // Delivery status notifications (bounces) - checked first, they may also be Auto-Submitted
+  if (header('content-type') === 'multipart/report') return 'bounced';
+  const localPart = (from || '').split('@')[0].toLowerCase();
+  if (localPart === 'mailer-daemon' || localPart === 'postmaster') return 'bounced';
+
+  // RFC 3834: auto-replied / auto-generated / auto-notified
+  const autoSubmitted = header('auto-submitted');
+  if (autoSubmitted && autoSubmitted !== 'no') return 'out-of-office';
+  if (header('precedence') === 'auto_reply') return 'out-of-office';
+  if (headers.has('x-autoreply') || headers.has('x-autorespond') || headers.has('x-autoresponse')) return 'out-of-office';
+
+  return null;
 }
 
 /**

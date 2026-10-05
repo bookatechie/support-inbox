@@ -13,6 +13,8 @@ import {
   emailOpenQueries,
   ticketHistoryQueries,
   userQueries,
+  tagQueries,
+  ticketTagQueries,
   getTicketById,
   getMessagesByTicketId,
   withTransaction,
@@ -29,6 +31,7 @@ import {
 import { config } from './config.js';
 import { evaluateRulesForTicket } from './rules-engine.js';
 import type {
+  AutoReplyKind,
   Ticket,
   Message,
   ParsedEmail,
@@ -238,6 +241,10 @@ export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger,
     logger?.error({ err, ticketId }, 'Failed to save attachments for new ticket');
   }
 
+  if (email.autoReply) {
+    await tagAutoReply(ticketId, email.autoReply);
+  }
+
   try {
     const ticket = (await getTicketById(ticketId))!;
     const message = (await messageQueries.getById(messageId))!;
@@ -272,6 +279,39 @@ export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger,
   }
 
   logger?.info({ ticketId, subject: email.subject, attachments: email.attachments?.length || 0 }, 'Created ticket from email');
+}
+
+/**
+ * Tag a ticket with the kind of auto-reply it received ('out-of-office' / 'bounced'), so agents
+ * can tell an automatic response from a real customer reply
+ */
+async function tagAutoReply(ticketId: number, kind: AutoReplyKind): Promise<void> {
+  // Runs after the email is saved: never throw (a retry would skip the email as processed)
+  try {
+    const tagId = (await tagQueries.getByName(kind))?.id ?? await tagQueries.create(kind);
+    await ticketTagQueries.addTagToTicket(ticketId, tagId);
+    await logAutoReplyChange(ticketId, 'tags', null, `+${kind}`, `Auto-reply received (${kind})`);
+  } catch (error) {
+    logger?.error({ err: error, ticketId, kind }, 'Failed to tag auto-reply');
+  }
+}
+
+async function logAutoReplyChange(ticketId: number, fieldName: string, oldValue: string | null, newValue: string, notes: string): Promise<void> {
+  try {
+    await ticketHistoryQueries.create({
+      ticket_id: ticketId,
+      field_name: fieldName,
+      old_value: oldValue,
+      new_value: newValue,
+      changed_by_user_id: null,
+      changed_by_email: 'system',
+      changed_by_name: 'Email',
+      change_source: 'email_reply',
+      notes,
+    });
+  } catch (error) {
+    logger?.error({ err: error, ticketId, fieldName }, 'Failed to log auto-reply change');
+  }
 }
 
 /**
@@ -321,10 +361,17 @@ export async function addMessageToTicket(ticketId: number, email: ParsedEmail): 
     await saveMessageAttachments(messageId, ticketId, email.attachments, email.bodyHtml);
   }
 
-  // Update ticket status to 'open' if it was awaiting customer or resolved
+  // Update ticket status to 'open' if it was awaiting customer or resolved. Out-of-office
+  // replies and bounces reopen too (someone needs to follow up), tagged so it's clear why.
   const ticket = await getTicketById(ticketId);
   if (ticket && (ticket.status === 'awaiting_customer' || ticket.status === 'resolved')) {
     await ticketQueries.updateStatus('open', ticketId);
+    if (email.autoReply) {
+      await logAutoReplyChange(ticketId, 'status', ticket.status, 'open', `Reopened by auto-reply (${email.autoReply})`);
+    }
+  }
+  if (email.autoReply) {
+    await tagAutoReply(ticketId, email.autoReply);
   }
 
   // Note: updated_at is automatically updated by PostgreSQL triggers

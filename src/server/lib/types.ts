@@ -290,6 +290,8 @@ export interface CreateUserRequest {
 }
 
 // Email Parsing Types
+export type AutoReplyKind = 'out-of-office' | 'bounced';
+
 export interface ParsedEmail {
   subject: string;
   from: string;
@@ -316,6 +318,7 @@ export interface ParsedEmail {
   isForwarded: boolean; // Whether the email is a forwarded message
   forwardedFrom: string | null; // Original sender email extracted from forwarded body
   forwardedFromName: string | null; // Original sender name extracted from forwarded body
+  autoReply: AutoReplyKind | null; // Out-of-office auto-reply or bounce (not a real customer reply)
 }
 
 export interface ParsedAttachment {
