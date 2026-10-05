@@ -5,7 +5,6 @@
 
 import "dotenv/config";
 import Fastify from "fastify";
-import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import compress from "@fastify/compress";
 import fastifyStatic from "@fastify/static";
@@ -206,11 +205,8 @@ async function start() {
       contentSecurityPolicy: false, // Allow inline scripts for dev
     });
 
-    // CORS
-    await fastify.register(cors, {
-      origin: "*",
-      credentials: true,
-    });
+    // No CORS: the client is served from this origin (and proxied to it in dev), so no
+    // cross-origin browser access is allowed.
 
     // Compression
     await fastify.register(compress);
