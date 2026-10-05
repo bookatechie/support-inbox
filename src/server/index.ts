@@ -36,11 +36,26 @@ const HOST = process.env.HOST || "0.0.0.0";
 // Create Fastify Instance
 // ============================================================================
 
+// Same as Fastify's default request serializer, but with ?token=... redacted: attachment URLs
+// carry the JWT in the query string, and request logs would otherwise store live tokens.
+const logSerializers = {
+  req(request: { method: string; url: string; host?: string; hostname?: string; ip?: string; socket?: { remotePort?: number } }) {
+    return {
+      method: request.method,
+      url: request.url.replace(/([?&]token=)[^&]*/g, "$1[redacted]"),
+      host: request.host ?? request.hostname,
+      remoteAddress: request.ip,
+      remotePort: request.socket?.remotePort,
+    };
+  },
+};
+
 const fastify = Fastify({
   logger:
     process.env.NODE_ENV === "production"
-      ? true
+      ? { serializers: logSerializers }
       : {
+          serializers: logSerializers,
           transport: {
             target: "pino-pretty",
             options: {

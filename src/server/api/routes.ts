@@ -225,8 +225,14 @@ export default async function routes(fastify: FastifyInstance) {
       if (authHeader && authHeader.startsWith('Bearer ')) {
         token = authHeader.substring(7);
       }
-      // Fall back to query parameter for SSE (EventSource doesn't support headers)
-      else if (request.query && typeof (request.query as any).token === 'string') {
+      // Query-string token only where the browser can't send a header: attachment URLs used
+      // as <img src>/links. (SSE verifies its own token.) Elsewhere it would only leak tokens
+      // into URLs and logs.
+      else if (
+        request.method === 'GET' &&
+        request.routeOptions.url?.endsWith('/attachments/:id') &&
+        typeof (request.query as any)?.token === 'string'
+      ) {
         token = (request.query as any).token;
       }
 
