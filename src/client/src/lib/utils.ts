@@ -87,3 +87,22 @@ export function generateStrongPassword(): string {
   // Shuffle the password to avoid predictable pattern
   return password.split('').sort(() => Math.random() - 0.5).join('');
 }
+
+/**
+ * Login URL that returns to `path` afterwards (?next=). The login page itself is never a target.
+ */
+export function loginPath(path: string): string {
+  if (!path || path === '/' || path.startsWith('/login')) return '/login';
+  return `/login?next=${encodeURIComponent(path)}`;
+}
+
+/**
+ * Where to go after login: the ?next= path if it's a same-site path, else the ticket list.
+ * Only "/..." paths are allowed (not "//host" or "/\host"), so the param can't send users off-site.
+ */
+export function safeNextPath(next: string | null): string {
+  if (next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') && !next.startsWith('/login')) {
+    return next;
+  }
+  return '/tickets';
+}

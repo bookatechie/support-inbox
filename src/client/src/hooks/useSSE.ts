@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import type { SSEEvent } from '@/types';
+import { loginPath } from '@/lib/utils';
 
 type EventHandler = (event: SSEEvent) => void;
 
@@ -91,7 +92,7 @@ export function useSSE({
           isIntentionalCloseRef.current = true;
           eventSource.close();
           localStorage.removeItem('authToken');
-          window.location.href = '/login';
+          window.location.href = loginPath(window.location.pathname + window.location.search + window.location.hash);
           return;
         }
 

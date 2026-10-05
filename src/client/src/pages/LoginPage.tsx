@@ -4,8 +4,9 @@
  */
 
 import { useState, type FormEvent } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { safeNextPath } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +15,9 @@ import { Mail, Lock, Loader2 } from 'lucide-react';
 export function LoginPage() {
   const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Page the user was trying to open before being sent to login
+  const nextPath = safeNextPath(searchParams.get('next'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +25,7 @@ export function LoginPage() {
 
   // Redirect if already authenticated
   if (isAuthenticated && !authLoading) {
-    return <Navigate to="/tickets" replace />;
+    return <Navigate to={nextPath} replace />;
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -31,7 +35,7 @@ export function LoginPage() {
 
     try {
       await login({ email, password });
-      navigate('/tickets');
+      navigate(nextPath, { replace: true });
     } catch (err) {
       setError('Invalid email or password');
       console.error('Login error:', err);
