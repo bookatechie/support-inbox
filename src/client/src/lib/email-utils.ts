@@ -115,8 +115,17 @@ export function getMessageBodyHtml(body: string, bodyHtml: string | null, attach
     return doc.body.innerHTML;
   }
 
-  // Fall back to plain text with line breaks converted to <br>
-  return body.replace(/\n/g, '<br>');
+  // Fall back to plain text: escape it (it's customer-controlled), then convert line breaks to <br>
+  return escapeHtml(body).replace(/\n/g, '<br>');
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
