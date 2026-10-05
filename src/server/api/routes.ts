@@ -240,6 +240,9 @@ export default async function routes(fastify: FastifyInstance) {
       if (!user) {
         return reply.status(401).send({ error: 'User not found' });
       }
+      if (!user.active) {
+        return reply.status(401).send({ error: 'Account is deactivated' });
+      }
 
       // Attach user to request (without password)
       request.user = sanitizeUser(user);
@@ -274,6 +277,10 @@ export default async function routes(fastify: FastifyInstance) {
 
     if (!valid) {
       return reply.status(401).send({ error: 'Invalid credentials' });
+    }
+
+    if (!user.active) {
+      return reply.status(403).send({ error: 'Account is deactivated' });
     }
 
     const payload: JwtPayload = {
@@ -2070,7 +2077,7 @@ export default async function routes(fastify: FastifyInstance) {
       if (!token) throw new Error('No token');
       const payload = fastify.jwt.verify(token) as JwtPayload;
       const user = await getUserById(payload.userId);
-      if (!user) throw new Error('User not found');
+      if (!user || !user.active) throw new Error('User not found or deactivated');
       request.user = sanitizeUser(user);
     } catch {
       reply.raw.setHeader('Content-Type', 'text/event-stream');
