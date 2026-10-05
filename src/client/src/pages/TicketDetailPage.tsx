@@ -56,7 +56,7 @@ import { Loader2, Mail, Send, Save, User as UserIcon, Trash2, X, File, Plus, Sea
 import { formatMessageDate, formatAbsoluteDate, formatFileSize } from '@/lib/formatters';
 import { ApiError } from '@/lib/api';
 import type { EmailMetadata } from '@/types';
-import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
+import { STATUS_LABELS, PRIORITY_LABELS, STATUS_COLORS, PRIORITY_COLORS } from '@/lib/constants';
 import { Avatar } from '@/components/Avatar';
 import { MessageItem } from '@/components/MessageItem';
 import { toast } from 'sonner';
@@ -1439,7 +1439,7 @@ export function TicketDetailPage() {
       <header className="sticky top-0 z-50 flex-shrink-0 border-b backdrop-blur-lg bg-background/70">
         <div className="px-2 sm:px-4 py-2">
           {/* Mobile: Top Bar with Back Button and Action Buttons */}
-          <div className="flex lg:hidden items-center gap-2 mb-3">
+          <div className="flex lg:hidden items-center gap-2 mb-2">
             <BackButton to="/tickets" />
             <div className="flex-1" />
             <div className="flex items-center gap-2">
@@ -1454,6 +1454,24 @@ export function TicketDetailPage() {
               >
                 <Menu className="h-4 w-4" />
               </Button>
+            </div>
+          </div>
+
+          {/* Mobile: which ticket this is (status, priority etc. are in the menu drawer) */}
+          <div className="lg:hidden px-1 pb-1">
+            <TicketSubject subject={ticket.subject} className="[&_h1]:line-clamp-2" />
+            <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground min-w-0">
+              <span className="flex-shrink-0">#{ticket.id}</span>
+              <span>•</span>
+              <span className="truncate">{ticket.customer_name || ticket.customer_email}</span>
+              <Badge className={`${STATUS_COLORS[ticket.status]} text-white text-xs flex-shrink-0`}>
+                {STATUS_LABELS[ticket.status]}
+              </Badge>
+              {ticket.priority !== 'normal' && (
+                <Badge className={`${PRIORITY_COLORS[ticket.priority]} text-white text-xs flex-shrink-0`}>
+                  {PRIORITY_LABELS[ticket.priority]}
+                </Badge>
+              )}
             </div>
           </div>
 
