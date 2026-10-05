@@ -1451,6 +1451,13 @@ export async function getUserById(id: number): Promise<User | undefined> {
 }
 
 // Initialize with default admin user if none exists, or sync existing admin with .env
+/**
+ * User 1 is the default admin: its email, name and password come from .env (DEFAULT_ADMIN_*)
+ * and are re-synced on every start, and the internal API key acts as this user. So the app
+ * must not change those fields, its role or active flag, or delete it.
+ */
+export const DEFAULT_ADMIN_USER_ID = 1;
+
 export async function ensureDefaultUser(): Promise<void> {
   const users = await userQueries.getAll();
 
@@ -1469,7 +1476,7 @@ export async function ensureDefaultUser(): Promise<void> {
     }
   } else {
     // Sync the first user (ID=1, the default admin) with .env configuration
-    const defaultAdmin = await getUserById(1);
+    const defaultAdmin = await getUserById(DEFAULT_ADMIN_USER_ID);
     if (defaultAdmin) {
       const updates: string[] = [];
 

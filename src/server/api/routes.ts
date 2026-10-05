@@ -25,6 +25,7 @@ import {
   ticketTagQueries,
   ticketHistoryQueries,
   type CustomerAggregateFacet,
+  DEFAULT_ADMIN_USER_ID,
 } from '../lib/database-pg.js';
 import { readAttachment, saveAttachment, deleteTicketAttachments, isUploadedAttachmentPath } from '../lib/file-storage.js';
 import {
@@ -210,7 +211,7 @@ export default async function routes(fastify: FastifyInstance) {
       const apiKey = request.headers['x-api-key'];
       if (apiKey && config.internalApiKey && apiKey === config.internalApiKey) {
         // Valid internal API key - use the default admin user (ID 1)
-        const adminUser = await getUserById(1);
+        const adminUser = await getUserById(DEFAULT_ADMIN_USER_ID);
         if (!adminUser) {
           return reply.status(500).send({ error: 'Default admin user not found' });
         }
@@ -1389,6 +1390,17 @@ export default async function routes(fastify: FastifyInstance) {
       }
     }
 
+    // The default admin's login fields come from .env; only unchanged values may be sent
+    if (userId === DEFAULT_ADMIN_USER_ID && (
+      password ||
+      (email && email !== targetUser.email) ||
+      (name && name !== targetUser.name) ||
+      (role && role !== targetUser.role) ||
+      (active !== undefined && Boolean(active) !== Boolean(targetUser.active))
+    )) {
+      return reply.status(403).send({ error: 'The default admin is managed in .env (DEFAULT_ADMIN_*): only signature, agent email and AI profile can be changed here' });
+    }
+
     // Check if email is being changed to one that already exists
     if (email && email !== targetUser.email) {
       const existingUser = await getUserByEmail(email);
@@ -1454,6 +1466,9 @@ export default async function routes(fastify: FastifyInstance) {
     if (userId === user.id) {
       return reply.status(400).send({ error: 'Cannot delete your own account' });
     }
+    if (userId === DEFAULT_ADMIN_USER_ID) {
+      return reply.status(400).send({ error: 'The default admin (managed in .env) cannot be deleted' });
+    }
 
     const targetUser = await getUserById(userId);
     if (!targetUser) {
@@ -1487,6 +1502,10 @@ export default async function routes(fastify: FastifyInstance) {
     const currentUser = await getUserById(user.id);
     if (!currentUser) {
       return reply.status(404).send({ error: 'User not found' });
+    }
+
+    if (user.id === DEFAULT_ADMIN_USER_ID && (password || (name && name !== currentUser.name))) {
+      return reply.status(403).send({ error: 'The default admin is managed in .env (DEFAULT_ADMIN_*): name and password can\'t be changed here' });
     }
 
     // Check if agent_email is being changed to one that already exists

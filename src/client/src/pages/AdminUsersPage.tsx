@@ -26,6 +26,7 @@ import {
 import { FormModal } from '@/components/FormModal';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { Alert } from '@/components/ui/alert';
+import { DEFAULT_ADMIN_USER_ID } from '@/lib/constants';
 import { Loader2, UserPlus, Users, Shield, User as UserIcon, Edit, Trash2 } from 'lucide-react';
 import type { PasswordValidation } from '@/lib/utils';
 import { PasswordInput } from '@/components/PasswordInput';
@@ -177,7 +178,8 @@ export function AdminUsersPage() {
     setError('');
 
     // For admin users, only signature can be updated
-    const isAdminUser = editingUser.id === currentUser?.id;
+    // Own account or the .env-managed default admin: only signature/agent email/AI profile change
+    const isAdminUser = editingUser.id === currentUser?.id || editingUser.id === DEFAULT_ADMIN_USER_ID;
 
     if (!isAdminUser && (!email || !name)) {
       setError('Email and name are required');
@@ -200,7 +202,7 @@ export function AdminUsersPage() {
         signature,
         agent_email: agentEmail || null,
         ai_profile: aiProfile || null,
-        active,
+        active: isAdminUser ? editingUser.active : active,
       };
 
       if (!isAdminUser && password) {
@@ -383,7 +385,7 @@ export function AdminUsersPage() {
             error={error}
             size="lg"
           >
-            {editingUser && editingUser.id === currentUser?.id ? (
+            {editingUser && (editingUser.id === currentUser?.id || editingUser.id === DEFAULT_ADMIN_USER_ID) ? (
               <Alert variant="warning" className="text-sm">
                 <strong>Note:</strong> Admin account settings (name, email, password) should be configured in the <code className="bg-background px-1 py-0.5 rounded text-xs">.env</code> file. Only the email signature can be updated here.
               </Alert>
@@ -560,7 +562,8 @@ export function AdminUsersPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDelete(user.id, user.name)}
-                        disabled={user.id === currentUser.id}
+                        disabled={user.id === currentUser.id || user.id === DEFAULT_ADMIN_USER_ID}
+                        title={user.id === DEFAULT_ADMIN_USER_ID ? 'The default admin is managed in .env' : undefined}
                         className="h-8 w-8 sm:h-9 sm:w-9 p-0"
                       >
                         <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />

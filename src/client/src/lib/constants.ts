@@ -78,3 +78,9 @@ export const ALLOWED_MIME_TYPES = [
   'text/csv',
   'application/zip',
 ] as const;
+
+/**
+ * The default admin (user 1): name, email and password come from the server's .env and are
+ * re-synced on every restart, so the app doesn't offer to edit them (the server refuses too)
+ */
+export const DEFAULT_ADMIN_USER_ID = 1;
