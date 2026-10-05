@@ -1014,6 +1014,7 @@ export async function getTicketWithMessages(ticketId: number): Promise<TicketWit
 
   // Get count of all tickets from this customer
   const customerTicketCount = await ticketQueries.countByCustomerEmail(ticket.customer_email);
+  const replyAll = await computeReplyAll(ticket, messages);
 
   return {
     ...ticket,
@@ -1021,7 +1022,37 @@ export async function getTicketWithMessages(ticketId: number): Promise<TicketWit
     updated_at: toISO(ticket.updated_at),
     messages: messagesWithAttachments,
     customer_ticket_count: customerTicketCount,
+    reply_all: replyAll,
   };
+}
+
+/**
+ * Who a reply should also go to, besides the ticket's customer: everyone on the latest
+ * incoming email (its sender, To and CC), minus our own addresses (support mailbox, agents)
+ * so we never email ourselves. The composer pre-fills these as removable chips.
+ */
+async function computeReplyAll(ticket: Ticket, messages: Message[]): Promise<{ to: string[]; cc: string[] }> {
+  // Incoming emails are the ones with parsed email metadata; agent replies have none
+  const latestIncoming = [...messages].reverse().find(m => m.type === 'email' && m.email_metadata);
+  if (!latestIncoming) return { to: [], cc: [] };
+
+  const addressOf = (value: string) => (value.match(/<([^>]+)>/)?.[1] ?? value).trim().toLowerCase();
+  const users = await userQueries.getAll();
+  const ours = new Set(
+    [config.smtp.from, config.smtp.user, config.imap.user, ...users.flatMap(u => [u.email, u.agent_email])]
+      .filter((a): a is string => !!a)
+      .map(addressOf)
+  );
+  const parseList = (json: string | null): string[] => {
+    try { return json ? JSON.parse(json) : []; } catch { return []; }
+  };
+
+  const seen = new Set([addressOf(ticket.customer_email), ...ours]);
+  const pick = (addresses: string[]) => addresses.map(addressOf).filter(a => a && !seen.has(a) && seen.add(a));
+
+  const to = pick([latestIncoming.sender_email, ...parseList(latestIncoming.to_emails)]);
+  const cc = pick(parseList(latestIncoming.cc_emails));
+  return { to, cc };
 }
 
 /**

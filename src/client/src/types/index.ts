@@ -195,6 +195,8 @@ export interface TicketWithMessages extends Ticket {
   messages: MessageWithAttachments[];
   assignee?: User;
   customer_ticket_count?: number;
+  /** Others on the latest incoming email (excluding the customer and our own addresses) */
+  reply_all?: { to: string[]; cc: string[] };
 }
 
 export interface MessageWithAttachments extends Message {

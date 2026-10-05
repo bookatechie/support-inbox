@@ -157,6 +157,20 @@ export function TicketDetailPage() {
   const messagesPanelRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
 
+  // Reply-all: pre-fill To/CC with everyone else on the latest incoming email, once per
+  // ticket (not on every live update, so recipients the agent removed stay removed)
+  const prefilledTicketIdRef = useRef<number | null>(null);
+  const prefillRecipients = (t: TicketWithMessages) => {
+    setToEmails(t.reply_all?.to ?? []);
+    setCcEmails(t.reply_all?.cc ?? []);
+  };
+  useEffect(() => {
+    if (ticket && prefilledTicketIdRef.current !== ticket.id) {
+      prefilledTicketIdRef.current = ticket.id;
+      prefillRecipients(ticket);
+    }
+  }, [ticket]);
+
   const loadTicket = useCallback(async () => {
     if (!id) return;
 
@@ -631,8 +645,8 @@ export function TicketDetailPage() {
         primaryRecipient = replyToMessage?.sender_email || ticket?.customer_email || '';
       }
 
-      // Build complete To list: primary recipient + additional To emails
-      const allToEmails = [primaryRecipient, ...toEmails];
+      // Build complete To list: primary recipient + additional To emails (no duplicates)
+      const allToEmails = [primaryRecipient, ...toEmails.filter(e => e.toLowerCase() !== primaryRecipient.toLowerCase())];
 
       // Send message with cid: references in HTML
       // Backend will convert to cid: for email, and when messages are displayed
@@ -660,9 +674,8 @@ export function TicketDetailPage() {
       setReplyContent('');
       setIsInternal(false);
       setAttachments([]);
-      setToEmails([]);
+      if (ticket) prefillRecipients(ticket); // back to reply-all for the next reply
       setShowToInput(false);
-      setCcEmails([]);
       setShowCcInput(false);
       setReplyToMessageId(null);
       setScheduledAt('');
