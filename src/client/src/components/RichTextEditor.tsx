@@ -345,7 +345,8 @@ export function RichTextEditor({
       )}
 
       {/* Toolbar */}
-      <div className="border-b bg-muted/30 p-2 flex flex-wrap gap-1 shrink-0 rounded-t-md overflow-hidden">
+      {/* One row that scrolls sideways on phones (wrapping ate the text area); wraps on wider screens */}
+      <div className="border-b bg-muted/30 p-2 flex flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 sm:flex-wrap sm:overflow-hidden gap-1 shrink-0 rounded-t-md">
         {/* Text Formatting */}
         <Button
           type="button"
@@ -659,7 +660,8 @@ export function RichTextEditor({
       <div
         className={cn(
           'p-4 overflow-hidden cursor-text',
-          fillHeight ? 'flex-1 overflow-y-auto min-h-0' : 'min-h-[200px]',
+          // On phones the composer sizes to its content, so give the text area its own height
+          fillHeight ? 'flex-1 overflow-y-auto min-h-0 max-sm:flex-none max-sm:min-h-[7rem] max-sm:max-h-[35vh]' : 'min-h-[200px]',
           !showVariablesBar || Object.keys(variables).length === 0 ? 'rounded-b-md' : ''
         )}
         onMouseDown={(e) => {

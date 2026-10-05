@@ -1324,7 +1324,7 @@ export function TicketDetailPage() {
                   onCheckedChange={(checked) => setIsInternal(checked === true)}
                 />
                 <Label htmlFor="internal" className="text-sm cursor-pointer">
-                  Internal Note (not sent to customer)
+                  Internal Note<span className="hidden sm:inline"> (not sent to customer)</span>
                 </Label>
               </div>
 
@@ -1655,7 +1655,7 @@ export function TicketDetailPage() {
           {/* Floating Reply Editor at Bottom */}
           <div
             ref={composerRef}
-            className="flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col transition-[height] duration-200"
+            className={`flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col transition-[height] duration-200 ${isComposerMinimized ? '' : 'max-sm:!h-auto max-sm:max-h-[75vh]'}`}
             style={{ height: isComposerMinimized ? 44 : composerHeight }}
           >
             {/* Minimized Bar */}
@@ -1686,7 +1686,7 @@ export function TicketDetailPage() {
               <>
                 {/* Resize Handle */}
                 <div
-                  className={`h-3 cursor-ns-resize flex items-center justify-center hover:bg-muted/50 transition-colors flex-shrink-0 ${isResizing ? 'bg-muted' : ''}`}
+                  className={`h-3 cursor-ns-resize flex items-center justify-center hover:bg-muted/50 transition-colors flex-shrink-0 max-sm:hidden ${isResizing ? 'bg-muted' : ''}`}
                   onMouseDown={handleResizeStart}
                   onTouchStart={handleResizeStart}
                 >
