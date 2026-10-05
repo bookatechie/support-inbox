@@ -237,7 +237,7 @@ export function TicketsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const { filters, updateFilter, setFilters } = usePersistedFilters<TicketFilters>(
-    'ticketsPageFilters',
+    `ticketsPageFilters:${user?.id}`,
     DEFAULT_TICKET_FILTERS
   );
 

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 
 /**
- * Generic hook for persisting filter state to sessionStorage
+ * Generic hook for persisting filter state to localStorage, so filters, sort order etc.
+ * survive closing the tab and logging in again. Callers include the user id in the key, so
+ * people sharing a browser each keep their own.
  * Handles loading, saving, and updating filters with type safety
  */
 export function usePersistedFilters<T extends { [K in keyof T]: string }>(
@@ -10,7 +12,7 @@ export function usePersistedFilters<T extends { [K in keyof T]: string }>(
 ) {
   const [filters, setFilters] = useState<T>(() => {
     try {
-      const saved = sessionStorage.getItem(key);
+      const saved = localStorage.getItem(key);
       if (saved) {
         return { ...defaultFilters, ...JSON.parse(saved) };
       }
@@ -23,7 +25,7 @@ export function usePersistedFilters<T extends { [K in keyof T]: string }>(
   // Auto-save on change
   useEffect(() => {
     try {
-      sessionStorage.setItem(key, JSON.stringify(filters));
+      localStorage.setItem(key, JSON.stringify(filters));
     } catch (error) {
       console.error('Failed to save filters:', error);
     }

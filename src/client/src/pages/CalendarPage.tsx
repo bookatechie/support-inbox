@@ -214,7 +214,7 @@ export function CalendarPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const { filters, updateFilter } = usePersistedFilters<CalendarFilters>(
-    'calendarPageFilters',
+    `calendarPageFilters:${user?.id}`,
     DEFAULT_CALENDAR_FILTERS
   );
 
