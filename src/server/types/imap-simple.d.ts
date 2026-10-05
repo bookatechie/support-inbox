@@ -27,6 +27,7 @@ declare module 'imap-simple' {
       uid: number;
       flags: string[];
       date: Date;
+      size?: number; // present when fetched with { size: true }
       'body[]'?: string;
     };
     parts: MessagePart[];

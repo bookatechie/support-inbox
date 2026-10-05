@@ -29,6 +29,14 @@ const BASE_BACKOFF_MS = 30000; // 30 seconds base backoff
 const MAX_PROCESS_ATTEMPTS = 5;
 const failedAttempts = new Map<number, number>(); // IMAP UID -> failed attempts
 
+// Emails are fetched and parsed one at a time (a whole message plus its decoded attachments
+// is held in memory while it's processed). Cap how many one check handles so a backlog after
+// an outage drains over a few polls, and leave oversized emails unread rather than risk
+// running the 512 MB heap out of memory on them.
+const MAX_EMAILS_PER_CHECK = 25;
+const MAX_EMAIL_BYTES = 40 * 1024 * 1024;
+const oversizedLogged = new Set<number>(); // UIDs already reported as oversized
+
 // One mail check at a time: a slow DB can make a check outlast the poll interval, and
 // overlapping checks would fetch and process the same UNSEEN emails twice.
 let inFlightCheck: Promise<void> | null = null;
@@ -159,26 +167,44 @@ async function checkEmails(config: ImapConfig): Promise<void> {
     // Open inbox
     await connection.openBox('INBOX');
 
-    // Search for unseen emails
-    const searchCriteria = ['UNSEEN'];
-    const fetchOptions = {
-      bodies: [''], // Fetch entire message
-      markSeen: false, // Marked seen below, only once processed
-    };
+    // List unseen emails: UIDs and sizes only, no bodies
+    const unseen: Message[] = await connection.search(['UNSEEN'], {
+      bodies: [],
+      size: true,
+      markSeen: false,
+    });
 
-    const messages: Message[] = await connection.search(searchCriteria, fetchOptions);
+    const pending = unseen
+      .map(m => ({ uid: m.attributes.uid, size: m.attributes.size ?? 0 }))
+      .filter(({ uid, size }) => {
+        if (size <= MAX_EMAIL_BYTES) return true;
+        if (!oversizedLogged.has(uid)) {
+          oversizedLogged.add(uid);
+          logger.error({ uid, size }, 'Email too large to import - left unread in the mailbox, handle it manually');
+        }
+        return false;
+      })
+      .sort((a, b) => a.uid - b.uid); // oldest first
 
-    if (messages.length === 0) {
+    if (pending.length === 0) {
       logger.info('No new emails');
       return;
     }
 
-    logger.info(`Found ${messages.length} new email(s)`);
+    const batch = pending.slice(0, MAX_EMAILS_PER_CHECK);
+    logger.info(
+      `Found ${pending.length} new email(s)` +
+      (pending.length > batch.length ? `, processing ${batch.length} this check` : '')
+    );
 
-    // Process each message
-    for (const message of messages) {
-      const uid = message.attributes.uid;
+    // Fetch and process one email at a time, so only one is in memory
+    for (const { uid } of batch) {
       try {
+        const [message] = await connection.search([['UID', String(uid)]], {
+          bodies: [''], // Fetch entire message
+          markSeen: false, // Marked seen below, only once processed
+        });
+        if (!message) continue; // deleted/moved since the listing
         await processMessage(message);
         failedAttempts.delete(uid);
         await connection.addFlags(uid, '\\Seen');
