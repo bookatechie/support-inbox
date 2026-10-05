@@ -1079,16 +1079,13 @@ export async function findTicketByThreading(email: ParsedEmail): Promise<Ticket 
 }
 
 /**
- * Get ticket statistics
- * Note: Needs to be implemented with PostgreSQL-specific queries
+ * Get ticket counts, total and per status
  */
 export async function getTicketStats() {
-  // TODO: Implement with ticketQueries once stats query is added to database-pg
-  return {
-    total: 0,
-    new: 0,
-    open: 0,
-    awaiting_customer: 0,
-    resolved: 0,
-  };
+  const stats = { total: 0, new: 0, open: 0, awaiting_customer: 0, resolved: 0 };
+  for (const { status, count } of await ticketQueries.countByStatus()) {
+    stats[status] = count;
+    stats.total += count;
+  }
+  return stats;
 }

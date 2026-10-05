@@ -229,6 +229,12 @@ export const ticketQueries = {
     return result!.id;
   },
 
+  async countByStatus(): Promise<Array<{ status: TicketStatus; count: number }>> {
+    return query<{ status: TicketStatus; count: number }>(
+      'SELECT status, COUNT(*)::integer AS count FROM tickets GROUP BY status'
+    );
+  },
+
   async updateStatus(status: TicketStatus, id: number): Promise<void> {
     await execute('UPDATE tickets SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [status, id]);
   },

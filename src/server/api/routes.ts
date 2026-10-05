@@ -472,7 +472,7 @@ export default async function routes(fastify: FastifyInstance) {
   fastify.get('/tickets/stats', {
     onRequest: [fastify.authenticate],
   }, async (request, reply) => {
-    const stats = getTicketStats();
+    const stats = await getTicketStats();
     return reply.send(stats);
   });
 
