@@ -1884,7 +1884,7 @@ export default async function routes(fastify: FastifyInstance) {
   });
 
   // ============================================================================
-  // Routing Rules (Admin only)
+  // Routing Rules (any authenticated user)
   // ============================================================================
 
   /**

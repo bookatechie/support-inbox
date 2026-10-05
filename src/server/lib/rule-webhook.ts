@@ -3,7 +3,44 @@
  * Fire-and-forget HTTP requests from the routing rules engine.
  */
 
+import { lookup } from 'dns/promises';
+import { BlockList, isIP } from 'net';
 import type { Ticket, Message, RoutingRule } from './types.js';
+
+const WEBHOOK_TIMEOUT_MS = 10_000;
+
+// Rule webhook URLs are set by any agent: never let them reach the host, the LAN or cloud metadata
+const blockedAddresses = new BlockList();
+for (const [net, prefix] of [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16],
+  ['172.16.0.0', 12], ['192.168.0.0', 16], ['224.0.0.0', 4], ['240.0.0.0', 4],
+] as const) {
+  blockedAddresses.addSubnet(net, prefix, 'ipv4');
+}
+for (const [net, prefix] of [['::', 128], ['::1', 128], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8]] as const) {
+  blockedAddresses.addSubnet(net, prefix, 'ipv6');
+}
+
+function isBlockedAddress(address: string): boolean {
+  const mapped = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (mapped) return blockedAddresses.check(mapped[1], 'ipv4');
+  return blockedAddresses.check(address, isIP(address) === 6 ? 'ipv6' : 'ipv4');
+}
+
+/**
+ * Throw unless the URL is http(s) and every address its host resolves to is public.
+ */
+async function assertPublicUrl(url: string): Promise<void> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error(`Webhook URL must be http(s): ${parsed.protocol}`);
+  }
+  const host = parsed.hostname.replace(/^\[|\]$/g, '');
+  const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true });
+  if (addresses.some(a => isBlockedAddress(a.address))) {
+    throw new Error(`Webhook host ${host} resolves to a private address`);
+  }
+}
 
 interface Logger {
   info: (objOrMsg: object | string, msg?: string) => void;
@@ -82,6 +119,8 @@ export async function sendWebhookFromRule(
     },
   };
 
+  await assertPublicUrl(url);
+
   const response = await fetch(url, {
     method: method || 'POST',
     headers: {
@@ -89,6 +128,8 @@ export async function sendWebhookFromRule(
       'User-Agent': 'SupportInbox/1.0',
     },
     body: JSON.stringify(payload),
+    redirect: 'manual', // a redirect could point back at a private address
+    signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
   });
 
   if (!response.ok) {
