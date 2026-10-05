@@ -231,7 +231,12 @@ export function TicketsPage() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const hasInitiallyLoaded = useRef(false);
   const reloadTimeoutRef = useRef<number | null>(null);
-  const isLoadingTickets = useRef(false);
+  // Every list reload gets a new generation; responses from an older one (a reload that was
+  // superseded by a filter change, or a load-more started before a reload) are discarded
+  const requestGenRef = useRef(0);
+  const isReloadingRef = useRef(false);
+  const loadedCountRef = useRef(0);
+  loadedCountRef.current = allTickets.length;
 
   // Filter state using custom hook
   const [users, setUsers] = useState<User[]>([]);
@@ -344,44 +349,63 @@ export function TicketsPage() {
     return filters;
   };
 
-  // Load tickets
-  const loadTickets = async (isInitialLoad = false) => {
-    // Prevent concurrent requests
-    if (isLoadingTickets.current) {
-      return;
-    }
+  // Fetch the first `count` tickets for the current filters (the server caps a page at 100)
+  const fetchFirstTickets = async (count: number) => {
+    let tickets: Ticket[] = [];
+    let pagination;
+    do {
+      const response = await ticketsApi.getAll({
+        ...buildApiFilters(tickets.length),
+        limit: Math.min(100, count - tickets.length),
+      });
+      tickets = tickets.concat(response.tickets);
+      pagination = response.pagination;
+    } while (pagination.hasMore && tickets.length < count);
+    return { tickets, pagination };
+  };
+
+  // Load tickets. keepLoaded (live updates): refresh as many rows as are already shown,
+  // so tickets loaded by scrolling don't disappear.
+  const loadTickets = async (isInitialLoad = false, keepLoaded = false) => {
+    const gen = ++requestGenRef.current;
+    isReloadingRef.current = true;
 
     try {
-      isLoadingTickets.current = true;
-      const filters = buildApiFilters();
-      const response = await ticketsApi.getAll(filters);
-      setAllTickets(response.tickets);
-      setHasMore(response.pagination.hasMore);
-      setNextOffset(response.pagination.nextOffset);
-      setTotalCount(response.pagination.total);
+      const count = keepLoaded ? Math.max(50, loadedCountRef.current) : 50;
+      const { tickets, pagination } = await fetchFirstTickets(count);
+      if (gen !== requestGenRef.current) return; // superseded by a newer reload
+      setAllTickets(tickets);
+      setHasMore(pagination.hasMore);
+      setNextOffset(pagination.nextOffset);
+      setTotalCount(pagination.total);
       if (isInitialLoad) {
         hasInitiallyLoaded.current = true;
       }
     } catch (error) {
       console.error('Failed to load tickets:', error);
     } finally {
-      isLoadingTickets.current = false;
-      if (isInitialLoad) {
-        setIsLoading(false);
-      } else {
-        setIsFiltering(false);
+      // A newer reload owns the loading state now
+      if (gen === requestGenRef.current) {
+        isReloadingRef.current = false;
+        if (isInitialLoad) {
+          setIsLoading(false);
+        } else {
+          setIsFiltering(false);
+        }
       }
     }
   };
 
   // Load more tickets
   const loadMore = async () => {
-    if (!hasMore || isLoadingMore || nextOffset === null) return;
+    if (!hasMore || isLoadingMore || nextOffset === null || isReloadingRef.current) return;
 
+    const gen = requestGenRef.current;
     try {
       setIsLoadingMore(true);
       const filters = buildApiFilters(nextOffset);
       const response = await ticketsApi.getAll(filters);
+      if (gen !== requestGenRef.current) return; // list was reloaded meanwhile: don't append stale rows
       setAllTickets(prev => [...prev, ...response.tickets]);
       setHasMore(response.pagination.hasMore);
       setNextOffset(response.pagination.nextOffset);
@@ -517,7 +541,8 @@ export function TicketsPage() {
     observer.observe(loadMoreRef.current);
 
     return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, isLoading]);
+    // allTickets.length: re-check after a reload, in case a load-more was skipped while it ran
+  }, [hasMore, isLoadingMore, isLoading, allTickets.length]);
 
   // Check if a ticket matches current view filters (for notifications)
   const ticketMatchesFilters = useCallback((ticket: Ticket): boolean => {
@@ -609,7 +634,7 @@ export function TicketsPage() {
           clearTimeout(reloadTimeoutRef.current);
         }
         reloadTimeoutRef.current = setTimeout(() => {
-          loadTickets(false);
+          loadTickets(false, true);
         }, 300);
       } else if (event.type === 'ticket-update' || event.type === 'ticket-tags-updated') {
         // Debounce reload to prevent rapid refetches during bulk operations
@@ -617,7 +642,7 @@ export function TicketsPage() {
           clearTimeout(reloadTimeoutRef.current);
         }
         reloadTimeoutRef.current = setTimeout(() => {
-          loadTickets(false);
+          loadTickets(false, true);
         }, 300); // 300ms debounce
       }
     },
