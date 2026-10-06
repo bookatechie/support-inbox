@@ -26,6 +26,8 @@ interface MessageItemProps {
   onForward: (messageId: number) => void;
   onDelete: (messageId: number) => void;
   onCancelScheduled: (messageId: number) => void;
+  /** Show this email fully expanded (the latest incoming email in the thread) */
+  expandEmail?: boolean;
 }
 
 export function MessageItem({
@@ -37,6 +39,7 @@ export function MessageItem({
   onForward,
   onDelete,
   onCancelScheduled,
+  expandEmail = false,
 }: MessageItemProps) {
   const isCustomer = message.sender_email === customerEmail;
 
@@ -176,6 +179,7 @@ export function MessageItem({
                   emailMetadata={message.email_metadata ? JSON.parse(message.email_metadata) : null}
                   senderName={message.sender_name}
                   senderEmail={message.sender_email}
+                  defaultExpanded={expandEmail}
                 />
               ) : (
                 // Simple HTML or plain text: Render inline for better performance

@@ -55,19 +55,22 @@ interface EmailIframeProps {
   emailMetadata: EmailMetadata | null;
   senderName: string | null;
   senderEmail: string;
+  /** Start expanded instead of collapsed to 300px (the latest incoming email) */
+  defaultExpanded?: boolean;
 }
 
 export function EmailIframe({
   html,
   emailMetadata,
   senderName,
-  senderEmail
+  senderEmail,
+  defaultExpanded = false,
 }: EmailIframeProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [height, setHeight] = useState('800px');
   const [isExpandable, setIsExpandable] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const onLoad = () => {
     if (!frameRef.current) return;

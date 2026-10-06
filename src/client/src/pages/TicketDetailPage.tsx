@@ -238,16 +238,51 @@ export function TicketDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.id, ticket?.customer_email]);
 
-  // Scroll to bottom when ticket loads
+  // Latest email that came in by mail (from the customer or someone they copied in): shown
+  // expanded, and the thread opens at its top
+  const latestIncomingId = useMemo(
+    () => [...(ticket?.messages ?? [])].reverse().find(m => m.type === 'email' && m.email_metadata)?.id ?? null,
+    [ticket?.messages]
+  );
+
+  // When a ticket opens, put the top of the latest incoming email at the top of the view (or
+  // the bottom of the thread if there is none). Emails above it keep resizing as their iframes
+  // load, so stay anchored until the user scrolls or a few seconds pass.
   useEffect(() => {
-    if (ticket && messagesPanelRef.current) {
-      // Scroll to bottom after a short delay to ensure content is rendered
-      setTimeout(() => {
-        if (messagesPanelRef.current) {
-          messagesPanelRef.current.scrollTop = messagesPanelRef.current.scrollHeight;
-        }
-      }, 100);
-    }
+    const panel = messagesPanelRef.current;
+    if (!ticket || !panel) return;
+
+    const anchor = () => {
+      const target = latestIncomingId !== null
+        ? panel.querySelector<HTMLElement>(`[data-message-id="${latestIncomingId}"]`)
+        : null;
+      if (target) {
+        panel.scrollTop += target.getBoundingClientRect().top - panel.getBoundingClientRect().top - 16;
+      } else {
+        panel.scrollTop = panel.scrollHeight;
+      }
+    };
+
+    const timer = setTimeout(anchor, 100);
+    const content = panel.firstElementChild;
+    const observer = new ResizeObserver(anchor);
+    if (content) observer.observe(content);
+    const stop = () => {
+      observer.disconnect();
+      clearTimeout(timer);
+      clearTimeout(giveUp);
+      panel.removeEventListener('wheel', stop);
+      panel.removeEventListener('touchstart', stop);
+      panel.removeEventListener('mousedown', stop);
+      window.removeEventListener('keydown', stop);
+    };
+    const giveUp = setTimeout(stop, 3000);
+    panel.addEventListener('wheel', stop, { passive: true });
+    panel.addEventListener('touchstart', stop, { passive: true });
+    panel.addEventListener('mousedown', stop);
+    window.addEventListener('keydown', stop);
+    return stop;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.id]);
 
   // Load users and canned responses on mount (with caching)
@@ -1674,6 +1709,7 @@ export function TicketDetailPage() {
                 customerEmail={ticket.customer_email}
                 isFirstMessage={isFirstMessage}
                 isDeleting={isDeleting}
+                expandEmail={message.id === latestIncomingId}
                 onReply={handleReplyToMessage}
                 onForward={handleForwardEmail}
                 onDelete={handleDeleteMessage}
