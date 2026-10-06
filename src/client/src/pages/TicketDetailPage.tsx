@@ -348,10 +348,18 @@ export function TicketDetailPage() {
 
     const timeoutId = setTimeout(async () => {
       try {
-        setIsSavingDraft(true);
         // Pasted images are base64 in the editor until sent: leave them out of the saved draft
         // (they'd exceed the request size limit and bloat the drafts table); the text is kept
-        await draftsApi.save(Number(id), stripInlineImages(replyContent));
+        const content = stripInlineImages(replyContent);
+        const hasText = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+        if (!hasText) {
+          // Editor emptied (cleared by hand, or after sending, when it leaves an empty <p></p>):
+          // remove the draft rather than saving an empty one or keeping stale text
+          await draftsApi.delete(Number(id));
+          return;
+        }
+        setIsSavingDraft(true);
+        await draftsApi.save(Number(id), content);
         setDraftSaved(true);
         setTimeout(() => setDraftSaved(false), 2000);
       } catch (error) {
