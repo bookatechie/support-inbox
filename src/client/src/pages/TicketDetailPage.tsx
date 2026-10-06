@@ -1066,40 +1066,44 @@ export function TicketDetailPage() {
     [users]
   );
 
-  // Handle composer resize - uses direct DOM manipulation for smooth resizing
-  const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+  // Handle composer resize. Pointer capture sends every move (and the release) to the handle,
+  // even when the cursor is over an email iframe; with document listeners those events went
+  // into the iframe, so the drag stalled or never ended. DOM is updated directly while dragging.
+  const handleResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
     e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
     setIsResizing(true);
 
-    const startY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const startY = e.clientY;
     const startHeight = composerRef.current?.offsetHeight || 250;
     let finalHeight = startHeight;
+    let ended = false;
 
-    const handleMove = (moveEvent: MouseEvent | TouchEvent) => {
-      const currentY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
-      const deltaY = startY - currentY;
-      finalHeight = Math.max(150, Math.min(window.innerHeight * 0.7, startHeight + deltaY));
-      // Update DOM directly for smooth resizing (no React re-render)
+    const handleMove = (moveEvent: PointerEvent) => {
+      finalHeight = Math.max(150, Math.min(window.innerHeight * 0.7, startHeight + (startY - moveEvent.clientY)));
       if (composerRef.current) {
         composerRef.current.style.height = `${finalHeight}px`;
       }
     };
 
     const handleEnd = () => {
+      if (ended) return;
+      ended = true;
+      handle.removeEventListener('pointermove', handleMove);
+      handle.removeEventListener('pointerup', handleEnd);
+      handle.removeEventListener('pointercancel', handleEnd);
+      handle.removeEventListener('lostpointercapture', handleEnd);
       setIsResizing(false);
-      // Sync React state and save to localStorage
       setComposerHeight(Math.round(finalHeight));
       localStorage.setItem('composerHeight', String(Math.round(finalHeight)));
-      document.removeEventListener('mousemove', handleMove);
-      document.removeEventListener('mouseup', handleEnd);
-      document.removeEventListener('touchmove', handleMove);
-      document.removeEventListener('touchend', handleEnd);
     };
 
-    document.addEventListener('mousemove', handleMove);
-    document.addEventListener('mouseup', handleEnd);
-    document.addEventListener('touchmove', handleMove);
-    document.addEventListener('touchend', handleEnd);
+    handle.addEventListener('pointermove', handleMove);
+    handle.addEventListener('pointerup', handleEnd);
+    handle.addEventListener('pointercancel', handleEnd);
+    handle.addEventListener('lostpointercapture', handleEnd);
   }, []);
 
   // Render reply editor (can be shown inline or floating at bottom)
@@ -1650,7 +1654,7 @@ export function TicketDetailPage() {
         {/* Left Panel: Messages Thread + Floating Composer */}
         <div className="flex-1 min-w-0 flex flex-col h-full">
           {/* Scrollable Messages Area */}
-          <div ref={messagesPanelRef} className="flex-1 min-w-0 overflow-y-auto lg:overflow-hidden lg:hover:overflow-y-auto">
+          <div ref={messagesPanelRef} className={`flex-1 min-w-0 overflow-y-auto lg:overflow-hidden lg:hover:overflow-y-auto ${isResizing ? '[&_iframe]:pointer-events-none select-none' : ''}`}>
             <div className="px-2 sm:px-4 pt-4 pb-6 space-y-4 sm:space-y-6">
 
           {/* Mobile: Subject and Details - At top of scrollable area */}
@@ -1725,7 +1729,7 @@ export function TicketDetailPage() {
           {/* Floating Reply Editor at Bottom */}
           <div
             ref={composerRef}
-            className={`flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col transition-[height] duration-200 ${isComposerMinimized ? '' : 'max-sm:!h-auto max-sm:max-h-[75vh]'}`}
+            className={`flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col ${isResizing ? '' : 'transition-[height] duration-200'} ${isComposerMinimized ? '' : 'max-sm:!h-auto max-sm:max-h-[75vh]'}`}
             style={{ height: isComposerMinimized ? 44 : composerHeight }}
           >
             {/* Minimized Bar */}
@@ -1756,9 +1760,9 @@ export function TicketDetailPage() {
               <>
                 {/* Resize Handle */}
                 <div
-                  className={`h-3 cursor-ns-resize flex items-center justify-center hover:bg-muted/50 transition-colors flex-shrink-0 max-sm:hidden ${isResizing ? 'bg-muted' : ''}`}
-                  onMouseDown={handleResizeStart}
-                  onTouchStart={handleResizeStart}
+                  className={`relative h-3 cursor-ns-resize touch-none select-none flex items-center justify-center hover:bg-muted/50 transition-colors flex-shrink-0 max-sm:hidden before:absolute before:inset-x-0 before:-top-2 before:-bottom-1 before:content-[''] ${isResizing ? 'bg-muted' : ''}`}
+                  onPointerDown={handleResizeStart}
+                  title="Drag to resize"
                 >
                   <div className="w-12 h-1 rounded-full bg-muted-foreground/30" />
                 </div>
