@@ -72,8 +72,15 @@ const fastify = Fastify({
 // ============================================================================
 
 fastify.setErrorHandler((error, request, reply) => {
-  request.log.error(error, "Unhandled error");
-  reply.status(500).send({ error: "Internal server error" });
+  // Client errors Fastify raises itself (body too large, bad JSON, ...) keep their 4xx status
+  const status = error.statusCode && error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 500;
+  if (status >= 500) {
+    request.log.error(error, "Unhandled error");
+    reply.status(500).send({ error: "Internal server error" });
+  } else {
+    request.log.warn({ err: error.message, statusCode: status }, "Request rejected");
+    reply.status(status).send({ error: error.message });
+  }
 });
 
 // ============================================================================

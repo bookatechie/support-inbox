@@ -300,13 +300,16 @@ export function TicketDetailPage() {
   }, [id]);
 
   // Auto-save draft
+  const stripInlineImages = (html: string) => html.replace(/<img\b[^>]*\bsrc=["']data:[^"']*["'][^>]*>/gi, '');
   useEffect(() => {
     if (!id || !replyContent.trim()) return;
 
     const timeoutId = setTimeout(async () => {
       try {
         setIsSavingDraft(true);
-        await draftsApi.save(Number(id), replyContent);
+        // Pasted images are base64 in the editor until sent: leave them out of the saved draft
+        // (they'd exceed the request size limit and bloat the drafts table); the text is kept
+        await draftsApi.save(Number(id), stripInlineImages(replyContent));
         setDraftSaved(true);
         setTimeout(() => setDraftSaved(false), 2000);
       } catch (error) {
