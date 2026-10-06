@@ -22,22 +22,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Loader2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Menu, CalendarX } from 'lucide-react';
 import { toast } from 'sonner';
-import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
 import { AppHeader } from '@/components/AppHeader';
 import { StatusBadge } from '@/components/TicketBadges';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { PageLoader } from '@/components/PageLoader';
+import { StatusFilterSelect, AssigneeFilterSelect, TagFilterSelect, PriorityFilterSelect } from '@/components/TicketFilterSelects';
+import { formatLongDay } from '@/lib/formatters';
 
 // ============================================================================
 // Constants
@@ -119,82 +113,25 @@ function CalendarFiltersComponent({
       {/* Status Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Status</Label>}
-        <Select value={filters.statusFilter} onValueChange={handleChange('statusFilter')}>
-          <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="new_or_open">New or Open</SelectItem>
-            <SelectItem value="awaiting_customer">{STATUS_LABELS.awaiting_customer}</SelectItem>
-            <SelectItem value="resolved">{STATUS_LABELS.resolved}</SelectItem>
-          </SelectContent>
-        </Select>
+        <StatusFilterSelect value={filters.statusFilter} onChange={handleChange('statusFilter')} className={triggerClass} />
       </div>
 
       {/* Assignee Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Assignee</Label>}
-        <Select value={filters.assigneeFilter} onValueChange={handleChange('assigneeFilter')}>
-          <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Assignee" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Assignees</SelectItem>
-            <SelectItem value="me">Assigned to Me</SelectItem>
-            <SelectItem value="unassigned">Unassigned</SelectItem>
-            {sortedActiveUsers.length > 0 && (
-              <>
-                <div className="h-px bg-border my-1" />
-                {sortedActiveUsers.map((u) => (
-                  <SelectItem key={u.id} value={u.id.toString()}>
-                    {u.name}
-                  </SelectItem>
-                ))}
-              </>
-            )}
-          </SelectContent>
-        </Select>
+        <AssigneeFilterSelect value={filters.assigneeFilter} onChange={handleChange('assigneeFilter')} className={triggerClass} users={sortedActiveUsers} />
       </div>
 
       {/* Priority Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Priority</Label>}
-        <Select value={filters.priorityFilter} onValueChange={handleChange('priorityFilter')}>
-          <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Priority" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Priority</SelectItem>
-            <SelectItem value="low">{PRIORITY_LABELS.low}</SelectItem>
-            <SelectItem value="normal">{PRIORITY_LABELS.normal}</SelectItem>
-            <SelectItem value="high">{PRIORITY_LABELS.high}</SelectItem>
-            <SelectItem value="urgent">{PRIORITY_LABELS.urgent}</SelectItem>
-          </SelectContent>
-        </Select>
+        <PriorityFilterSelect value={filters.priorityFilter} onChange={handleChange('priorityFilter')} className={triggerClass} />
       </div>
 
       {/* Tag Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Tag</Label>}
-        <Select value={filters.tagFilter} onValueChange={handleChange('tagFilter')}>
-          <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Tag" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Tags</SelectItem>
-            {sortedTags.length > 0 && (
-              <>
-                <div className="h-px bg-border my-1" />
-                {sortedTags.map((tag) => (
-                  <SelectItem key={tag.id} value={tag.id.toString()}>
-                    {tag.name}
-                  </SelectItem>
-                ))}
-              </>
-            )}
-          </SelectContent>
-        </Select>
+        <TagFilterSelect value={filters.tagFilter} onChange={handleChange('tagFilter')} className={triggerClass} tags={sortedTags} />
       </div>
     </div>
   );
@@ -618,11 +555,7 @@ export function CalendarPage() {
         <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
-              {selectedDate && new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric'
-              })}
+              {selectedDate && formatLongDay(selectedDate)}
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto">

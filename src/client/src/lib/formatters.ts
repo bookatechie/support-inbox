@@ -32,6 +32,36 @@ export function formatAbsoluteDate(date: string | Date): string {
 }
 
 /**
+ * A plain 'YYYY-MM-DD' is a calendar day, not UTC midnight: read it as local time
+ * so it doesn't show as the day before west of UTC
+ */
+function toDate(date: string | Date): Date {
+  return typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00`) : new Date(date);
+}
+
+/**
+ * Format a calendar day (e.g., "Oct 6, 2026")
+ */
+export function formatDay(date: string | Date): string {
+  try {
+    return format(toDate(date), 'MMM d, yyyy');
+  } catch {
+    return 'Invalid date';
+  }
+}
+
+/**
+ * Format a calendar day with its weekday (e.g., "Tuesday, October 6")
+ */
+export function formatLongDay(date: string | Date): string {
+  try {
+    return format(toDate(date), 'EEEE, MMMM d');
+  } catch {
+    return 'Invalid date';
+  }
+}
+
+/**
  * Format date for display in message timestamps
  */
 export function formatMessageDate(date: string | Date): string {

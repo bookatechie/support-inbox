@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MoreVertical, Reply, Forward, Trash2, X, Clock, Eye, File } from 'lucide-react';
-import { formatMessageDate, formatRelativeTime, formatFileSize } from '@/lib/formatters';
+import { formatMessageDate, formatRelativeTime, formatFileSize, formatAbsoluteDate } from '@/lib/formatters';
 import { isViewableInBrowser, isAudioFile, getMessageBodyHtml, isSimpleHtml } from '@/lib/email-utils';
 import type { MessageWithAttachments, Attachment, EmailMetadata } from '@/types';
 
@@ -83,7 +83,7 @@ export function MessageItem({
           {message.scheduled_at && !message.sent_at ? (
             <Badge className="text-xs bg-blue-600 text-white flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              Scheduled: {new Date(message.scheduled_at).toLocaleString()}
+              Scheduled: {formatAbsoluteDate(message.scheduled_at)}
             </Badge>
           ) : null}
           <div className="ml-auto text-right flex items-center gap-2">

@@ -23,6 +23,8 @@ interface FormModalProps {
   onSubmit: (e: React.FormEvent) => void | Promise<void>;
   onCancel?: () => void;
   isSubmitting?: boolean;
+  /** Disable the submit button, e.g. while a required field is empty */
+  submitDisabled?: boolean;
   submitLabel?: string;
   cancelLabel?: string;
   children: ReactNode;
@@ -45,6 +47,7 @@ export function FormModal({
   onSubmit,
   onCancel,
   isSubmitting = false,
+  submitDisabled = false,
   submitLabel = 'Submit',
   cancelLabel = 'Cancel',
   children,
@@ -61,7 +64,11 @@ export function FormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`w-full ${sizeClasses[size]} sm:rounded-lg p-4 sm:p-6`}>
+      <DialogContent
+        className={`w-full ${sizeClasses[size]} sm:rounded-lg p-4 sm:p-6`}
+        // No description: tell Radix so it doesn't warn about a missing one
+        {...(!description && { 'aria-describedby': undefined })}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
@@ -84,7 +91,7 @@ export function FormModal({
             >
               {cancelLabel}
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || submitDisabled}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

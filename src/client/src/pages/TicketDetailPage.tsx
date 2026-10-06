@@ -26,14 +26,6 @@ import { CustomerInfo } from '@/components/CustomerInfo';
 import { FormModal } from '@/components/FormModal';
 import { TicketChangeEntry } from '@/components/TicketChangeEntry';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -53,7 +45,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Loader2, Mail, Send, Save, User as UserIcon, Trash2, X, File, Plus, Search, Edit, Menu, Forward, Reply, Clock, Calendar, CalendarClock, Minimize2, Maximize2, MoreVertical } from 'lucide-react';
-import { formatMessageDate, formatAbsoluteDate, formatFileSize } from '@/lib/formatters';
+import { formatMessageDate, formatAbsoluteDate, formatFileSize, formatDay } from '@/lib/formatters';
 import { ApiError } from '@/lib/api';
 import type { EmailMetadata } from '@/types';
 import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
@@ -138,6 +130,7 @@ export function TicketDetailPage() {
   const [showCollisionWarning, setShowCollisionWarning] = useState(false);
   const [scheduledToCancel, setScheduledToCancel] = useState<number | null>(null);
   const [changeContactDialogOpen, setChangeContactDialogOpen] = useState(false);
+  const [isSavingContact, setIsSavingContact] = useState(false);
   const [editedCustomerEmail, setEditedCustomerEmail] = useState('');
   const [editedCustomerName, setEditedCustomerName] = useState('');
   const [showNewEmailModal, setShowNewEmailModal] = useState(false);
@@ -723,7 +716,7 @@ export function TicketDetailPage() {
       // Show toast for scheduled messages
       if (scheduledAt) {
         toast.success('Reply scheduled', {
-          description: `Will be sent on ${new Date(scheduledAt).toLocaleString()}`
+          description: `Will be sent on ${formatAbsoluteDate(scheduledAt)}`
         });
       }
 
@@ -1609,7 +1602,7 @@ export function TicketDetailPage() {
                         variant="outline"
                         size="icon"
                         className={`flex-shrink-0 ${ticket.follow_up_at ? 'text-primary border-primary' : ''}`}
-                        title={ticket.follow_up_at ? `Follow-up: ${new Date(ticket.follow_up_at).toLocaleDateString()}` : 'Set follow-up date'}
+                        title={ticket.follow_up_at ? `Follow-up: ${formatDay(ticket.follow_up_at)}` : 'Set follow-up date'}
                       >
                         <CalendarClock className="h-4 w-4" />
                       </Button>
@@ -2020,51 +2013,47 @@ export function TicketDetailPage() {
       />
 
       {/* Change Contact Dialog */}
-      <Dialog open={changeContactDialogOpen} onOpenChange={setChangeContactDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change Contact Information</DialogTitle>
-            <DialogDescription>
-              Update the customer's email address and name for this ticket.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="customer-name">Customer Name</Label>
-              <Input
-                id="customer-name"
-                placeholder="Enter customer name"
-                value={editedCustomerName}
-                onChange={(e) => setEditedCustomerName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="customer-email">Customer Email *</Label>
-              <Combobox
-                id="customer-email"
-                placeholder="Enter customer email"
-                value={editedCustomerEmail}
-                onChange={setEditedCustomerEmail}
-                options={customerEmails}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={handleCancelChangeContact}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveCustomerContact}
-              disabled={!editedCustomerEmail.trim()}
-            >
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FormModal
+        open={changeContactDialogOpen}
+        onOpenChange={setChangeContactDialogOpen}
+        title="Change Contact Information"
+        description="Update the customer's email address and name for this ticket."
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setIsSavingContact(true);
+          try {
+            await handleSaveCustomerContact();
+          } finally {
+            setIsSavingContact(false);
+          }
+        }}
+        onCancel={handleCancelChangeContact}
+        isSubmitting={isSavingContact}
+        submitDisabled={!editedCustomerEmail.trim()}
+        submitLabel="Save Changes"
+        size="md"
+      >
+        <div className="space-y-2">
+          <Label htmlFor="customer-name">Customer Name</Label>
+          <Input
+            id="customer-name"
+            placeholder="Enter customer name"
+            value={editedCustomerName}
+            onChange={(e) => setEditedCustomerName(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="customer-email">Customer Email *</Label>
+          <Combobox
+            id="customer-email"
+            placeholder="Enter customer email"
+            value={editedCustomerEmail}
+            onChange={setEditedCustomerEmail}
+            options={customerEmails}
+            required
+          />
+        </div>
+      </FormModal>
 
       {/* New Ticket Modal */}
       <FormModal

@@ -4,30 +4,23 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { tickets as ticketsApi, users as usersApi, tags as tagsApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Ticket, User, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Loader2, Search, X, UserCircle, MessageSquare, Paperclip, Inbox } from 'lucide-react';
-import { STATUS_LABELS } from '@/lib/constants';
-import { formatRelativeTime, formatNumber } from '@/lib/formatters';
+import { Loader2, Search, X } from 'lucide-react';
+import { formatNumber } from '@/lib/formatters';
 import { Avatar } from '@/components/Avatar';
 import { toast } from 'sonner';
 import { fetchWithCache } from '@/lib/cache';
 import { AppHeader } from '@/components/AppHeader';
-import { StatusBadge, PriorityBadge, TagBadge } from '@/components/TicketBadges';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
+import { TicketRow } from '@/components/TicketRow';
+import { StatusFilterSelect, AssigneeFilterSelect, TagFilterSelect } from '@/components/TicketFilterSelects';
 
 const MAX_RECENT_SEARCHES = 5;
 
@@ -342,65 +335,15 @@ export function SearchPage() {
             {/* Advanced Filters */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="new_or_open">New or Open</SelectItem>
-                      <SelectItem value="awaiting_customer">{STATUS_LABELS.awaiting_customer}</SelectItem>
-                      <SelectItem value="resolved">{STATUS_LABELS.resolved}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <StatusFilterSelect value={statusFilter} onChange={setStatusFilter} />
                 </div>
 
                 <div>
-                  <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Assignee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Tickets</SelectItem>
-                      <SelectItem value="me">Assigned to Me</SelectItem>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {users.length > 0 && (
-                        <>
-                          <div className="h-px bg-border my-1" />
-                          {[...users]
-                            .sort((a, b) => a.name.localeCompare(b.name))
-                            .map((u) => (
-                              <SelectItem key={u.id} value={u.id.toString()}>
-                                {u.name}
-                              </SelectItem>
-                            ))}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <AssigneeFilterSelect value={assigneeFilter} onChange={setAssigneeFilter} users={users} />
                 </div>
 
                 <div>
-                  <Select value={tagFilter} onValueChange={setTagFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Tag" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Tags</SelectItem>
-                      {tags.length > 0 && (
-                        <>
-                          <div className="h-px bg-border my-1" />
-                          {[...tags]
-                            .sort((a, b) => a.name.localeCompare(b.name))
-                            .map((tag) => (
-                              <SelectItem key={tag.id} value={tag.id.toString()}>
-                                {tag.name}
-                              </SelectItem>
-                            ))}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <TagFilterSelect value={tagFilter} onChange={setTagFilter} tags={tags} />
                 </div>
               </div>
           </div>
@@ -428,78 +371,19 @@ export function SearchPage() {
             ) : (
               <div className="space-y-2">
                 {tickets.map((ticket) => (
-                  <Card key={ticket.id} className="hover:bg-accent/50 transition-colors">
-                    <Link
-                      to={`/tickets/${ticket.id}`}
-                      className="flex-1 p-4 cursor-pointer block"
-                    >
-                      <div className="flex flex-col lg:flex-row lg:items-start gap-4 lg:gap-6">
-                        {/* Left Column - Main Ticket Info */}
-                        <div className="flex items-start gap-4 flex-1 min-w-0">
-                          <Avatar
-                            name={ticket.customer_name || ticket.customer_email}
-                            email={ticket.customer_email}
-                            size="md"
-                            className="hidden sm:flex"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <span className="font-medium text-base truncate">{ticket.customer_name || ticket.customer_email}</span>
-                              <StatusBadge status={ticket.status} />
-                              {ticket.priority !== 'normal' && <PriorityBadge priority={ticket.priority} />}
-                              {ticket.tags?.map((tag) => <TagBadge key={tag.id} name={tag.name} />)}
-                            </div>
-                            <div className="text-muted-foreground mb-1 text-sm line-clamp-2">
-                              {ticket.subject}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                              <span>#{ticket.id}</span>
-                              <span>•</span>
-                              <div className="flex items-center gap-1">
-                                <UserCircle className="h-3.5 w-3.5" />
-                                <span>{getAssigneeName(ticket.assignee_id) || 'Unassigned'}</span>
-                              </div>
-                              <span>•</span>
-                              <div className="flex items-center gap-1">
-                                <MessageSquare className="h-3.5 w-3.5" />
-                                <span>{ticket.message_count}</span>
-                              </div>
-                              {ticket.attachment_count > 0 && (
-                                <>
-                                  <span>•</span>
-                                  <div className="flex items-center gap-1">
-                                    <Paperclip className="h-3.5 w-3.5" />
-                                    <span>{ticket.attachment_count}</span>
-                                  </div>
-                                </>
-                              )}
-                              <span>•</span>
-                              <div className="flex items-center gap-1">
-                                <Inbox className="h-3.5 w-3.5" />
-                                <span>{formatRelativeTime(ticket.created_at)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Right Column - Message Preview */}
-                        <div className="flex-1 min-w-0 pt-2 lg:pt-0 lg:pl-6 lg:border-l flex flex-col justify-center gap-2">
-                          {ticket.last_message_sender_email && ticket.last_message_at && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground/60 truncate">
-                              <span className="font-medium flex-shrink-0">Last:</span>
-                              <span className="truncate">{ticket.last_message_sender_name || ticket.last_message_sender_email}</span>
-                              <span className="flex-shrink-0">• {formatRelativeTime(ticket.last_message_at)}</span>
-                            </div>
-                          )}
-                          {ticket.last_message_preview && (
-                            <div className="text-xs text-muted-foreground/80 line-clamp-2">
-                              {ticket.last_message_preview}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  </Card>
+                  <TicketRow
+                    key={ticket.id}
+                    ticket={ticket}
+                    assigneeName={getAssigneeName(ticket.assignee_id)}
+                    avatar={
+                      <Avatar
+                        name={ticket.customer_name || ticket.customer_email}
+                        email={ticket.customer_email}
+                        size="md"
+                        className="hidden sm:flex flex-shrink-0"
+                      />
+                    }
+                  />
                 ))}
 
                 {/* Load More Trigger */}

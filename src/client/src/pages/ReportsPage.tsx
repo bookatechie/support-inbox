@@ -36,6 +36,7 @@ import {
 import { AppHeader } from '@/components/AppHeader';
 import { PageHeader } from '@/components/PageHeader';
 import { PageLoader } from '@/components/PageLoader';
+import { formatDay } from '@/lib/formatters';
 
 // ============================================================================
 // Constants
@@ -224,9 +225,7 @@ export function ReportsPage() {
 
   // Get display date range
   const displayDateRange = useMemo(() => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    return `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+    return `${formatDay(startDate)} - ${formatDay(endDate)}`;
   }, [startDate, endDate]);
 
   // Only show full page loader on initial load

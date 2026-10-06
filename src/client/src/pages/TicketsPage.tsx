@@ -12,7 +12,6 @@ import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Ticket, TicketStatus, TicketPriority, NewTicketEvent, TicketUpdateEvent, User, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { FormModal } from '@/components/FormModal';
 import { Input } from '@/components/ui/input';
 import { Combobox } from '@/components/ui/combobox';
@@ -38,20 +37,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, Mail, LogOut, MessageSquare, Users, UserCircle, Moon, Sun, Monitor, Plus, Trash2, MoreVertical, Paperclip, Inbox, User as UserProfileIcon, Search, Menu, ArrowDownWideNarrow, ArrowUpNarrowWide, Bell, BellOff, Calendar, BarChart3, Route } from 'lucide-react';
+import { Loader2, Mail, LogOut, MessageSquare, Users, Moon, Sun, Monitor, Plus, Trash2, MoreVertical, Inbox, User as UserProfileIcon, Search, Menu, ArrowDownWideNarrow, ArrowUpNarrowWide, Bell, BellOff, Calendar, BarChart3, Route } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { STATUS_LABELS } from '@/lib/constants';
-import { formatRelativeTime, formatNumber } from '@/lib/formatters';
-import { Avatar } from '@/components/Avatar';
+import { formatNumber } from '@/lib/formatters';
 import { SelectableAvatar } from '@/components/SelectableAvatar';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { toast } from 'sonner';
 import { fetchWithCache } from '@/lib/cache';
 import { AppHeader } from '@/components/AppHeader';
-import { StatusBadge, PriorityBadge, TagBadge } from '@/components/TicketBadges';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageLoader } from '@/components/PageLoader';
 import { EmptyState } from '@/components/EmptyState';
+import { TicketRow } from '@/components/TicketRow';
+import { StatusFilterSelect, AssigneeFilterSelect, TagFilterSelect } from '@/components/TicketFilterSelects';
 
 // ============================================================================
 // Types and Defaults
@@ -107,67 +106,19 @@ function TicketFiltersComponent({
       {/* Status Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Status</Label>}
-        <Select value={filters.statusFilter} onValueChange={handleChange('statusFilter')}>
-          <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="new_or_open">New or Open</SelectItem>
-            <SelectItem value="new">{STATUS_LABELS.new}</SelectItem>
-            <SelectItem value="open">{STATUS_LABELS.open}</SelectItem>
-            <SelectItem value="awaiting_customer">{STATUS_LABELS.awaiting_customer}</SelectItem>
-            <SelectItem value="resolved">{STATUS_LABELS.resolved}</SelectItem>
-          </SelectContent>
-        </Select>
+        <StatusFilterSelect value={filters.statusFilter} onChange={handleChange('statusFilter')} className={triggerClass} />
       </div>
 
       {/* Assignee Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Assignee</Label>}
-        <Select value={filters.assigneeFilter} onValueChange={handleChange('assigneeFilter')}>
-          <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Assignee" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Tickets</SelectItem>
-            <SelectItem value="me">Assigned to Me</SelectItem>
-            <SelectItem value="unassigned">Unassigned</SelectItem>
-            {sortedActiveUsers.length > 0 && (
-              <>
-                <div className="h-px bg-border my-1" />
-                {sortedActiveUsers.map((u) => (
-                  <SelectItem key={u.id} value={u.id.toString()}>
-                    {u.name}
-                  </SelectItem>
-                ))}
-              </>
-            )}
-          </SelectContent>
-        </Select>
+        <AssigneeFilterSelect value={filters.assigneeFilter} onChange={handleChange('assigneeFilter')} className={triggerClass} users={sortedActiveUsers} />
       </div>
 
       {/* Tag Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Tag</Label>}
-        <Select value={filters.tagFilter} onValueChange={handleChange('tagFilter')}>
-          <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Tag" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Tags</SelectItem>
-            {sortedTags.length > 0 && (
-              <>
-                <div className="h-px bg-border my-1" />
-                {sortedTags.map((tag) => (
-                  <SelectItem key={tag.id} value={tag.id.toString()}>
-                    {tag.name}
-                  </SelectItem>
-                ))}
-              </>
-            )}
-          </SelectContent>
-        </Select>
+        <TagFilterSelect value={filters.tagFilter} onChange={handleChange('tagFilter')} className={triggerClass} tags={sortedTags} />
       </div>
 
       {/* Follow-up Filter */}
@@ -1120,105 +1071,31 @@ export function TicketsPage() {
             />
           ) : !isFiltering && (
             allTickets.map((ticket, index) => (
-              <Card key={ticket.id} className="mb-1 lg:mb-2 hover:bg-accent/50 transition-colors animate-fade-in">
-                <div className="flex items-center gap-2 sm:gap-4">
-                  <Link
-                    to={`/tickets/${ticket.id}`}
-                    className="flex-1 py-3 sm:py-4 pl-2 sm:pl-4 pr-2 sm:pr-4 cursor-pointer min-w-0"
-                    onClick={() => {
-                      // Save scroll position (and how many rows are loaded) before navigating
-                      sessionStorage.setItem('ticketsPageScrollPosition', window.scrollY.toString());
-                      sessionStorage.setItem('ticketsPageLoadedCount', String(allTickets.length));
+              <TicketRow
+                key={ticket.id}
+                ticket={ticket}
+                className="mb-1 lg:mb-2 animate-fade-in"
+                assigneeName={users.find((u) => u.id === ticket.assignee_id)?.name}
+                onOpen={() => {
+                  // Save scroll position (and how many rows are loaded) before navigating
+                  sessionStorage.setItem('ticketsPageScrollPosition', window.scrollY.toString());
+                  sessionStorage.setItem('ticketsPageLoadedCount', String(allTickets.length));
+                }}
+                avatar={
+                  <SelectableAvatar
+                    name={ticket.customer_name || ticket.customer_email}
+                    email={ticket.customer_email}
+                    size="md"
+                    selected={selectedTicketIds.has(ticket.id)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleTicketSelection(ticket.id, index, e.shiftKey);
                     }}
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-start gap-3 sm:gap-4 lg:gap-6">
-                      {/* Left Column - Main Ticket Info */}
-                      <div className="flex items-start gap-2 sm:gap-4 flex-1 min-w-0">
-                        <SelectableAvatar
-                          name={ticket.customer_name || ticket.customer_email}
-                          email={ticket.customer_email}
-                          size="md"
-                          selected={selectedTicketIds.has(ticket.id)}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            toggleTicketSelection(ticket.id, index, e.shiftKey);
-                          }}
-                          className="flex-shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
-                            <span className="font-medium text-sm sm:text-base truncate">{ticket.customer_name || ticket.customer_email}</span>
-                            <StatusBadge status={ticket.status} />
-                            {ticket.priority !== 'normal' && <PriorityBadge priority={ticket.priority} />}
-                            {ticket.tags?.map((tag) => <TagBadge key={tag.id} name={tag.name} />)}
-                          </div>
-                          <div className="text-muted-foreground mb-1 text-sm line-clamp-2">
-                            {ticket.subject}
-                          </div>
-                          <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-muted-foreground flex-wrap">
-                            <span>#{ticket.id}</span>
-                            <span className="hidden sm:inline">•</span>
-                            <div className="flex items-center gap-1">
-                              <UserCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                              <span className="truncate max-w-[100px] sm:max-w-none">
-                                {users.find((u) => u.id === ticket.assignee_id)?.name || 'Unassigned'}
-                              </span>
-                            </div>
-                            <span className="hidden sm:inline">•</span>
-                            <div className="flex items-center gap-1">
-                              <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
-                              <span className="whitespace-nowrap">{ticket.message_count}</span>
-                            </div>
-                            {ticket.follow_up_at && (
-                              <>
-                                <span className="hidden sm:inline">•</span>
-                                <div className="flex items-center gap-1">
-                                  <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-                                </div>
-                              </>
-                            )}
-                            {ticket.attachment_count > 0 && (
-                              <>
-                                <span className="hidden sm:inline">•</span>
-                                <div className="flex items-center gap-1">
-                                  <Paperclip className="h-3.5 w-3.5 flex-shrink-0" />
-                                  <span className="whitespace-nowrap">{ticket.attachment_count}</span>
-                                </div>
-                              </>
-                            )}
-                            <span className="hidden sm:inline">•</span>
-                            <div className="flex items-center gap-1">
-                              <Inbox className="h-3.5 w-3.5 flex-shrink-0" />
-                              <span className="whitespace-nowrap">{formatRelativeTime(ticket.created_at)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right Column - Message Preview */}
-                      <div className="flex-1 min-w-0 pt-2 lg:pt-0 lg:pl-6 lg:border-l lg:self-stretch flex flex-col justify-center lg:py-2 gap-1.5 sm:gap-2">
-                        {ticket.last_message_sender_email && ticket.last_message_at && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground/60 truncate">
-                            <span className="font-medium flex-shrink-0">Last:</span>
-                            <span className="truncate">{ticket.last_message_sender_name || ticket.last_message_sender_email}</span>
-                            <span className="flex-shrink-0">• {formatRelativeTime(ticket.last_message_at)}</span>
-                          </div>
-                        )}
-                        {ticket.last_message_preview ? (
-                          <div className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
-                            {ticket.last_message_preview.replace(/<[^>]*>/g, '').trim()}...
-                          </div>
-                        ) : (
-                          <div className="text-xs sm:text-sm text-muted-foreground/50 italic">
-                            No messages yet
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              </Card>
+                    className="flex-shrink-0"
+                  />
+                }
+              />
             ))
           )}
 

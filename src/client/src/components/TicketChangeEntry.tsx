@@ -7,6 +7,7 @@ import React from 'react';
 import type { TicketHistoryEntry } from '@/types';
 import { Settings, User as UserIcon, Clock } from 'lucide-react';
 import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
+import { formatMessageDate } from '@/lib/formatters';
 
 interface Props {
   entry: TicketHistoryEntry;
@@ -38,16 +39,6 @@ export function TicketChangeEntry({ entry, users }: Props) {
     return value;
   };
 
-  const formatTimestamp = (timestamp: string): string => {
-    const date = new Date(timestamp);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
 
   const fieldLabel = FIELD_LABELS[entry.field_name] || entry.field_name;
   const oldValue = formatValue(entry.field_name, entry.old_value);
@@ -68,7 +59,7 @@ export function TicketChangeEntry({ entry, users }: Props) {
         </span>
         <span className="text-xs opacity-70">•</span>
         <Clock className="w-3 h-3" />
-        <span className="text-xs">{formatTimestamp(entry.changed_at)}</span>
+        <span className="text-xs">{formatMessageDate(entry.changed_at)}</span>
       </div>
     </div>
   );

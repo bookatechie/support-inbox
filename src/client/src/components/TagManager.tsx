@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Tag as TagIcon } from 'lucide-react';
-import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Input } from './ui/input';
+import { FormModal } from '@/components/FormModal';
 import { useTags, useTicketTags, useAddTagToTicket, useRemoveTagFromTicket, useCreateTag } from '../hooks/useTags';
 import type { Tag } from '@/types';
 import { TagBadge } from '@/components/TicketBadges';
@@ -29,6 +29,10 @@ export function TagManager({ ticketId, showTags = true, showAddButton = true, ic
     !ticketTagIds.has(tag.id) &&
     tag.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const typed = searchTerm.trim().toLowerCase();
+  const exactMatch = typed ? availableTags.find((tag: Tag) => tag.name.toLowerCase() === typed) : undefined;
+  const alreadyOnTicket = !!typed && ticketTags.some((tag) => tag.name.toLowerCase() === typed);
 
   const handleAddExistingTag = async (tag: Tag) => {
     await addTagMutation.mutateAsync(tag.id);
@@ -84,81 +88,68 @@ export function TagManager({ ticketId, showTags = true, showAddButton = true, ic
             )}
           </button>
 
-          {/* Modal for adding tags */}
-          <Dialog open={isAdding} onOpenChange={(open) => {
-            setIsAdding(open);
-            if (!open) setSearchTerm('');
-          }}>
-            <DialogContent className="w-full sm:max-w-md sm:rounded-lg p-4 sm:p-6">
-              <DialogHeader>
-                <DialogTitle>Add Tag</DialogTitle>
-              </DialogHeader>
+          {/* Modal for adding tags: Enter adds the exactly matching tag, or creates it */}
+          <FormModal
+            open={isAdding}
+            onOpenChange={(open) => {
+              setIsAdding(open);
+              if (!open) setSearchTerm('');
+            }}
+            title="Add Tag"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (exactMatch) handleAddExistingTag(exactMatch);
+              else handleCreateAndAddTag();
+            }}
+            isSubmitting={addTagMutation.isPending || createTagMutation.isPending}
+            submitDisabled={!searchTerm.trim() || alreadyOnTicket}
+            submitLabel={exactMatch || alreadyOnTicket ? 'Add Tag' : 'Create & Add'}
+            size="sm"
+          >
+            {/* Search/filter existing tags */}
+            <Input
+              type="text"
+              placeholder="Search or create tag..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              autoFocus
+            />
 
-              <div className="space-y-4">
-                {/* Search/filter existing tags */}
-                <input
-                  type="text"
-                  placeholder="Search or create tag..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background"
-                  autoFocus
-                />
-
-                {/* Fixed height content area to prevent resizing */}
-                <div className="min-h-[200px]">
-                  {/* Available tags list */}
-                  {searchTerm && availableTags.length > 0 && (
-                    <div className="max-h-[200px] overflow-y-auto space-y-1">
-                      {availableTags.map((tag: Tag) => (
-                        <button
-                          key={tag.id}
-                          onClick={() => handleAddExistingTag(tag)}
-                          className="w-full text-left px-3 py-2 text-sm rounded hover:bg-accent transition-colors"
-                        >
-                          {tag.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Create new tag form */}
-                  {searchTerm && availableTags.length === 0 && (
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Create new tag: <strong>"{searchTerm}"</strong>
-                      </p>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={handleCreateAndAddTag}
-                          disabled={!searchTerm.trim() || createTagMutation.isPending}
-                          className="flex-1"
-                        >
-                          Create & Add
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setIsAdding(false);
-                            setSearchTerm('');
-                          }}
-                          variant="outline"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Empty state when no search */}
-                  {!searchTerm && (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      Start typing to search for existing tags or create a new one
-                    </p>
-                  )}
+            {/* Fixed height content area to prevent resizing */}
+            <div className="min-h-[200px]">
+              {/* Available tags list */}
+              {searchTerm && availableTags.length > 0 && (
+                <div className="max-h-[200px] overflow-y-auto space-y-1">
+                  {availableTags.map((tag: Tag) => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => handleAddExistingTag(tag)}
+                      className="w-full text-left px-3 py-2 text-sm rounded hover:bg-accent transition-colors"
+                    >
+                      {tag.name}
+                    </button>
+                  ))}
                 </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              )}
+
+              {/* What submitting will do when nothing matches exactly */}
+              {searchTerm.trim() && !exactMatch && (
+                <p className="text-sm text-muted-foreground mt-3">
+                  {alreadyOnTicket
+                    ? <>This ticket already has <strong>"{searchTerm.trim()}"</strong>.</>
+                    : <>Create new tag: <strong>"{searchTerm.trim()}"</strong></>}
+                </p>
+              )}
+
+              {/* Empty state when no search */}
+              {!searchTerm && (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Start typing to search for existing tags or create a new one
+                </p>
+              )}
+            </div>
+          </FormModal>
         </>
       )}
     </div>
