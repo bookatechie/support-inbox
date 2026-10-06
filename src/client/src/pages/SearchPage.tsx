@@ -88,6 +88,9 @@ export function SearchPage() {
     const query = searchQuery.trim();
     if (!query) return;
 
+    // Close the recent-searches dropdown: the input keeps focus, so onBlur won't fire
+    setShowSuggestions(false);
+
     // Update URL params (pushes to browser history)
     setSearchParams({ query });
 
@@ -279,14 +282,20 @@ export function SearchPage() {
                   type="text"
                   placeholder="Search by subject, customer, content, tags, or ticket ID..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSuggestions(true); // typing a new search reopens it
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       handleSearch();
+                    } else if (e.key === 'Escape') {
+                      setShowSuggestions(false);
                     }
                   }}
                   onFocus={() => setShowSuggestions(true)}
+                  onClick={() => setShowSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                   className="pl-10 pr-10 h-12 text-base"
                   autoFocus
