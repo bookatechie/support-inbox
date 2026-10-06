@@ -244,23 +244,24 @@ export function TicketDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.id, ticket?.customer_email]);
 
-  // Latest email that came in by mail (from the customer or someone they copied in): shown
-  // expanded, and the thread opens at its top
+  // Latest email that came in by mail (from the customer or someone they copied in): shown expanded
   const latestIncomingId = useMemo(
     () => [...(ticket?.messages ?? [])].reverse().find(m => m.type === 'email' && m.email_metadata)?.id ?? null,
     [ticket?.messages]
   );
+  // The thread opens at the newest message of any kind (customer email, our reply or a note)
+  const latestMessageId = ticket?.messages?.length ? ticket.messages[ticket.messages.length - 1].id : null;
 
-  // When a ticket opens, put the top of the latest incoming email at the top of the view (or
-  // the bottom of the thread if there is none). Emails above it keep resizing as their iframes
-  // load, so stay anchored until the user scrolls or a few seconds pass.
+  // When a ticket opens, put the top of the newest message at the top of the view. Emails above
+  // it keep resizing as their iframes load, so stay anchored until the user scrolls or a few
+  // seconds pass.
   useEffect(() => {
     const panel = messagesPanelRef.current;
     if (!ticket || !panel) return;
 
     const anchor = () => {
-      const target = latestIncomingId !== null
-        ? panel.querySelector<HTMLElement>(`[data-message-id="${latestIncomingId}"]`)
+      const target = latestMessageId !== null
+        ? panel.querySelector<HTMLElement>(`[data-message-id="${latestMessageId}"]`)
         : null;
       if (target) {
         panel.scrollTop += target.getBoundingClientRect().top - panel.getBoundingClientRect().top - 16;
