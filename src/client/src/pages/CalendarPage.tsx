@@ -10,7 +10,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import type { Ticket, Tag, User } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { BackButton } from '@/components/BackButton';
 import {
   Dialog,
@@ -34,8 +33,10 @@ import {
 import { Label } from '@/components/ui/label';
 import { Loader2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Menu, CalendarX } from 'lucide-react';
 import { toast } from 'sonner';
-import { STATUS_COLORS, STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
+import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
 import { AppHeader } from '@/components/AppHeader';
+import { StatusBadge } from '@/components/TicketBadges';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 // ============================================================================
 // Constants
@@ -208,6 +209,7 @@ export function CalendarPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
 
@@ -360,6 +362,7 @@ export function CalendarPage() {
       ));
 
       toast.success(`Cleared ${ticketIds.length} follow-up${ticketIds.length > 1 ? 's' : ''}`);
+      setConfirmClearOpen(false);
       setSelectedDate(null);
     } catch (error) {
       console.error('Failed to clear follow-ups:', error);
@@ -640,9 +643,7 @@ export function CalendarPage() {
                   >
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <span className="text-xs text-muted-foreground">#{ticket.id}</span>
-                      <Badge className={STATUS_COLORS[ticket.status]}>
-                        {ticket.status.replace('_', ' ')}
-                      </Badge>
+                      <StatusBadge status={ticket.status} />
                     </div>
                     <p className="font-medium text-sm">{ticket.subject}</p>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -658,7 +659,7 @@ export function CalendarPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={clearFollowUpsForDate}
+                onClick={() => setConfirmClearOpen(true)}
                 disabled={isClearing}
                 className="w-full text-muted-foreground hover:text-destructive"
               >
@@ -673,6 +674,16 @@ export function CalendarPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Confirm clearing every follow-up on the selected day */}
+      <ConfirmDialog
+        open={confirmClearOpen}
+        onOpenChange={setConfirmClearOpen}
+        title="Clear follow-ups"
+        description={`Clear the follow-up date from ${selectedDateTickets.length === 1 ? 'this ticket' : selectedDateTickets.length === 2 ? 'both tickets' : `all ${selectedDateTickets.length} tickets`} on this day? The tickets themselves aren't changed.`}
+        confirmLabel={selectedDateTickets.length === 1 ? 'Clear follow-up' : `Clear ${selectedDateTickets.length} follow-ups`}
+        onConfirm={clearFollowUpsForDate}
+      />
     </div>
   );
 }

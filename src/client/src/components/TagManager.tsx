@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { X, Plus, Tag as TagIcon } from 'lucide-react';
+import { Plus, Tag as TagIcon } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { useTags, useTicketTags, useAddTagToTicket, useRemoveTagFromTicket, useCreateTag } from '../hooks/useTags';
 import type { Tag } from '@/types';
+import { TagBadge } from '@/components/TicketBadges';
 
 interface TagManagerProps {
   ticketId: number;
@@ -59,19 +60,7 @@ export function TagManager({ ticketId, showTags = true, showAddButton = true, ic
     <div className="flex items-center gap-2 flex-wrap">
       {/* Existing tags on ticket */}
       {showTags && ticketTags.map(tag => (
-        <span
-          key={tag.id}
-          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800"
-        >
-          {tag.name}
-          <button
-            onClick={() => handleRemoveTag(tag.id)}
-            className="hover:bg-gray-200 dark:hover:bg-gray-700 rounded p-0.5 transition-colors"
-            title="Remove tag"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </span>
+        <TagBadge key={tag.id} name={tag.name} onRemove={() => handleRemoveTag(tag.id)} />
       ))}
 
       {/* Add tag button */}

@@ -24,14 +24,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BackButton } from '@/components/BackButton';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { FormModal } from '@/components/FormModal';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -53,6 +45,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppHeader } from '@/components/AppHeader';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 const FIELD_OPTIONS = [
   'subject',
@@ -871,31 +864,15 @@ export function RoutingRulesPage() {
         </div>
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Routing Rule</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{deletingRule?.name}"? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowDeleteModal(false);
-                setDeletingRule(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={showDeleteModal}
+        onOpenChange={(open) => { setShowDeleteModal(open); if (!open) setDeletingRule(null); }}
+        title="Delete routing rule"
+        description={<>Delete <strong>{deletingRule?.name}</strong>? This can't be undone.</>}
+        confirmLabel="Delete rule"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

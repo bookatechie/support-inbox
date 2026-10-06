@@ -6,6 +6,7 @@
 import React from 'react';
 import type { TicketHistoryEntry } from '@/types';
 import { Settings, User as UserIcon, Clock } from 'lucide-react';
+import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
 
 interface Props {
   entry: TicketHistoryEntry;
@@ -21,31 +22,15 @@ const FIELD_LABELS: Record<string, string> = {
   customer_name: 'customer name',
 };
 
-// Status labels
-const STATUS_LABELS: Record<string, string> = {
-  new: 'New',
-  open: 'Open',
-  awaiting_customer: 'Awaiting Customer',
-  resolved: 'Resolved',
-};
-
-// Priority labels
-const PRIORITY_LABELS: Record<string, string> = {
-  low: 'Low',
-  normal: 'Normal',
-  high: 'High',
-  urgent: 'Urgent',
-};
-
 export function TicketChangeEntry({ entry, users }: Props) {
   const formatValue = (fieldName: string, value: string | null): string => {
     if (value === null || value === 'null') return 'None';
 
     if (fieldName === 'status') {
-      return STATUS_LABELS[value] || value;
+      return STATUS_LABELS[value as keyof typeof STATUS_LABELS] || value;
     }
     if (fieldName === 'priority') {
-      return PRIORITY_LABELS[value] || value;
+      return PRIORITY_LABELS[value as keyof typeof PRIORITY_LABELS] || value;
     }
     if (fieldName === 'assignee_id') {
       return users[Number(value)] || `User #${value}`;

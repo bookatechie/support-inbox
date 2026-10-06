@@ -8,7 +8,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { tickets as ticketsApi, users as usersApi, tags as tagsApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Ticket, User, Tag } from '@/types';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,13 +19,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, Search, X, UserCircle, MessageSquare, Paperclip, Inbox } from 'lucide-react';
-import { STATUS_COLORS, PRIORITY_COLORS, STATUS_LABELS } from '@/lib/constants';
+import { STATUS_LABELS } from '@/lib/constants';
 import { formatRelativeTime, formatNumber } from '@/lib/formatters';
 import { Avatar } from '@/components/Avatar';
 import { BackButton } from '@/components/BackButton';
 import { toast } from 'sonner';
 import { fetchWithCache } from '@/lib/cache';
 import { AppHeader } from '@/components/AppHeader';
+import { StatusBadge, PriorityBadge, TagBadge } from '@/components/TicketBadges';
 
 const MAX_RECENT_SEARCHES = 5;
 
@@ -448,23 +448,9 @@ export function SearchPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <span className="font-medium text-base truncate">{ticket.customer_name || ticket.customer_email}</span>
-                              <Badge className={`${STATUS_COLORS[ticket.status]} text-white text-xs`}>
-                                {ticket.status.replace('_', ' ')}
-                              </Badge>
-                              {ticket.priority !== 'normal' && (
-                                <Badge className={`${PRIORITY_COLORS[ticket.priority]} text-white text-xs`}>
-                                  {ticket.priority}
-                                </Badge>
-                              )}
-                              {ticket.tags && ticket.tags.length > 0 && (
-                                <>
-                                  {ticket.tags.map((tag) => (
-                                    <Badge key={tag.id} variant="outline" className="text-xs">
-                                      {tag.name}
-                                    </Badge>
-                                  ))}
-                                </>
-                              )}
+                              <StatusBadge status={ticket.status} />
+                              {ticket.priority !== 'normal' && <PriorityBadge priority={ticket.priority} />}
+                              {ticket.tags?.map((tag) => <TagBadge key={tag.id} name={tag.name} />)}
                             </div>
                             <div className="text-muted-foreground mb-1 text-sm line-clamp-2">
                               {ticket.subject}

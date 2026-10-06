@@ -12,16 +12,7 @@ import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Ticket, TicketStatus, TicketPriority, NewTicketEvent, TicketUpdateEvent, User, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { FormModal } from '@/components/FormModal';
 import { Input } from '@/components/ui/input';
 import { Combobox } from '@/components/ui/combobox';
@@ -49,7 +40,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Loader2, Mail, LogOut, MessageSquare, Users, UserCircle, Moon, Sun, Monitor, Plus, Trash2, MoreVertical, Paperclip, Inbox, User as UserProfileIcon, Search, Menu, ArrowDownWideNarrow, ArrowUpNarrowWide, Bell, BellOff, Calendar, BarChart3, Route } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
-import { STATUS_COLORS, PRIORITY_COLORS, STATUS_LABELS } from '@/lib/constants';
+import { STATUS_LABELS } from '@/lib/constants';
 import { formatRelativeTime, formatNumber } from '@/lib/formatters';
 import { Avatar } from '@/components/Avatar';
 import { SelectableAvatar } from '@/components/SelectableAvatar';
@@ -57,6 +48,8 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 import { toast } from 'sonner';
 import { fetchWithCache } from '@/lib/cache';
 import { AppHeader } from '@/components/AppHeader';
+import { StatusBadge, PriorityBadge, TagBadge } from '@/components/TicketBadges';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 // ============================================================================
 // Types and Defaults
@@ -794,13 +787,12 @@ export function TicketsPage() {
 
   const confirmBulkDelete = async () => {
     const count = selectedTicketIds.size;
-    setShowBulkDeleteModal(false);
-
     await handleBulkOperation(
       () => ticketsApi.bulkDelete(Array.from(selectedTicketIds)),
-      `Deleted ${count} ticket(s)`,
+      count === 1 ? 'Deleted 1 ticket' : `Deleted ${count} tickets`,
       'Failed to delete tickets'
     );
+    setShowBulkDeleteModal(false);
   };
 
   // Notification toggle handler
@@ -1148,23 +1140,9 @@ export function TicketsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
                             <span className="font-medium text-sm sm:text-base truncate">{ticket.customer_name || ticket.customer_email}</span>
-                            <Badge className={`${STATUS_COLORS[ticket.status]} text-white text-xs`}>
-                              {ticket.status.replace('_', ' ')}
-                            </Badge>
-                            {ticket.priority !== 'normal' && (
-                              <Badge className={`${PRIORITY_COLORS[ticket.priority]} text-white text-xs`}>
-                                {ticket.priority}
-                              </Badge>
-                            )}
-                            {ticket.tags && ticket.tags.length > 0 && (
-                              <>
-                                {ticket.tags.map((tag) => (
-                                  <Badge key={tag.id} variant="outline" className="text-xs">
-                                    {tag.name}
-                                  </Badge>
-                                ))}
-                              </>
-                            )}
+                            <StatusBadge status={ticket.status} />
+                            {ticket.priority !== 'normal' && <PriorityBadge priority={ticket.priority} />}
+                            {ticket.tags?.map((tag) => <TagBadge key={tag.id} name={tag.name} />)}
                           </div>
                           <div className="text-muted-foreground mb-1 text-sm line-clamp-2">
                             {ticket.subject}
@@ -1297,31 +1275,15 @@ export function TicketsPage() {
         </div>
       </FormModal>
 
-      {/* Bulk Delete Confirmation Dialog */}
-      <Dialog open={showBulkDeleteModal} onOpenChange={setShowBulkDeleteModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Tickets</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete {selectedTicketIds.size} ticket(s)? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowBulkDeleteModal(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmBulkDelete}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Bulk delete confirmation */}
+      <ConfirmDialog
+        open={showBulkDeleteModal}
+        onOpenChange={setShowBulkDeleteModal}
+        title={selectedTicketIds.size === 1 ? 'Delete ticket' : `Delete ${selectedTicketIds.size} tickets`}
+        description={<>Delete {selectedTicketIds.size === 1 ? 'this ticket' : <>these <strong>{selectedTicketIds.size}</strong> tickets</>} with all their messages and attachments? This can't be undone.</>}
+        confirmLabel={selectedTicketIds.size === 1 ? 'Delete ticket' : `Delete ${selectedTicketIds.size} tickets`}
+        onConfirm={confirmBulkDelete}
+      />
 
       {/* Profile Edit Modal */}
       <FormModal

@@ -15,14 +15,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BackButton } from '@/components/BackButton';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { FormModal } from '@/components/FormModal';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { Alert } from '@/components/ui/alert';
@@ -34,6 +26,7 @@ import { Avatar } from '@/components/Avatar';
 import { formatRelativeTime } from '@/lib/formatters';
 import { toast } from 'sonner';
 import { AppHeader } from '@/components/AppHeader';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export function AdminUsersPage() {
   const { user: currentUser } = useAuth();
@@ -578,34 +571,15 @@ export function AdminUsersPage() {
         </div>
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete User</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete {deletingUser?.name}? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowDeleteModal(false);
-                setDeletingUser(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={showDeleteModal}
+        onOpenChange={(open) => { setShowDeleteModal(open); if (!open) setDeletingUser(null); }}
+        title="Delete user"
+        description={<>Delete <strong>{deletingUser?.name}</strong>? This can't be undone.</>}
+        confirmLabel="Delete user"
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

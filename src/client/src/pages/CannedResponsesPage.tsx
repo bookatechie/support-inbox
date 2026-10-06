@@ -12,20 +12,13 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BackButton } from '@/components/BackButton';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { FormModal } from '@/components/FormModal';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { Loader2, Plus, MessageSquare, Trash2, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatRelativeTime } from '@/lib/formatters';
 import { AppHeader } from '@/components/AppHeader';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export function CannedResponsesPage() {
   const { user: currentUser } = useAuth();
@@ -357,31 +350,15 @@ export function CannedResponsesPage() {
         </div>
       </FormModal>
 
-      {/* Delete Confirmation Modal */}
-      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Canned Response</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{deletingResponse?.title}"? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowDeleteModal(false);
-                setDeletingResponse(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={showDeleteModal}
+        onOpenChange={(open) => { setShowDeleteModal(open); if (!open) setDeletingResponse(null); }}
+        title="Delete canned response"
+        description={<>Delete <strong>{deletingResponse?.title}</strong>? This can't be undone.</>}
+        confirmLabel="Delete response"
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

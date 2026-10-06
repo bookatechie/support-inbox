@@ -56,12 +56,14 @@ import { Loader2, Mail, Send, Save, User as UserIcon, Trash2, X, File, Plus, Sea
 import { formatMessageDate, formatAbsoluteDate, formatFileSize } from '@/lib/formatters';
 import { ApiError } from '@/lib/api';
 import type { EmailMetadata } from '@/types';
-import { STATUS_LABELS, PRIORITY_LABELS, STATUS_COLORS, PRIORITY_COLORS } from '@/lib/constants';
+import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
 import { Avatar } from '@/components/Avatar';
 import { MessageItem } from '@/components/MessageItem';
 import { toast } from 'sonner';
 import { fetchWithCache } from '@/lib/cache';
 import { AppHeader } from '@/components/AppHeader';
+import { StatusBadge, PriorityBadge } from '@/components/TicketBadges';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 /**
  * TicketSubject component - Reusable subject line display
@@ -134,6 +136,7 @@ export function TicketDetailPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState<number | null>(null);
   const [showCollisionWarning, setShowCollisionWarning] = useState(false);
+  const [scheduledToCancel, setScheduledToCancel] = useState<number | null>(null);
   const [changeContactDialogOpen, setChangeContactDialogOpen] = useState(false);
   const [editedCustomerEmail, setEditedCustomerEmail] = useState('');
   const [editedCustomerName, setEditedCustomerName] = useState('');
@@ -1536,14 +1539,8 @@ export function TicketDetailPage() {
               <span className="flex-shrink-0">#{ticket.id}</span>
               <span>•</span>
               <span className="truncate">{ticket.customer_name || ticket.customer_email}</span>
-              <Badge className={`${STATUS_COLORS[ticket.status]} text-white text-xs flex-shrink-0`}>
-                {STATUS_LABELS[ticket.status]}
-              </Badge>
-              {ticket.priority !== 'normal' && (
-                <Badge className={`${PRIORITY_COLORS[ticket.priority]} text-white text-xs flex-shrink-0`}>
-                  {PRIORITY_LABELS[ticket.priority]}
-                </Badge>
-              )}
+              <StatusBadge status={ticket.status} className="flex-shrink-0" />
+              {ticket.priority !== 'normal' && <PriorityBadge priority={ticket.priority} className="flex-shrink-0" />}
             </div>
           </div>
 
@@ -1734,7 +1731,7 @@ export function TicketDetailPage() {
                 onReply={handleReplyToMessage}
                 onForward={handleForwardEmail}
                 onDelete={handleDeleteMessage}
-                onCancelScheduled={handleCancelScheduled}
+                onCancelScheduled={setScheduledToCancel}
               />
             );
           })
@@ -1983,69 +1980,44 @@ export function TicketDetailPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Internal Note</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this internal note? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDeleteConfirmOpen(false);
-                setMessageToDelete(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDeleteMessage}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Cancel scheduled reply confirmation */}
+      <ConfirmDialog
+        open={scheduledToCancel !== null}
+        onOpenChange={(open) => { if (!open) setScheduledToCancel(null); }}
+        title="Cancel scheduled reply"
+        description="Cancel this scheduled reply? It won't be sent, and it's removed from the thread."
+        confirmLabel="Cancel reply"
+        cancelLabel="Keep it"
+        onConfirm={async () => {
+          if (scheduledToCancel === null) return;
+          await handleCancelScheduled(scheduledToCancel);
+          setScheduledToCancel(null);
+        }}
+      />
 
-      {/* Collision Warning Dialog */}
-      <Dialog open={showCollisionWarning} onOpenChange={setShowCollisionWarning}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>⚠️ Multiple Agents Composing</DialogTitle>
-            <DialogDescription>
-              {composingUsers.length > 0 && (
-                <>
-                  <strong>{composingUsers.map((u) => u.name).join(', ')}</strong>{' '}
-                  {composingUsers.length === 1 ? 'is' : 'are'} currently composing a reply to this ticket.
-                  <br /><br />
-                  Sending now may result in duplicate or conflicting responses.
-                  <br /><br />
-                  Do you want to send anyway?
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowCollisionWarning(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="default"
-              onClick={sendReply}
-            >
-              Send Anyway
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Delete note confirmation */}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={(open) => { setDeleteConfirmOpen(open); if (!open) setMessageToDelete(null); }}
+        title="Delete internal note"
+        description="Delete this internal note? This can't be undone."
+        confirmLabel="Delete note"
+        onConfirm={confirmDeleteMessage}
+      />
+
+      {/* Collision warning: someone else is writing a reply */}
+      <ConfirmDialog
+        open={showCollisionWarning}
+        onOpenChange={setShowCollisionWarning}
+        title="Someone else is replying"
+        description={<>
+          <strong>{composingUsers.map((u) => u.name).join(', ')}</strong>{' '}
+          {composingUsers.length === 1 ? 'is' : 'are'} writing a reply to this ticket right now. Sending yours too may give the customer duplicate or conflicting answers.
+        </>}
+        confirmLabel="Send anyway"
+        destructive={false}
+        onConfirm={sendReply}
+      />
 
       {/* Change Contact Dialog */}
       <Dialog open={changeContactDialogOpen} onOpenChange={setChangeContactDialogOpen}>
