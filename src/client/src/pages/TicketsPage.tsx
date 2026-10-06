@@ -265,7 +265,22 @@ export function TicketsPage() {
     to: '',
     subject: '',
   });
-  const [selectedTicketIds, setSelectedTicketIds] = useState<Set<number>>(new Set());
+  // Selected tickets survive opening a ticket and coming back (kept for this browser tab)
+  const selectionKey = `ticketsPageSelection:${user?.id}`;
+  const [selectedTicketIds, setSelectedTicketIds] = useState<Set<number>>(() => {
+    try {
+      return new Set(JSON.parse(sessionStorage.getItem(selectionKey) || '[]') as number[]);
+    } catch {
+      return new Set();
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(selectionKey, JSON.stringify([...selectedTicketIds]));
+    } catch {
+      // storage unavailable: selection just won't survive navigation
+    }
+  }, [selectionKey, selectedTicketIds]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
 
@@ -371,7 +386,18 @@ export function TicketsPage() {
     isReloadingRef.current = true;
 
     try {
-      const count = keepLoaded ? Math.max(50, loadedCountRef.current) : 50;
+      // Coming back from a ticket: reload as many rows as were loaded, so the saved scroll
+      // position and any selected tickets further down are there again
+      let returnCount = 0;
+      if (isInitialLoad) {
+        try {
+          returnCount = parseInt(sessionStorage.getItem('ticketsPageLoadedCount') || '0', 10) || 0;
+          sessionStorage.removeItem('ticketsPageLoadedCount');
+        } catch {
+          // ignore
+        }
+      }
+      const count = keepLoaded ? Math.max(50, loadedCountRef.current) : Math.max(50, returnCount);
       const { tickets, pagination } = await fetchFirstTickets(count);
       if (gen !== requestGenRef.current) return; // superseded by a newer reload
       setAllTickets(tickets);
@@ -504,15 +530,21 @@ export function TicketsPage() {
     return () => clearTimeout(timeoutId);
   }, [newEmail.to, showNewEmailModal]);
 
-  // Clear selection when filters change (not on SSE updates)
+  // Clear selection when filters change (not on SSE updates, and not when the page first
+  // loads, which would wipe a selection restored after opening a ticket)
+  const filterKey = JSON.stringify([statusFilter, assigneeFilter, tagFilter, followUpFilter, sortOrder, location.search]);
+  const lastFilterKeyRef = useRef(filterKey);
   useEffect(() => {
+    if (lastFilterKeyRef.current === filterKey) return;
+    lastFilterKeyRef.current = filterKey;
     clearSelection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, assigneeFilter, tagFilter, followUpFilter, sortOrder, location.search]);
+  }, [filterKey]);
 
-  // Remove selected tickets that no longer exist in the list (e.g., deleted or filtered out)
+  // Remove selected tickets that no longer exist in the list (e.g., deleted or filtered out).
+  // Only once the list has loaded: before that every ticket looks missing.
   useEffect(() => {
-    if (selectedTicketIds.size === 0) return;
+    if (selectedTicketIds.size === 0 || isLoading || !hasInitiallyLoaded.current) return;
 
     const currentTicketIds = new Set(allTickets.map(t => t.id));
     const validSelectedIds = new Set(
@@ -523,7 +555,7 @@ export function TicketsPage() {
     if (validSelectedIds.size !== selectedTicketIds.size) {
       setSelectedTicketIds(validSelectedIds);
     }
-  }, [allTickets, selectedTicketIds]);
+  }, [allTickets, selectedTicketIds, isLoading]);
 
   // Infinite scroll: load more when sentinel element is visible
   useEffect(() => {
@@ -1092,8 +1124,9 @@ export function TicketsPage() {
                     to={`/tickets/${ticket.id}`}
                     className="flex-1 py-3 sm:py-4 pl-2 sm:pl-4 pr-2 sm:pr-4 cursor-pointer min-w-0"
                     onClick={() => {
-                      // Save scroll position before navigating
+                      // Save scroll position (and how many rows are loaded) before navigating
                       sessionStorage.setItem('ticketsPageScrollPosition', window.scrollY.toString());
+                      sessionStorage.setItem('ticketsPageLoadedCount', String(allTickets.length));
                     }}
                   >
                     <div className="flex flex-col lg:flex-row lg:items-start gap-3 sm:gap-4 lg:gap-6">
