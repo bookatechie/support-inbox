@@ -50,6 +50,8 @@ import { fetchWithCache } from '@/lib/cache';
 import { AppHeader } from '@/components/AppHeader';
 import { StatusBadge, PriorityBadge, TagBadge } from '@/components/TicketBadges';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PageLoader } from '@/components/PageLoader';
+import { EmptyState } from '@/components/EmptyState';
 
 // ============================================================================
 // Types and Defaults
@@ -866,233 +868,238 @@ export function TicketsPage() {
     }
   };
 
+  // Header is shared by the loading and loaded views, so it doesn't vanish while data loads
+  const header = (
+    <AppHeader>
+      {/* Top Row: Logo and Actions */}
+      <div className="border-b">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+          <Mail className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
+          <h1 className="text-lg sm:text-2xl font-bold truncate">Support Inbox</h1>
+          <span className="text-xs sm:text-sm text-muted-foreground hidden sm:block">{user?.name}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Search Button - Desktop Only */}
+          <Link to="/search" className="hidden lg:block">
+            <Button variant="outline" size="sm" className="whitespace-nowrap h-9">
+              <Search className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Search</span>
+            </Button>
+          </Link>
+
+          {/* Calendar Button - Desktop Only */}
+          <Link to="/calendar" className="hidden lg:block">
+            <Button variant="outline" size="sm" className="whitespace-nowrap h-9">
+              <Calendar className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Calendar</span>
+            </Button>
+          </Link>
+
+          {/* New Ticket Button - Desktop Only */}
+          <Button variant="default" size="sm" onClick={() => setShowNewEmailModal(true)} className="whitespace-nowrap h-9 hidden lg:flex">
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">New Ticket</span>
+          </Button>
+
+          {/* Search Icon - Mobile Only */}
+          <Link to="/search" className="lg:hidden flex items-center justify-center h-9 w-9 flex-shrink-0">
+            <Search className="h-5 w-5" />
+          </Link>
+
+          {/* Calendar Icon - Mobile Only */}
+          <Link to="/calendar" className="lg:hidden flex items-center justify-center h-9 w-9 flex-shrink-0">
+            <Calendar className="h-5 w-5" />
+          </Link>
+
+          {/* Hamburger Menu - Mobile Only */}
+          <Button variant="outline" size="sm" className="lg:hidden flex-shrink-0 h-9" onClick={() => setShowMobileMenu(true)}>
+            <Menu className="h-4 w-4" />
+          </Button>
+
+          {/* Ellipses Menu - Desktop Only */}
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="hidden lg:flex flex-shrink-0">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56" sideOffset={5} collisionPadding={8}>
+              <Link to="/canned-responses">
+                <DropdownMenuItem>
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Canned Responses
+                </DropdownMenuItem>
+              </Link>
+
+              <Link to="/reports">
+                <DropdownMenuItem>
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Reports
+                </DropdownMenuItem>
+              </Link>
+
+              <Link to="/routing-rules">
+                <DropdownMenuItem>
+                  <Route className="h-4 w-4 mr-2" />
+                  Routing Rules
+                </DropdownMenuItem>
+              </Link>
+
+              {user?.role === 'admin' && (
+                <Link to="/admin/users">
+                  <DropdownMenuItem>
+                    <Users className="h-4 w-4 mr-2" />
+                    Manage Users
+                  </DropdownMenuItem>
+                </Link>
+              )}
+
+              <DropdownMenuItem onClick={openProfileModal}>
+                <UserProfileIcon className="h-4 w-4 mr-2" />
+                My Profile
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem onClick={toggleTheme}>
+                {theme === 'light' && <Moon className="h-4 w-4 mr-2" />}
+                {theme === 'dark' && <Monitor className="h-4 w-4 mr-2" />}
+                {theme === 'auto' && <Sun className="h-4 w-4 mr-2" />}
+                {theme === 'light' && 'Dark Mode'}
+                {theme === 'dark' && 'Auto Mode'}
+                {theme === 'auto' && 'Light Mode'}
+              </DropdownMenuItem>
+
+              {notificationsSupported && (
+                <DropdownMenuItem onClick={handleNotificationToggle}>
+                  {notificationsEnabled && notificationPermission === 'granted' ? (
+                    <Bell className="h-4 w-4 mr-2" />
+                  ) : (
+                    <BellOff className="h-4 w-4 mr-2" />
+                  )}
+                  {notificationLabel}
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem onClick={logout}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        </div>
+      </div>
+
+      {/* Second Row: Filters - Desktop Only */}
+      <div className="border-b hidden lg:block">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex flex-wrap gap-4 items-center">
+            <TicketFiltersComponent
+              filters={filters}
+              updateFilter={updateFilter}
+              sortedActiveUsers={sortedActiveUsers}
+              sortedTags={sortedTags}
+              variant="desktop"
+            />
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => updateFilter('sortOrder', sortOrder === 'desc' ? 'asc' : 'desc')}
+              className="w-10 h-10 p-0"
+              title={sortOrder === 'desc' ? 'Sorted: Newest First' : 'Sorted: Oldest First'}
+            >
+              {sortOrder === 'desc' ? <ArrowDownWideNarrow className="h-4 w-4" /> : <ArrowUpNarrowWide className="h-4 w-4" />}
+            </Button>
+
+            <div className="ml-auto text-sm text-muted-foreground">
+              {selectedTicketIds.size > 0
+                ? `${formatNumber(selectedTicketIds.size)} selected`
+                : `${formatNumber(totalCount)} ticket${totalCount !== 1 ? 's' : ''}`
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Third Row: Bulk Actions Toolbar (conditional, floats over content) */}
+      {selectedTicketIds.size > 0 && (
+        <div className="absolute left-0 right-0 bg-muted border-t border-b shadow-lg z-40 animate-in slide-in-from-top duration-200">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <Select onValueChange={(value) => handleBulkStatusChange(value as TicketStatus)}>
+              <SelectTrigger className="flex-1 lg:flex-initial lg:w-[160px] h-10">
+                <SelectValue placeholder="Change Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="new">{STATUS_LABELS.new}</SelectItem>
+                <SelectItem value="open">{STATUS_LABELS.open}</SelectItem>
+                <SelectItem value="awaiting_customer">{STATUS_LABELS.awaiting_customer}</SelectItem>
+                <SelectItem value="resolved">{STATUS_LABELS.resolved}</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select onValueChange={(value) => handleBulkAssign(value === 'unassigned' ? null : parseInt(value))}>
+              <SelectTrigger className="flex-1 lg:flex-initial lg:w-[160px] h-10">
+                <SelectValue placeholder="Assign To" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {users
+                  .filter((u) => u.active)
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((u) => (
+                    <SelectItem key={u.id} value={u.id.toString()}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+
+            {user?.role === 'admin' && (
+              <>
+                <div className="border-l h-6 mx-2 hidden lg:block" />
+                <Button variant="destructive" className="flex-1 lg:flex-initial lg:w-[160px] h-10" onClick={handleBulkDelete}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full lg:w-auto lg:ml-auto"
+              onClick={() => {
+                setSelectedTicketIds(new Set());
+                setLastClickedIndex(null);
+              }}
+            >
+              Clear Selection
+            </Button>
+          </div>
+        </div>
+        </div>
+      )}
+    </AppHeader>
+  );
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-muted/20">
+        {header}
+        <PageLoader />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-muted/20">
-      {/* Header with integrated filters */}
-      <AppHeader>
-        {/* Top Row: Logo and Actions */}
-        <div className="border-b">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-            <Mail className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
-            <h1 className="text-lg sm:text-2xl font-bold truncate">Support Inbox</h1>
-            <span className="text-xs sm:text-sm text-muted-foreground hidden sm:block">{user?.name}</span>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Search Button - Desktop Only */}
-            <Link to="/search" className="hidden lg:block">
-              <Button variant="outline" size="sm" className="whitespace-nowrap h-9">
-                <Search className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Search</span>
-              </Button>
-            </Link>
-
-            {/* Calendar Button - Desktop Only */}
-            <Link to="/calendar" className="hidden lg:block">
-              <Button variant="outline" size="sm" className="whitespace-nowrap h-9">
-                <Calendar className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Calendar</span>
-              </Button>
-            </Link>
-
-            {/* New Ticket Button - Desktop Only */}
-            <Button variant="default" size="sm" onClick={() => setShowNewEmailModal(true)} className="whitespace-nowrap h-9 hidden lg:flex">
-              <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">New Ticket</span>
-            </Button>
-
-            {/* Search Icon - Mobile Only */}
-            <Link to="/search" className="lg:hidden flex items-center justify-center h-9 w-9 flex-shrink-0">
-              <Search className="h-5 w-5" />
-            </Link>
-
-            {/* Calendar Icon - Mobile Only */}
-            <Link to="/calendar" className="lg:hidden flex items-center justify-center h-9 w-9 flex-shrink-0">
-              <Calendar className="h-5 w-5" />
-            </Link>
-
-            {/* Hamburger Menu - Mobile Only */}
-            <Button variant="outline" size="sm" className="lg:hidden flex-shrink-0 h-9" onClick={() => setShowMobileMenu(true)}>
-              <Menu className="h-4 w-4" />
-            </Button>
-
-            {/* Ellipses Menu - Desktop Only */}
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="hidden lg:flex flex-shrink-0">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56" sideOffset={5} collisionPadding={8}>
-                <Link to="/canned-responses">
-                  <DropdownMenuItem>
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Canned Responses
-                  </DropdownMenuItem>
-                </Link>
-
-                <Link to="/reports">
-                  <DropdownMenuItem>
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    Reports
-                  </DropdownMenuItem>
-                </Link>
-
-                <Link to="/routing-rules">
-                  <DropdownMenuItem>
-                    <Route className="h-4 w-4 mr-2" />
-                    Routing Rules
-                  </DropdownMenuItem>
-                </Link>
-
-                {user?.role === 'admin' && (
-                  <Link to="/admin/users">
-                    <DropdownMenuItem>
-                      <Users className="h-4 w-4 mr-2" />
-                      Manage Users
-                    </DropdownMenuItem>
-                  </Link>
-                )}
-
-                <DropdownMenuItem onClick={openProfileModal}>
-                  <UserProfileIcon className="h-4 w-4 mr-2" />
-                  My Profile
-                </DropdownMenuItem>
-
-                <DropdownMenuSeparator />
-
-                <DropdownMenuItem onClick={toggleTheme}>
-                  {theme === 'light' && <Moon className="h-4 w-4 mr-2" />}
-                  {theme === 'dark' && <Monitor className="h-4 w-4 mr-2" />}
-                  {theme === 'auto' && <Sun className="h-4 w-4 mr-2" />}
-                  {theme === 'light' && 'Dark Mode'}
-                  {theme === 'dark' && 'Auto Mode'}
-                  {theme === 'auto' && 'Light Mode'}
-                </DropdownMenuItem>
-
-                {notificationsSupported && (
-                  <DropdownMenuItem onClick={handleNotificationToggle}>
-                    {notificationsEnabled && notificationPermission === 'granted' ? (
-                      <Bell className="h-4 w-4 mr-2" />
-                    ) : (
-                      <BellOff className="h-4 w-4 mr-2" />
-                    )}
-                    {notificationLabel}
-                  </DropdownMenuItem>
-                )}
-
-                <DropdownMenuSeparator />
-
-                <DropdownMenuItem onClick={logout}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          </div>
-        </div>
-
-        {/* Second Row: Filters - Desktop Only */}
-        <div className="border-b hidden lg:block">
-          <div className="container mx-auto px-4 py-3">
-            <div className="flex flex-wrap gap-4 items-center">
-              <TicketFiltersComponent
-                filters={filters}
-                updateFilter={updateFilter}
-                sortedActiveUsers={sortedActiveUsers}
-                sortedTags={sortedTags}
-                variant="desktop"
-              />
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => updateFilter('sortOrder', sortOrder === 'desc' ? 'asc' : 'desc')}
-                className="w-10 h-10 p-0"
-                title={sortOrder === 'desc' ? 'Sorted: Newest First' : 'Sorted: Oldest First'}
-              >
-                {sortOrder === 'desc' ? <ArrowDownWideNarrow className="h-4 w-4" /> : <ArrowUpNarrowWide className="h-4 w-4" />}
-              </Button>
-
-              <div className="ml-auto text-sm text-muted-foreground">
-                {selectedTicketIds.size > 0
-                  ? `${formatNumber(selectedTicketIds.size)} selected`
-                  : `${formatNumber(totalCount)} ticket${totalCount !== 1 ? 's' : ''}`
-                }
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Third Row: Bulk Actions Toolbar (conditional, floats over content) */}
-        {selectedTicketIds.size > 0 && (
-          <div className="absolute left-0 right-0 bg-muted border-t border-b shadow-lg z-40 animate-in slide-in-from-top duration-200">
-          <div className="container mx-auto px-4 py-3">
-            <div className="flex flex-wrap gap-2 items-center">
-              <Select onValueChange={(value) => handleBulkStatusChange(value as TicketStatus)}>
-                <SelectTrigger className="flex-1 lg:flex-initial lg:w-[160px] h-10">
-                  <SelectValue placeholder="Change Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="new">{STATUS_LABELS.new}</SelectItem>
-                  <SelectItem value="open">{STATUS_LABELS.open}</SelectItem>
-                  <SelectItem value="awaiting_customer">{STATUS_LABELS.awaiting_customer}</SelectItem>
-                  <SelectItem value="resolved">{STATUS_LABELS.resolved}</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select onValueChange={(value) => handleBulkAssign(value === 'unassigned' ? null : parseInt(value))}>
-                <SelectTrigger className="flex-1 lg:flex-initial lg:w-[160px] h-10">
-                  <SelectValue placeholder="Assign To" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {users
-                    .filter((u) => u.active)
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map((u) => (
-                      <SelectItem key={u.id} value={u.id.toString()}>
-                        {u.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-
-              {user?.role === 'admin' && (
-                <>
-                  <div className="border-l h-6 mx-2 hidden lg:block" />
-                  <Button variant="destructive" className="flex-1 lg:flex-initial lg:w-[160px] h-10" onClick={handleBulkDelete}>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </Button>
-                </>
-              )}
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full lg:w-auto lg:ml-auto"
-                onClick={() => {
-                  setSelectedTicketIds(new Set());
-                  setLastClickedIndex(null);
-                }}
-              >
-                Clear Selection
-              </Button>
-            </div>
-          </div>
-          </div>
-        )}
-      </AppHeader>
+      {header}
 
       {/* Tickets List */}
       <div className="container mx-auto px-1 lg:px-4 py-2 lg:py-6">
@@ -1106,9 +1113,11 @@ export function TicketsPage() {
           )}
 
           {!isFiltering && allTickets.length === 0 ? (
-            <Card className="p-8 text-center text-muted-foreground">
-              No tickets found
-            </Card>
+            <EmptyState
+              icon={Inbox}
+              title="No tickets found"
+              description="Nothing matches the current filters."
+            />
           ) : !isFiltering && (
             allTickets.map((ticket, index) => (
               <Card key={ticket.id} className="mb-1 lg:mb-2 hover:bg-accent/50 transition-colors animate-fade-in">

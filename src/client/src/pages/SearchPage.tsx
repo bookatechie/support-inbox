@@ -22,11 +22,12 @@ import { Loader2, Search, X, UserCircle, MessageSquare, Paperclip, Inbox } from 
 import { STATUS_LABELS } from '@/lib/constants';
 import { formatRelativeTime, formatNumber } from '@/lib/formatters';
 import { Avatar } from '@/components/Avatar';
-import { BackButton } from '@/components/BackButton';
 import { toast } from 'sonner';
 import { fetchWithCache } from '@/lib/cache';
 import { AppHeader } from '@/components/AppHeader';
 import { StatusBadge, PriorityBadge, TagBadge } from '@/components/TicketBadges';
+import { PageHeader } from '@/components/PageHeader';
+import { EmptyState } from '@/components/EmptyState';
 
 const MAX_RECENT_SEARCHES = 5;
 
@@ -260,16 +261,10 @@ export function SearchPage() {
     <div className="min-h-screen bg-muted/20">
       {/* Header */}
       <AppHeader>
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <BackButton to="/tickets" />
-            <Search className="h-6 w-6" />
-            <h1 className="text-xl font-bold">Search Tickets</h1>
-          </div>
-        </div>
+        <PageHeader icon={Search} title="Search Tickets" subtitle="Find tickets by customer, subject, message content, tag or ticket number" />
       </AppHeader>
 
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
+      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
         {/* Search Box */}
         <Card className="p-6 mb-6">
           <div className="space-y-4">
@@ -425,9 +420,11 @@ export function SearchPage() {
             </div>
 
             {tickets.length === 0 && !isSearching ? (
-              <Card className="p-8 text-center text-muted-foreground">
-                No tickets found matching your search
-              </Card>
+              <EmptyState
+                icon={Search}
+                title="No tickets found"
+                description="Try a different name, email address, word or ticket number."
+              />
             ) : (
               <div className="space-y-2">
                 {tickets.map((ticket) => (

@@ -23,7 +23,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { BackButton } from '@/components/BackButton';
 import { FormModal } from '@/components/FormModal';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -46,6 +45,9 @@ import {
 import { toast } from 'sonner';
 import { AppHeader } from '@/components/AppHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PageHeader } from '@/components/PageHeader';
+import { PageLoader } from '@/components/PageLoader';
+import { EmptyState } from '@/components/EmptyState';
 
 const FIELD_OPTIONS = [
   'subject',
@@ -645,35 +647,35 @@ export function RoutingRulesPage() {
     </>
   );
 
+  // Header is shared by the loading and loaded views, so it doesn't vanish while data loads
+  const header = (
+    <AppHeader>
+      <PageHeader
+        icon={Route}
+        title="Routing Rules"
+        subtitle="Manage automatic ticket routing"
+        actions={
+          <Button onClick={() => { resetForm(); setShowCreateModal(true); }} size="sm" className="sm:h-10">
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Create Rule</span>
+          </Button>
+        }
+      />
+    </AppHeader>
+  );
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-muted/20">
+        {header}
+        <PageLoader />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-muted/20">
-      {/* Header */}
-      <AppHeader>
-        <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-4">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <BackButton to="/tickets" />
-            <Route className="h-5 w-5 sm:h-6 sm:w-6" />
-            <div className="flex-1 min-w-0">
-              <h1 className="text-base sm:text-xl font-bold truncate">Routing Rules</h1>
-              <p className="hidden sm:block text-sm text-muted-foreground">
-                Manage automatic ticket routing
-              </p>
-            </div>
-            <Button onClick={() => { resetForm(); setShowCreateModal(true); }} size="sm" className="sm:h-10">
-              <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Create Rule</span>
-            </Button>
-          </div>
-        </div>
-      </AppHeader>
+      {header}
 
       <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
         <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
@@ -725,17 +727,17 @@ export function RoutingRulesPage() {
             </h2>
             <div className="space-y-2 sm:space-y-3">
               {rules.length === 0 ? (
-                <Card className="p-8 text-center">
-                  <p className="text-muted-foreground">No routing rules configured yet.</p>
-                  <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => { resetForm(); setShowCreateModal(true); }}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create your first rule
-                  </Button>
-                </Card>
+                <EmptyState
+                  icon={Route}
+                  title="No routing rules yet"
+                  description="Rules assign, tag or prioritise incoming tickets automatically."
+                  action={
+                    <Button variant="outline" onClick={() => { resetForm(); setShowCreateModal(true); }}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create your first rule
+                    </Button>
+                  }
+                />
               ) : (
                 rules.map((rule) => (
                   <Card key={rule.id} className="p-3 sm:p-4">

@@ -10,7 +10,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import type { Ticket, Tag, User } from '@/types';
 import { Button } from '@/components/ui/button';
-import { BackButton } from '@/components/BackButton';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +36,8 @@ import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
 import { AppHeader } from '@/components/AppHeader';
 import { StatusBadge } from '@/components/TicketBadges';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PageHeader } from '@/components/PageHeader';
+import { PageLoader } from '@/components/PageLoader';
 
 // ============================================================================
 // Constants
@@ -443,59 +444,53 @@ export function CalendarPage() {
     <div className="min-h-screen bg-muted/20 flex flex-col">
       {/* Header */}
       <AppHeader>
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <BackButton to="/tickets" />
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5 text-muted-foreground" />
-                <h1 className="text-xl font-semibold">Follow-up Calendar</h1>
+        <PageHeader
+          icon={CalendarIcon}
+          title="Follow-up Calendar"
+          subtitle="Tickets with a follow-up date"
+          actions={
+            <>
+              {/* Month Navigation - Desktop Only */}
+              <div className="hidden lg:flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={goToToday}>
+                  Today
+                </Button>
+                <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-[160px] text-center font-medium">
+                  {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
+                </span>
+                <Button variant="outline" size="icon" onClick={goToNextMonth}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
+              {/* Hamburger Menu - Mobile Only */}
+              <Button variant="outline" size="icon" className="lg:hidden" onClick={() => setShowMobileMenu(true)}>
+                <Menu className="h-4 w-4" />
+              </Button>
+            </>
+          }
+        >
+          {/* Filter Bar - Desktop Only */}
+          <div className="border-t hidden lg:block">
+            <div className="container mx-auto px-2 sm:px-4 py-3">
+              <CalendarFiltersComponent
+                filters={filters}
+                updateFilter={updateFilter}
+                sortedActiveUsers={sortedActiveUsers}
+                sortedTags={sortedTags}
+                variant="desktop"
+              />
             </div>
-
-            {/* Month Navigation - Desktop Only */}
-            <div className="hidden lg:flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={goToToday}>
-                Today
-              </Button>
-              <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="min-w-[160px] text-center font-medium">
-                {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
-              </span>
-              <Button variant="outline" size="icon" onClick={goToNextMonth}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Hamburger Menu - Mobile Only */}
-            <Button variant="outline" size="icon" className="lg:hidden" onClick={() => setShowMobileMenu(true)}>
-              <Menu className="h-4 w-4" />
-            </Button>
           </div>
-        </div>
-
-        {/* Filter Bar - Desktop Only */}
-        <div className="border-b hidden lg:block">
-          <div className="container mx-auto px-4 py-3">
-            <CalendarFiltersComponent
-              filters={filters}
-              updateFilter={updateFilter}
-              sortedActiveUsers={sortedActiveUsers}
-              sortedTags={sortedTags}
-              variant="desktop"
-            />
-          </div>
-        </div>
+        </PageHeader>
       </AppHeader>
 
       {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-6">
+      <main className="flex-1 container mx-auto px-2 sm:px-4 py-4 sm:py-6">
         {isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <PageLoader />
         ) : (
           <div>
             {/* Month Navigation - Mobile Only */}

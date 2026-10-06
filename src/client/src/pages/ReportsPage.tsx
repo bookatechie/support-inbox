@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import type { ReportData, User } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { BackButton } from '@/components/BackButton';
 import {
   Select,
   SelectContent,
@@ -17,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, ChevronLeft, ChevronRight, BarChart3, Ticket, MessageSquare, Clock, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BarChart3, Ticket, MessageSquare, Clock, CheckCircle } from 'lucide-react';
 import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
 import {
   BarChart,
@@ -35,6 +34,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { AppHeader } from '@/components/AppHeader';
+import { PageHeader } from '@/components/PageHeader';
+import { PageLoader } from '@/components/PageLoader';
 
 // ============================================================================
 // Constants
@@ -229,10 +230,18 @@ export function ReportsPage() {
   }, [startDate, endDate]);
 
   // Only show full page loader on initial load
+  // Header is shared by the loading and loaded views, so it doesn't vanish while data loads
+  const header = (
+    <AppHeader>
+      <PageHeader icon={BarChart3} title="Reports" subtitle="Ticket volume, response times and workload" />
+    </AppHeader>
+  );
+
   if (isLoading && !reportData) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-muted/20">
+        {header}
+        <PageLoader />
       </div>
     );
   }
@@ -254,24 +263,10 @@ export function ReportsPage() {
 
   return (
     <div className="min-h-screen bg-muted/20">
-      {/* Header */}
-      <AppHeader>
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center gap-4">
-            <BackButton to="/tickets" />
-            <div>
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-muted-foreground" />
-                <h1 className="text-xl font-semibold">Reports</h1>
-              </div>
-              <p className="text-sm text-muted-foreground">Analytics Dashboard</p>
-            </div>
-          </div>
-        </div>
-      </AppHeader>
+      {header}
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
         {/* Filters Row */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
           {/* Date Range Selector */}

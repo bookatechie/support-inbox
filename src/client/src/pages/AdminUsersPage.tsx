@@ -14,12 +14,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { BackButton } from '@/components/BackButton';
 import { FormModal } from '@/components/FormModal';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { Alert } from '@/components/ui/alert';
 import { DEFAULT_ADMIN_USER_ID } from '@/lib/constants';
-import { Loader2, UserPlus, Users, Shield, User as UserIcon, Edit, Trash2 } from 'lucide-react';
+import { UserPlus, Users, Shield, User as UserIcon, Edit, Trash2 } from 'lucide-react';
 import type { PasswordValidation } from '@/lib/utils';
 import { PasswordInput } from '@/components/PasswordInput';
 import { Avatar } from '@/components/Avatar';
@@ -27,6 +26,8 @@ import { formatRelativeTime } from '@/lib/formatters';
 import { toast } from 'sonner';
 import { AppHeader } from '@/components/AppHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PageHeader } from '@/components/PageHeader';
+import { PageLoader } from '@/components/PageLoader';
 
 export function AdminUsersPage() {
   const { user: currentUser } = useAuth();
@@ -241,35 +242,35 @@ export function AdminUsersPage() {
     }
   };
 
+  // Header is shared by the loading and loaded views, so it doesn't vanish while data loads
+  const header = (
+    <AppHeader>
+      <PageHeader
+        icon={Users}
+        title="User Management"
+        subtitle="Manage support team members"
+        actions={
+          <Button onClick={() => setShowCreateModal(true)} size="sm" className="sm:h-10">
+            <UserPlus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Add User</span>
+          </Button>
+        }
+      />
+    </AppHeader>
+  );
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-muted/20">
+        {header}
+        <PageLoader />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-muted/20">
-      {/* Header */}
-      <AppHeader>
-        <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-4">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <BackButton to="/tickets" />
-            <Users className="h-5 w-5 sm:h-6 sm:w-6" />
-            <div className="flex-1 min-w-0">
-              <h1 className="text-base sm:text-xl font-bold truncate">User Management</h1>
-              <p className="hidden sm:block text-sm text-muted-foreground">
-                Manage support team members
-              </p>
-            </div>
-            <Button onClick={() => setShowCreateModal(true)} size="sm" className="sm:h-10">
-              <UserPlus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Add User</span>
-            </Button>
-          </div>
-        </div>
-      </AppHeader>
+      {header}
 
       <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
         <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">

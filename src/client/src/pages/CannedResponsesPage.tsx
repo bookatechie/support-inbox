@@ -11,14 +11,16 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { BackButton } from '@/components/BackButton';
 import { FormModal } from '@/components/FormModal';
 import { RichTextEditor } from '@/components/RichTextEditor';
-import { Loader2, Plus, MessageSquare, Trash2, Edit } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatRelativeTime } from '@/lib/formatters';
 import { AppHeader } from '@/components/AppHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PageHeader } from '@/components/PageHeader';
+import { PageLoader } from '@/components/PageLoader';
+import { EmptyState } from '@/components/EmptyState';
 
 export function CannedResponsesPage() {
   const { user: currentUser } = useAuth();
@@ -172,35 +174,35 @@ export function CannedResponsesPage() {
     }
   };
 
+  // Header is shared by the loading and loaded views, so it doesn't vanish while data loads
+  const header = (
+    <AppHeader>
+      <PageHeader
+        icon={MessageSquare}
+        title="Canned Responses"
+        subtitle="Quick reply templates for common questions"
+        actions={
+          <Button onClick={() => setShowCreateModal(true)} size="sm" className="sm:h-10">
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Add Response</span>
+          </Button>
+        }
+      />
+    </AppHeader>
+  );
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-muted/20">
+        {header}
+        <PageLoader />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-muted/20">
-      {/* Header */}
-      <AppHeader>
-        <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-4">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <BackButton to="/tickets" />
-            <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6" />
-            <div className="flex-1 min-w-0">
-              <h1 className="text-base sm:text-xl font-bold truncate">Canned Responses</h1>
-              <p className="hidden sm:block text-sm text-muted-foreground">
-                Quick reply templates for common questions
-              </p>
-            </div>
-            <Button onClick={() => setShowCreateModal(true)} size="sm" className="sm:h-10">
-              <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Add Response</span>
-            </Button>
-          </div>
-        </div>
-      </AppHeader>
+      {header}
 
       <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
         <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
@@ -210,9 +212,17 @@ export function CannedResponsesPage() {
               Saved Responses ({responses.length})
             </h2>
             {responses.length === 0 ? (
-              <Card className="p-8 text-center text-muted-foreground">
-                No canned responses yet. Create one to get started!
-              </Card>
+              <EmptyState
+                icon={MessageSquare}
+                title="No canned responses yet"
+                description="Save replies you send often and insert them from the composer."
+                action={
+                  <Button variant="outline" onClick={() => setShowCreateModal(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add your first response
+                  </Button>
+                }
+              />
             ) : (
               <div className="space-y-3 sm:space-y-4">
                 {responses.map((response) => (
