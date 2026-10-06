@@ -25,6 +25,7 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 import { Loader2, Plus, MessageSquare, Trash2, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatRelativeTime } from '@/lib/formatters';
+import { AppHeader } from '@/components/AppHeader';
 
 export function CannedResponsesPage() {
   const { user: currentUser } = useAuth();
@@ -189,7 +190,7 @@ export function CannedResponsesPage() {
   return (
     <div className="min-h-screen bg-muted/20">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-header">
+      <AppHeader>
         <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-4">
           <div className="flex items-center gap-2 sm:gap-4">
             <BackButton to="/tickets" />
@@ -206,7 +207,7 @@ export function CannedResponsesPage() {
             </Button>
           </div>
         </div>
-      </header>
+      </AppHeader>
 
       <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
         <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">

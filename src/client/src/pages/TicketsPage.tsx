@@ -56,6 +56,7 @@ import { SelectableAvatar } from '@/components/SelectableAvatar';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { toast } from 'sonner';
 import { fetchWithCache } from '@/lib/cache';
+import { AppHeader } from '@/components/AppHeader';
 
 // ============================================================================
 // Types and Defaults
@@ -884,7 +885,7 @@ export function TicketsPage() {
   return (
     <div className="min-h-screen bg-muted/20">
       {/* Header with integrated filters */}
-      <header className="sticky top-0 z-50 backdrop-blur-lg bg-header/85 border-b">
+      <AppHeader>
         {/* Top Row: Logo and Actions */}
         <div className="border-b">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-2">
@@ -1099,7 +1100,7 @@ export function TicketsPage() {
           </div>
           </div>
         )}
-      </header>
+      </AppHeader>
 
       {/* Tickets List */}
       <div className="container mx-auto px-1 lg:px-4 py-2 lg:py-6">

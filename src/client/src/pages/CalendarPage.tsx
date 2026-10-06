@@ -35,6 +35,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Menu, CalendarX } from 'lucide-react';
 import { toast } from 'sonner';
 import { STATUS_COLORS, STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
+import { AppHeader } from '@/components/AppHeader';
 
 // ============================================================================
 // Constants
@@ -438,7 +439,7 @@ export function CalendarPage() {
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-lg bg-header/85 border-b">
+      <AppHeader>
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -484,7 +485,7 @@ export function CalendarPage() {
             />
           </div>
         </div>
-      </header>
+      </AppHeader>
 
       {/* Main Content */}
       <main className="flex-1 container mx-auto px-4 py-6">

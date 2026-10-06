@@ -61,6 +61,7 @@ import { Avatar } from '@/components/Avatar';
 import { MessageItem } from '@/components/MessageItem';
 import { toast } from 'sonner';
 import { fetchWithCache } from '@/lib/cache';
+import { AppHeader } from '@/components/AppHeader';
 
 /**
  * TicketSubject component - Reusable subject line display
@@ -1476,11 +1477,11 @@ export function TicketDetailPage() {
     return (
       <div className="h-full flex flex-col bg-muted/20">
         {/* Header placeholder with back button only */}
-        <header className="sticky top-0 z-50 flex-shrink-0 border-b backdrop-blur-lg bg-header/85">
+        <AppHeader className="flex-shrink-0">
           <div className="px-2 sm:px-4 py-2">
             <BackButton to="/tickets" />
           </div>
-        </header>
+        </AppHeader>
 
         {/* Centered loading indicator */}
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
@@ -1507,7 +1508,7 @@ export function TicketDetailPage() {
   return (
     <div className="h-full flex flex-col bg-muted/20">
       {/* Header - Fixed at top */}
-      <header className="sticky top-0 z-50 flex-shrink-0 border-b backdrop-blur-lg bg-header/85">
+      <AppHeader className="flex-shrink-0">
         <div className="px-2 sm:px-4 py-2">
           {/* Mobile: Top Bar with Back Button and Action Buttons */}
           <div className="flex lg:hidden items-center gap-2 mb-2">
@@ -1663,7 +1664,7 @@ export function TicketDetailPage() {
           </div>
 
         </div>
-      </header>
+      </AppHeader>
 
       {/* Main Content Area - Two independent scrolling panels */}
       <div className="flex-1 flex overflow-hidden min-h-0">

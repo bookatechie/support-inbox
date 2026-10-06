@@ -26,6 +26,7 @@ import { Avatar } from '@/components/Avatar';
 import { BackButton } from '@/components/BackButton';
 import { toast } from 'sonner';
 import { fetchWithCache } from '@/lib/cache';
+import { AppHeader } from '@/components/AppHeader';
 
 const MAX_RECENT_SEARCHES = 5;
 
@@ -258,7 +259,7 @@ export function SearchPage() {
   return (
     <div className="min-h-screen bg-muted/20">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-header">
+      <AppHeader>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <BackButton to="/tickets" />
@@ -266,7 +267,7 @@ export function SearchPage() {
             <h1 className="text-xl font-bold">Search Tickets</h1>
           </div>
         </div>
-      </header>
+      </AppHeader>
 
       <div className="container mx-auto px-4 py-6 max-w-6xl">
         {/* Search Box */}
