@@ -151,7 +151,13 @@ export function TicketDetailPage() {
     return saved ? parseInt(saved, 10) : 250;
   });
   const [isResizing, setIsResizing] = useState(false);
-  const [isComposerMinimized, setIsComposerMinimized] = useState(false);
+  // Open/closed is remembered across tickets (like the height): close it once and it stays
+  // closed on the next ticket until reopened
+  const [isComposerMinimized, setIsComposerMinimizedState] = useState(() => localStorage.getItem('composerMinimized') === 'true');
+  const setIsComposerMinimized = (minimized: boolean) => {
+    setIsComposerMinimizedState(minimized);
+    localStorage.setItem('composerMinimized', String(minimized));
+  };
   const composingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const composingUserTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const messagesPanelRef = useRef<HTMLDivElement>(null);
@@ -997,6 +1003,7 @@ export function TicketDetailPage() {
 
     // Set the reply_to_message_id for backend to quote this specific message
     setReplyToMessageId(messageId);
+    setIsComposerMinimized(false); // the reply is written in the composer, so show it
 
     const senderName = message.sender_name || message.sender_email;
     toast.success(`Replying to ${senderName}`, {
