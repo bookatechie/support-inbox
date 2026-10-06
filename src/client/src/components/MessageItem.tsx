@@ -71,7 +71,7 @@ export function MessageItem({
             </Badge>
           ) : null}
           {message.type === 'note' ? (
-            <Badge className="text-xs bg-yellow-600 text-white">
+            <Badge className="text-xs bg-yellow-600 hover:bg-yellow-600 text-white">
               Internal Note
             </Badge>
           ) : null}
