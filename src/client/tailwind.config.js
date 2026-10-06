@@ -56,6 +56,12 @@ export default {
       colors: {
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
+        header: 'hsl(var(--header))',
+        reply: {
+          DEFAULT: 'hsl(var(--reply))',
+          border: 'hsl(var(--reply-border))',
+          rail: 'hsl(var(--reply-rail))'
+        },
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))'

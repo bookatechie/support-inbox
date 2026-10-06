@@ -258,7 +258,7 @@ export function SearchPage() {
   return (
     <div className="min-h-screen bg-muted/20">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background">
+      <header className="sticky top-0 z-50 border-b bg-header">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <BackButton to="/tickets" />

@@ -1476,7 +1476,7 @@ export function TicketDetailPage() {
     return (
       <div className="h-full flex flex-col bg-muted/20">
         {/* Header placeholder with back button only */}
-        <header className="sticky top-0 z-50 flex-shrink-0 border-b backdrop-blur-lg bg-background/70">
+        <header className="sticky top-0 z-50 flex-shrink-0 border-b backdrop-blur-lg bg-header/85">
           <div className="px-2 sm:px-4 py-2">
             <BackButton to="/tickets" />
           </div>
@@ -1507,7 +1507,7 @@ export function TicketDetailPage() {
   return (
     <div className="h-full flex flex-col bg-muted/20">
       {/* Header - Fixed at top */}
-      <header className="sticky top-0 z-50 flex-shrink-0 border-b backdrop-blur-lg bg-background/70">
+      <header className="sticky top-0 z-50 flex-shrink-0 border-b backdrop-blur-lg bg-header/85">
         <div className="px-2 sm:px-4 py-2">
           {/* Mobile: Top Bar with Back Button and Action Buttons */}
           <div className="flex lg:hidden items-center gap-2 mb-2">

@@ -254,7 +254,7 @@ export function ReportsPage() {
   return (
     <div className="min-h-screen bg-muted/20">
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-lg bg-background/70 border-b">
+      <header className="sticky top-0 z-50 backdrop-blur-lg bg-header/85 border-b">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center gap-4">
             <BackButton to="/tickets" />

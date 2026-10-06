@@ -884,7 +884,7 @@ export function TicketsPage() {
   return (
     <div className="min-h-screen bg-muted/20">
       {/* Header with integrated filters */}
-      <header className="sticky top-0 z-50 backdrop-blur-lg bg-background/70 border-b">
+      <header className="sticky top-0 z-50 backdrop-blur-lg bg-header/85 border-b">
         {/* Top Row: Logo and Actions */}
         <div className="border-b">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-2">
