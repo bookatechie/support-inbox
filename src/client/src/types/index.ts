@@ -203,6 +203,8 @@ export interface TicketWithMessages extends Ticket {
 
 export interface MessageWithAttachments extends Message {
   attachments: Attachment[];
+  /** Sent from one of our addresses (support mailbox or a user), i.e. not by the customer */
+  from_us?: boolean;
   email_opens?: EmailOpen[];
   first_opened_at?: string | null;
 }

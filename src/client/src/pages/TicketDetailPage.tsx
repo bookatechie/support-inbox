@@ -244,9 +244,9 @@ export function TicketDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.id, ticket?.customer_email]);
 
-  // Latest email that came in by mail (from the customer or someone they copied in): shown expanded
+  // Latest email not sent by us (from the customer or someone they copied in): shown expanded
   const latestIncomingId = useMemo(
-    () => [...(ticket?.messages ?? [])].reverse().find(m => m.type === 'email' && m.email_metadata)?.id ?? null,
+    () => [...(ticket?.messages ?? [])].reverse().find(m => m.type === 'email' && !m.from_us)?.id ?? null,
     [ticket?.messages]
   );
   // The thread opens at the newest message of any kind (customer email, our reply or a note)

@@ -161,9 +161,15 @@ export function MessageItem({
           const hasEmailMetadata = message.email_metadata && message.body_html;
           const useIframe = message.body_html && !isSimpleHtml(message.body_html);
           const needsCardPadding = !useIframe && !hasEmailMetadata;
+          // Our own replies (sent from our support mailbox or an agent's address): faint purple
+          // tint and a left rail, so customer emails, our replies and notes are easy to tell apart
+          const isOurReply = message.type === 'email' && message.from_us === true;
+          const surface = isOurReply
+            ? 'bg-reply border-reply-border border-l-[3px] border-l-reply-rail'
+            : 'bg-white dark:bg-card';
 
           return (
-            <Card className={`bg-white dark:bg-card ${
+            <Card className={`${surface} ${
               needsCardPadding
                 ? `p-4 ${
                     message.type === 'note'

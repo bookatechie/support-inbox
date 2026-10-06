@@ -389,6 +389,7 @@ export async function addMessageToTicket(ticketId: number, email: ParsedEmail): 
 
     const messageWithAttachments = {
       ...message,
+      from_us: (await getOurAddresses()).has(addressOf(message.sender_email)),
       attachments,
       email_opens: emailOpens,
       first_opened_at: firstOpen?.opened_at || null,
@@ -714,6 +715,7 @@ export async function replyToTicket(
 
     const messageWithAttachments = {
       ...message,
+      from_us: true, // written by an agent in the app
       attachments,
       email_opens: emailOpens,
       first_opened_at: firstOpen?.opened_at || null,
@@ -976,6 +978,8 @@ export async function getTicketWithMessages(ticketId: number): Promise<TicketWit
     return ts.replace(' ', 'T') + 'Z';
   };
 
+  const ours = await getOurAddresses();
+
   // Load attachments and email opens for all messages in two queries (not two per message)
   const messageIds = messages.map(m => m.id);
   const [allOpens, allAttachments] = messageIds.length > 0
@@ -1005,6 +1009,7 @@ export async function getTicketWithMessages(ticketId: number): Promise<TicketWit
 
     return {
       ...message,
+      from_us: ours.has(addressOf(message.sender_email)),
       created_at: toISO(message.created_at),
       attachments: attachmentsByMessage.get(message.id) ?? [],
       email_opens: emailOpens,
@@ -1014,7 +1019,7 @@ export async function getTicketWithMessages(ticketId: number): Promise<TicketWit
 
   // Get count of all tickets from this customer
   const customerTicketCount = await ticketQueries.countByCustomerEmail(ticket.customer_email);
-  const replyAll = await computeReplyAll(ticket, messages);
+  const replyAll = await computeReplyAll(ticket, messages, ours);
 
   return {
     ...ticket,
@@ -1031,18 +1036,26 @@ export async function getTicketWithMessages(ticketId: number): Promise<TicketWit
  * incoming email (its sender, To and CC), minus our own addresses (support mailbox, agents)
  * so we never email ourselves. The composer pre-fills these as removable chips.
  */
-async function computeReplyAll(ticket: Ticket, messages: Message[]): Promise<{ to: string[]; cc: string[] }> {
-  // Incoming emails are the ones with parsed email metadata; agent replies have none
-  const latestIncoming = [...messages].reverse().find(m => m.type === 'email' && m.email_metadata);
-  if (!latestIncoming) return { to: [], cc: [] };
+const addressOf = (value: string) => (value.match(/<([^>]+)>/)?.[1] ?? value).trim().toLowerCase();
 
-  const addressOf = (value: string) => (value.match(/<([^>]+)>/)?.[1] ?? value).trim().toLowerCase();
+/**
+ * Our own addresses: the support mailbox (SMTP_FROM, SMTP_USER, IMAP_USER) and every user's
+ * login and agent email. A message from one of these was sent by us, not by the customer.
+ */
+async function getOurAddresses(): Promise<Set<string>> {
   const users = await userQueries.getAll();
-  const ours = new Set(
+  return new Set(
     [config.smtp.from, config.smtp.user, config.imap.user, ...users.flatMap(u => [u.email, u.agent_email])]
       .filter((a): a is string => !!a)
       .map(addressOf)
   );
+}
+
+async function computeReplyAll(ticket: Ticket, messages: Message[], ours: Set<string>): Promise<{ to: string[]; cc: string[] }> {
+  // Latest email from someone other than us (the customer or someone they copied in)
+  const latestIncoming = [...messages].reverse().find(m => m.type === 'email' && !ours.has(addressOf(m.sender_email)));
+  if (!latestIncoming) return { to: [], cc: [] };
+
   const parseList = (json: string | null): string[] => {
     try { return json ? JSON.parse(json) : []; } catch { return []; }
   };
