@@ -231,7 +231,7 @@ export default async function routes(fastify: FastifyInstance) {
       // as <img src>/links. (SSE verifies its own token.) Elsewhere it would only leak tokens
       // into URLs and logs.
       else if (
-        request.method === 'GET' &&
+        (request.method === 'GET' || request.method === 'HEAD') && // browsers HEAD attachment links too
         request.routeOptions.url?.endsWith('/attachments/:id') &&
         typeof (request.query as any)?.token === 'string'
       ) {
