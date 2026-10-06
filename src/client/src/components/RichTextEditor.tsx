@@ -297,7 +297,7 @@ export function RichTextEditor({
   }
 
   return (
-    <div className={cn('border rounded-md relative', fillHeight && 'flex flex-col h-full', className)}>
+    <div className={cn('border rounded-md relative bg-card', fillHeight && 'flex flex-col h-full', className)}>
       {/* Template Menu */}
       {showTemplateMenu && (
         <div className="absolute bottom-full left-0 right-0 mb-2 z-50">
