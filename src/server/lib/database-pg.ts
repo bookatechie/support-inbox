@@ -391,8 +391,9 @@ export const ticketQueries = {
 
         UNION
 
-        -- Strategy 2: Full-text search across tickets and messages (rank: 80-90)
-        SELECT DISTINCT ticket_id as id, ts_rank(search_vector, plainto_tsquery('english', $${paramIndex})) * 90 as rank
+        -- Strategy 2: Full-text search across tickets and messages (rank: 90). No ts_rank:
+        -- results are ordered by last activity, and ranking every match was the costliest part
+        SELECT DISTINCT ticket_id as id, 90 as rank
         FROM (
           SELECT id as ticket_id, search_vector FROM tickets
           UNION ALL
@@ -404,7 +405,14 @@ export const ticketQueries = {
 
         -- Strategy 3: Fallback pattern matching for emails, subject, tags, message-IDs (rank: 50-70)
         SELECT DISTINCT id, 70 as rank FROM tickets
-        WHERE customer_email ILIKE $${paramIndex + 2} OR subject ILIKE $${paramIndex + 2} OR message_id ILIKE $${paramIndex + 2}
+        WHERE customer_email ILIKE $${paramIndex + 2} OR subject ILIKE $${paramIndex + 2}
+
+        UNION
+
+        -- Message-ID: exact match (with or without <>), via its btree index. A substring
+        -- ILIKE here scanned every ticket (~2 s on each search)
+        SELECT id, 70 as rank FROM tickets
+        WHERE message_id = $${paramIndex} OR message_id = '<' || $${paramIndex} || '>'
 
         UNION
 
