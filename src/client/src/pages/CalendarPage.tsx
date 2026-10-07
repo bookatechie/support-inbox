@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { tickets as ticketsApi, tags as tagsApi, users as usersApi } from '@/lib/api';
+import { tickets as ticketsApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import type { Ticket, Tag, User } from '@/types';
@@ -32,6 +32,8 @@ import { PageHeader } from '@/components/PageHeader';
 import { PageLoader } from '@/components/PageLoader';
 import { StatusFilterSelect, AssigneeFilterSelect, TagFilterSelect, PriorityFilterSelect } from '@/components/TicketFilterSelects';
 import { formatLongDay } from '@/lib/formatters';
+import { useActiveUsers } from '@/hooks/useUsers';
+import { useTags } from '@/hooks/useTags';
 
 // ============================================================================
 // Constants
@@ -86,8 +88,8 @@ const DEFAULT_CALENDAR_FILTERS: CalendarFilters = {
 interface CalendarFiltersProps {
   filters: CalendarFilters;
   updateFilter: <K extends keyof CalendarFilters>(key: K, value: string) => void;
-  sortedActiveUsers: User[];
-  sortedTags: Tag[];
+  activeUsers: User[];
+  tags: Tag[];
   variant: 'desktop' | 'mobile';
   onFilterChange?: () => void;
 }
@@ -95,8 +97,8 @@ interface CalendarFiltersProps {
 function CalendarFiltersComponent({
   filters,
   updateFilter,
-  sortedActiveUsers,
-  sortedTags,
+  activeUsers,
+  tags,
   variant,
   onFilterChange,
 }: CalendarFiltersProps) {
@@ -119,7 +121,7 @@ function CalendarFiltersComponent({
       {/* Assignee Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Assignee</Label>}
-        <AssigneeFilterSelect value={filters.assigneeFilter} onChange={handleChange('assigneeFilter')} className={triggerClass} users={sortedActiveUsers} />
+        <AssigneeFilterSelect value={filters.assigneeFilter} onChange={handleChange('assigneeFilter')} className={triggerClass} users={activeUsers} />
       </div>
 
       {/* Priority Filter */}
@@ -131,7 +133,7 @@ function CalendarFiltersComponent({
       {/* Tag Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Tag</Label>}
-        <TagFilterSelect value={filters.tagFilter} onChange={handleChange('tagFilter')} className={triggerClass} tags={sortedTags} />
+        <TagFilterSelect value={filters.tagFilter} onChange={handleChange('tagFilter')} className={triggerClass} tags={tags} />
       </div>
     </div>
   );
@@ -152,45 +154,13 @@ export function CalendarPage() {
   const [isClearing, setIsClearing] = useState(false);
 
   // Filter state using custom hook
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const activeUsers = useActiveUsers();
+  const { data: tags = [] } = useTags();
   const { filters, updateFilter } = usePersistedFilters<CalendarFilters>(
     `calendarPageFilters:${user?.id}`,
     DEFAULT_CALENDAR_FILTERS
   );
 
-  // Memoize sorted lists to avoid re-sorting on every render
-  const sortedActiveUsers = useMemo(() => {
-    return [...users]
-      .filter((u) => u.active && u.id !== user?.id)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [users, user?.id]);
-
-  const sortedTags = useMemo(() => {
-    return [...tags].sort((a, b) => a.name.localeCompare(b.name));
-  }, [tags]);
-
-  // Load tags and users on mount
-  useEffect(() => {
-    const loadTags = async () => {
-      try {
-        const data = await tagsApi.getAll();
-        setTags(data);
-      } catch (error) {
-        console.error('Failed to load tags:', error);
-      }
-    };
-    const loadUsers = async () => {
-      try {
-        const data = await usersApi.getAll();
-        setUsers(data);
-      } catch (error) {
-        console.error('Failed to load users:', error);
-      }
-    };
-    loadTags();
-    loadUsers();
-  }, []);
 
   // Get first and last day of current month view (including padding days)
   const { firstDay, lastDay, daysInMonth, startDayOfWeek } = useMemo(() => {
@@ -415,8 +385,8 @@ export function CalendarPage() {
               <CalendarFiltersComponent
                 filters={filters}
                 updateFilter={updateFilter}
-                sortedActiveUsers={sortedActiveUsers}
-                sortedTags={sortedTags}
+                activeUsers={activeUsers}
+                tags={tags}
                 variant="desktop"
               />
             </div>
@@ -535,8 +505,8 @@ export function CalendarPage() {
             <CalendarFiltersComponent
               filters={filters}
               updateFilter={updateFilter}
-              sortedActiveUsers={sortedActiveUsers}
-              sortedTags={sortedTags}
+              activeUsers={activeUsers}
+              tags={tags}
               variant="mobile"
               onFilterChange={() => setShowMobileMenu(false)}
             />

@@ -8,8 +8,6 @@ import fastifyMultipart from '@fastify/multipart';
 import bcrypt from 'bcryptjs';
 import {
   routingRuleQueries,
-  getAllTickets,
-  getTicketsFiltered,
   countTicketsFiltered,
   getTicketById,
   getUserByEmail,

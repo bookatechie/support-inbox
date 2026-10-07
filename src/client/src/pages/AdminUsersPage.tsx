@@ -3,7 +3,7 @@
  * Manage support team members (admin only)
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { users as usersApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,12 +28,15 @@ import { AppHeader } from '@/components/AppHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { PageLoader } from '@/components/PageLoader';
+import { useQueryClient } from '@tanstack/react-query';
+import { useUsers } from '@/hooks/useUsers';
 
 export function AdminUsersPage() {
   const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const isAdmin = currentUser?.role === 'admin';
+  const queryClient = useQueryClient();
+  // Shared team list; only admins may load it
+  const { data: users = [], isLoading } = useUsers({ enabled: isAdmin });
   const [isCreating, setIsCreating] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -56,48 +59,8 @@ export function AdminUsersPage() {
   const [error, setError] = useState('');
   const [passwordValidation, setPasswordValidation] = useState<PasswordValidation | null>(null);
 
-  // Check if current user is admin
-  if (currentUser?.role !== 'admin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="p-8 text-center">
-          <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Access Denied</h2>
-          <p className="text-muted-foreground mb-4">
-            Only administrators can access this page
-          </p>
-          <Link to="/tickets">
-            <Button>Back to Tickets</Button>
-          </Link>
-        </Card>
-      </div>
-    );
-  }
-
-  // Load users
-  const loadUsers = async (isInitialLoad = false) => {
-    try {
-      if (isInitialLoad) {
-        setIsLoading(true);
-      } else {
-        setIsRefreshing(true);
-      }
-      const data = await usersApi.getAll();
-      setUsers(data);
-    } catch (error) {
-      console.error('Failed to load users:', error);
-    } finally {
-      if (isInitialLoad) {
-        setIsLoading(false);
-      } else {
-        setIsRefreshing(false);
-      }
-    }
-  };
-
-  useEffect(() => {
-    loadUsers(true);
-  }, []);
+  // Refresh the shared list, so every page sees the change
+  const loadUsers = () => queryClient.invalidateQueries({ queryKey: ['users'] });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -241,6 +204,24 @@ export function AdminUsersPage() {
       console.error('Failed to delete user:', err);
     }
   };
+
+  // Non-admins get an access-denied card (after all hooks, so hook order never changes)
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Access Denied</h2>
+          <p className="text-muted-foreground mb-4">
+            Only administrators can access this page
+          </p>
+          <Link to="/tickets">
+            <Button>Back to Tickets</Button>
+          </Link>
+        </Card>
+      </div>
+    );
+  }
 
   // Header is shared by the loading and loaded views, so it doesn't vanish while data loads
   const header = (

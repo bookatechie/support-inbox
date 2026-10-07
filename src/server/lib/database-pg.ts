@@ -174,42 +174,50 @@ export interface CustomerAggregateFacet {
   exclude_tag?: string;
 }
 
+/**
+ * The outer SELECT shared by the ticket list queries (inbox filters and search): takes a
+ * `paginated_tickets` CTE (one page of tickets) and adds message count, last message
+ * preview/sender/time and attachment count, joining only that page's messages.
+ */
+function ticketListStatsSql(sortDirection: 'ASC' | 'DESC'): string {
+  return `
+    SELECT
+      paginated_tickets.*,
+      COALESCE(msg_count.message_count, 0) as message_count,
+      last_msg.last_message_preview,
+      COALESCE(att_stats.attachment_count, 0) as attachment_count,
+      last_msg.last_message_sender_email,
+      last_msg.last_message_sender_name,
+      last_msg.last_message_at
+    FROM paginated_tickets
+    LEFT JOIN (
+      SELECT messages.ticket_id, COUNT(*) as message_count
+      FROM messages
+      INNER JOIN paginated_tickets ON messages.ticket_id = paginated_tickets.id
+      GROUP BY messages.ticket_id
+    ) msg_count ON msg_count.ticket_id = paginated_tickets.id
+    LEFT JOIN (
+      SELECT DISTINCT ON (messages.ticket_id)
+        messages.ticket_id,
+        SUBSTR(messages.body, 1, 250) as last_message_preview,
+        messages.sender_email as last_message_sender_email,
+        messages.sender_name as last_message_sender_name,
+        messages.created_at as last_message_at
+      FROM messages
+      INNER JOIN paginated_tickets ON messages.ticket_id = paginated_tickets.id
+      ORDER BY messages.ticket_id, messages.created_at DESC
+    ) last_msg ON last_msg.ticket_id = paginated_tickets.id
+    LEFT JOIN (
+      SELECT messages.ticket_id, COUNT(*) as attachment_count
+      FROM attachments
+      INNER JOIN messages ON attachments.message_id = messages.id
+      INNER JOIN paginated_tickets ON messages.ticket_id = paginated_tickets.id
+      GROUP BY messages.ticket_id
+    ) att_stats ON att_stats.ticket_id = paginated_tickets.id
+    ORDER BY COALESCE(paginated_tickets.last_message_at, paginated_tickets.created_at) ${sortDirection}, paginated_tickets.id ${sortDirection}`;
+}
+
 export const ticketQueries = {
-  async getAll(): Promise<(Ticket & { message_count: number; last_message_preview: string | null; attachment_count: number; last_message_sender_email: string | null; last_message_sender_name: string | null; last_message_at: string | null })[]> {
-    return query(`
-      SELECT
-        ${TICKET_COLUMNS},
-        COALESCE(msg_count.message_count, 0) as message_count,
-        last_msg.last_message_preview,
-        COALESCE(att_stats.attachment_count, 0) as attachment_count,
-        last_msg.last_message_sender_email,
-        last_msg.last_message_sender_name,
-        last_msg.last_message_at
-      FROM tickets
-      LEFT JOIN (
-        SELECT ticket_id, COUNT(*) as message_count
-        FROM messages
-        GROUP BY ticket_id
-      ) msg_count ON msg_count.ticket_id = tickets.id
-      LEFT JOIN (
-        SELECT DISTINCT ON (messages.ticket_id)
-          messages.ticket_id,
-          SUBSTR(messages.body, 1, 250) as last_message_preview,
-          messages.sender_email as last_message_sender_email,
-          messages.sender_name as last_message_sender_name,
-          messages.created_at as last_message_at
-        FROM messages
-        ORDER BY messages.ticket_id, messages.created_at DESC
-      ) last_msg ON last_msg.ticket_id = tickets.id
-      LEFT JOIN (
-        SELECT messages.ticket_id, COUNT(*) as attachment_count
-        FROM attachments
-        INNER JOIN messages ON attachments.message_id = messages.id
-        GROUP BY messages.ticket_id
-      ) att_stats ON att_stats.ticket_id = tickets.id
-      ORDER BY COALESCE(last_msg.last_message_at, tickets.updated_at) DESC
-    `);
-  },
 
   async getById(id: number): Promise<Ticket | undefined> {
     return queryOne<Ticket>(`SELECT ${TICKET_COLUMNS} FROM tickets WHERE id = $1`, [id]);
@@ -284,15 +292,6 @@ export const ticketQueries = {
     );
   },
 
-  async search(searchQuery: string): Promise<Ticket[]> {
-    return query<Ticket>(
-      `SELECT ${TICKET_COLUMNS}
-       FROM tickets
-       WHERE search_vector @@ plainto_tsquery('english', $1)
-       ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC`,
-      [searchQuery]
-    );
-  },
 
 
 
@@ -367,12 +366,12 @@ export const ticketQueries = {
     }
 
     const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-    const sortDirection = sortOrder.toUpperCase();
+    const sortDirection = sortOrder === 'asc' ? 'ASC' : 'DESC';
 
     // Empty search term - return all tickets matching filters
     if (!searchTerm) {
-      // Use getTicketsFiltered for non-search queries
-      return this.getTicketsFilteredWithoutSearch(options);
+      // No search term: plain filtered list
+      return getTicketsFiltered(options);
     }
 
     // Check if search term is a number (ticket ID search)
@@ -457,39 +456,7 @@ export const ticketQueries = {
         ORDER BY COALESCE(filtered_tickets.last_message_at, filtered_tickets.created_at) ${sortDirection}
         LIMIT $${paramIndex + 3} OFFSET $${paramIndex + 4}
       )
-      SELECT
-        paginated_tickets.*,
-        COALESCE(msg_count.message_count, 0) as message_count,
-        last_msg.last_message_preview,
-        COALESCE(att_stats.attachment_count, 0) as attachment_count,
-        last_msg.last_message_sender_email,
-        last_msg.last_message_sender_name
-      FROM paginated_tickets
-      LEFT JOIN (
-        SELECT messages.ticket_id, COUNT(*) as message_count
-        FROM messages
-        INNER JOIN paginated_tickets ON messages.ticket_id = paginated_tickets.id
-        GROUP BY messages.ticket_id
-      ) msg_count ON msg_count.ticket_id = paginated_tickets.id
-      LEFT JOIN (
-        SELECT DISTINCT ON (messages.ticket_id)
-          messages.ticket_id,
-          SUBSTR(messages.body, 1, 250) as last_message_preview,
-          messages.sender_email as last_message_sender_email,
-          messages.sender_name as last_message_sender_name,
-          messages.created_at as last_message_at
-        FROM messages
-        INNER JOIN paginated_tickets ON messages.ticket_id = paginated_tickets.id
-        ORDER BY messages.ticket_id, messages.created_at DESC
-      ) last_msg ON last_msg.ticket_id = paginated_tickets.id
-      LEFT JOIN (
-        SELECT messages.ticket_id, COUNT(*) as attachment_count
-        FROM attachments
-        INNER JOIN messages ON attachments.message_id = messages.id
-        INNER JOIN paginated_tickets ON messages.ticket_id = paginated_tickets.id
-        GROUP BY messages.ticket_id
-      ) att_stats ON att_stats.ticket_id = paginated_tickets.id
-      ORDER BY COALESCE(paginated_tickets.last_message_at, paginated_tickets.created_at) ${sortDirection}
+      ${ticketListStatsSql(sortDirection)}
     `;
 
     // Build params array
@@ -505,22 +472,6 @@ export const ticketQueries = {
     return query<any>(searchQueryText, searchParams);
   },
 
-  // Helper method: Get tickets with filters but no search (called when searchTerm is empty)
-  async getTicketsFilteredWithoutSearch(
-    options: {
-      status?: string[];
-      assigneeId?: number | null;
-      customerEmail?: string;
-      tagId?: number;
-      followUp?: 'all' | 'due' | 'overdue' | 'scheduled';
-      limit?: number;
-      offset?: number;
-      sortOrder?: 'asc' | 'desc';
-    }
-  ): Promise<(Ticket & { message_count: number; last_message_preview: string | null; attachment_count: number; last_message_sender_email: string | null; last_message_sender_name: string | null; last_message_at: string | null; total_count: number })[]> {
-    // Delegate to getTicketsFiltered which already handles this case
-    return getTicketsFiltered(options);
-  },
 
   /**
    * Generic per-customer aggregation.
@@ -1214,36 +1165,6 @@ export const ticketHistoryQueries = {
 // Helper Functions (matching SQLite interface)
 // ============================================================================
 
-export async function getAllTickets(): Promise<(Ticket & { message_count: number; last_message_preview: string | null; attachment_count: number; last_message_sender_email: string | null; last_message_sender_name: string | null; last_message_at: string | null; tags?: Tag[] })[]> {
-  const tickets = await ticketQueries.getAll();
-
-  // Batch load all tags for all tickets in one query
-  const allTicketTags = await query<{ ticket_id: number; id: number; name: string; created_at: string }>(
-    `SELECT ticket_tags.ticket_id, tags.id, tags.name, tags.created_at
-     FROM ticket_tags
-     INNER JOIN tags ON tags.id = ticket_tags.tag_id
-     ORDER BY tags.name`
-  );
-
-  // Group tags by ticket_id
-  const tagsByTicketId = new Map<number, Tag[]>();
-  for (const row of allTicketTags) {
-    if (!tagsByTicketId.has(row.ticket_id)) {
-      tagsByTicketId.set(row.ticket_id, []);
-    }
-    tagsByTicketId.get(row.ticket_id)!.push({
-      id: row.id,
-      name: row.name,
-      created_at: row.created_at,
-    });
-  }
-
-  // Add tags to each ticket
-  return tickets.map(ticket => ({
-    ...ticket,
-    tags: tagsByTicketId.get(ticket.id) || [],
-  }));
-}
 
 export async function getTicketsFiltered(options: {
   status?: string[];
@@ -1318,7 +1239,7 @@ export async function getTicketsFiltered(options: {
   params.push(limit, offset);
   const limitOffsetClause = `LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
 
-  const sortDirection = sortOrder.toUpperCase();
+  const sortDirection = sortOrder === 'asc' ? 'ASC' : 'DESC';
 
   // Page and display use the same order (last activity, as the search path does), so
   // infinite scroll doesn't skip or repeat tickets. ticket_tags' primary key is
@@ -1332,40 +1253,7 @@ export async function getTicketsFiltered(options: {
       ORDER BY COALESCE(tickets.last_message_at, tickets.created_at) ${sortDirection}, tickets.id ${sortDirection}
       ${limitOffsetClause}
     )
-    SELECT
-      paginated_tickets.*,
-      COALESCE(msg_count.message_count, 0) as message_count,
-      last_msg.last_message_preview,
-      COALESCE(att_stats.attachment_count, 0) as attachment_count,
-      last_msg.last_message_sender_email,
-      last_msg.last_message_sender_name,
-      last_msg.last_message_at
-    FROM paginated_tickets
-    LEFT JOIN (
-      SELECT messages.ticket_id, COUNT(*) as message_count
-      FROM messages
-      INNER JOIN paginated_tickets ON messages.ticket_id = paginated_tickets.id
-      GROUP BY messages.ticket_id
-    ) msg_count ON msg_count.ticket_id = paginated_tickets.id
-    LEFT JOIN (
-      SELECT DISTINCT ON (messages.ticket_id)
-        messages.ticket_id,
-        SUBSTR(messages.body, 1, 250) as last_message_preview,
-        messages.sender_email as last_message_sender_email,
-        messages.sender_name as last_message_sender_name,
-        messages.created_at as last_message_at
-      FROM messages
-      INNER JOIN paginated_tickets ON messages.ticket_id = paginated_tickets.id
-      ORDER BY messages.ticket_id, messages.created_at DESC
-    ) last_msg ON last_msg.ticket_id = paginated_tickets.id
-    LEFT JOIN (
-      SELECT messages.ticket_id, COUNT(*) as attachment_count
-      FROM attachments
-      INNER JOIN messages ON attachments.message_id = messages.id
-      INNER JOIN paginated_tickets ON messages.ticket_id = paginated_tickets.id
-      GROUP BY messages.ticket_id
-    ) att_stats ON att_stats.ticket_id = paginated_tickets.id
-    ORDER BY COALESCE(paginated_tickets.last_message_at, paginated_tickets.created_at) ${sortDirection}, paginated_tickets.id ${sortDirection}
+    ${ticketListStatsSql(sortDirection)}
   `;
 
   const tickets = await query<any>(queryText, params);

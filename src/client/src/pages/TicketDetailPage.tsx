@@ -6,10 +6,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { tickets as ticketsApi, drafts as draftsApi, users as usersApi, cannedResponses as cannedResponsesApi, messages as messagesApi } from '@/lib/api';
+import { tickets as ticketsApi, drafts as draftsApi, cannedResponses as cannedResponsesApi, messages as messagesApi, uploadFile } from '@/lib/api';
 import { useSSE } from '@/hooks/useSSE';
 import { useAuth } from '@/contexts/AuthContext';
-import type { TicketWithMessages, NewMessageEvent, MessageDeletedEvent, User, CannedResponse, UserComposingEvent, Attachment, TicketHistoryEntry, Tag } from '@/types';
+import type { TicketWithMessages, NewMessageEvent, MessageDeletedEvent, CannedResponse, UserComposingEvent, Attachment, TicketHistoryEntry, Tag, UploadedFile } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -56,6 +56,7 @@ import { fetchWithCache } from '@/lib/cache';
 import { AppHeader } from '@/components/AppHeader';
 import { StatusBadge, PriorityBadge } from '@/components/TicketBadges';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useUsers, useActiveUsers } from '@/hooks/useUsers';
 
 /**
  * TicketSubject component - Reusable subject line display
@@ -102,14 +103,10 @@ export function TicketDetailPage() {
   const [isGeneratingResponse, setIsGeneratingResponse] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
-  const [users, setUsers] = useState<User[]>([]);
+  const { data: users = [] } = useUsers();
+  const sortedActiveUsers = useActiveUsers();
   const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([]);
-  const [attachments, setAttachments] = useState<Array<{
-    filename: string;
-    filePath: string;
-    size: number;
-    mimeType: string;
-  }>>([]);
+  const [attachments, setAttachments] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [toEmails, setToEmails] = useState<string[]>([]);
   const [showToInput, setShowToInput] = useState(false);
@@ -289,17 +286,12 @@ export function TicketDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.id]);
 
-  // Load users and canned responses on mount (with caching)
+  // Load canned responses on mount (with caching)
   // Note: Customer emails are now loaded on-demand as user types
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [usersData, responsesData] = await Promise.all([
-          fetchWithCache('users', () => usersApi.getAll()),
-          fetchWithCache('canned-responses', () => cannedResponsesApi.getAll()),
-        ]);
-
-        setUsers(usersData);
+        const responsesData = await fetchWithCache('canned-responses', () => cannedResponsesApi.getAll());
         setCannedResponses(responsesData);
       } catch (error) {
         console.error('Failed to load data:', error);
@@ -309,12 +301,6 @@ export function TicketDetailPage() {
     loadData();
   }, []);
 
-  // Memoize sorted active users to avoid re-sorting on every render
-  const sortedActiveUsers = useMemo(() => {
-    return [...users]
-      .filter((u) => u.active)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [users]);
 
   // Load draft on mount
   useEffect(() => {
@@ -530,29 +516,14 @@ export function TicketDetailPage() {
     setIsUploading(true);
     try {
       for (const file of Array.from(files)) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('ticketId', id);
-
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          },
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Upload failed');
-        }
-
-        const fileInfo = await response.json();
+        const fileInfo = await uploadFile(Number(id), file);
         setAttachments(prev => [...prev, fileInfo]);
       }
     } catch (error) {
       console.error('Failed to upload file:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to upload file. Please try again.';
+      // The server explains rejections (type not allowed, too large) in { error }
+      const serverError = error instanceof ApiError ? (error.data as { error?: string } | undefined)?.error : undefined;
+      const errorMessage = serverError || 'Failed to upload file. Please try again.';
       toast.error('Failed to upload file', {
         description: errorMessage
       });
@@ -648,38 +619,12 @@ export function TicketDetailPage() {
       const { html: htmlWithCids, inlineImages } = await extractInlineImages(replyContent);
 
       // Upload inline images as attachments
-      const inlineAttachments: Array<{
-        filename: string;
-        filePath: string;
-        size: number;
-        mimeType: string;
-        cid: string;
-      }> = [];
+      const inlineAttachments: Array<UploadedFile & { cid: string }> = [];
 
       for (const image of inlineImages) {
         try {
-          const formData = new FormData();
-          formData.append('file', image.blob, image.filename);
-          formData.append('ticketId', id.toString());
-
-          const response = await fetch('/api/upload', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            },
-            body: formData,
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            inlineAttachments.push({
-              filename: data.filename,
-              filePath: data.filePath,
-              size: data.size,
-              mimeType: data.mimeType,
-              cid: image.cid,
-            });
-          }
+          const data = await uploadFile(Number(id), image.blob, image.filename);
+          inlineAttachments.push({ ...data, cid: image.cid });
         } catch (error) {
           console.error('Failed to upload inline image:', error);
         }

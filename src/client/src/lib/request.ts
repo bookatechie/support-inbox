@@ -28,8 +28,8 @@ export async function request<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  // Only set Content-Type if there's a body
-  if (options.body) {
+  // JSON bodies only: FormData sets its own multipart Content-Type (with boundary)
+  if (options.body && !(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
 

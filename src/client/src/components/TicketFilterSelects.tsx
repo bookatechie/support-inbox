@@ -1,6 +1,7 @@
 import type { Tag, User } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Ticket filter dropdowns shared by the inbox, search and calendar, so every page offers the same options.
 // Values: 'all' = no filter; status also takes 'new_or_open'; assignee takes 'me', 'unassigned' or a user id.
@@ -31,7 +32,10 @@ export function StatusFilterSelect({ value, onChange, className }: SelectProps) 
   );
 }
 
+// Lists the given users minus yourself: "Assigned to Me" already covers you
 export function AssigneeFilterSelect({ value, onChange, className, users }: SelectProps & { users: User[] }) {
+  const { user } = useAuth();
+  const others = users.filter((u) => u.id !== user?.id);
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className={className}>
@@ -41,10 +45,10 @@ export function AssigneeFilterSelect({ value, onChange, className, users }: Sele
         <SelectItem value="all">All Tickets</SelectItem>
         <SelectItem value="me">Assigned to Me</SelectItem>
         <SelectItem value="unassigned">Unassigned</SelectItem>
-        {users.length > 0 && (
+        {others.length > 0 && (
           <>
             <div className="h-px bg-border my-1" />
-            {[...users].sort(byName).map((u) => (
+            {[...others].sort(byName).map((u) => (
               <SelectItem key={u.id} value={u.id.toString()}>
                 {u.name}
               </SelectItem>

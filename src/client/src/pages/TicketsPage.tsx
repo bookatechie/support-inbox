@@ -3,9 +3,9 @@
  * Displays all support tickets with filtering and real-time updates
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { tickets as ticketsApi, users as usersApi, tags as tagsApi } from '@/lib/api';
+import { tickets as ticketsApi, users as usersApi } from '@/lib/api';
 import { useSSE } from '@/hooks/useSSE';
 import { useNotifications } from '@/hooks/useNotifications';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
@@ -44,13 +44,14 @@ import { formatNumber } from '@/lib/formatters';
 import { SelectableAvatar } from '@/components/SelectableAvatar';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { toast } from 'sonner';
-import { fetchWithCache } from '@/lib/cache';
 import { AppHeader } from '@/components/AppHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageLoader } from '@/components/PageLoader';
 import { EmptyState } from '@/components/EmptyState';
 import { TicketRow } from '@/components/TicketRow';
 import { StatusFilterSelect, AssigneeFilterSelect, TagFilterSelect } from '@/components/TicketFilterSelects';
+import { useUsers, useActiveUsers } from '@/hooks/useUsers';
+import { useTags } from '@/hooks/useTags';
 
 // ============================================================================
 // Types and Defaults
@@ -79,8 +80,8 @@ const DEFAULT_TICKET_FILTERS: TicketFilters = {
 interface TicketFiltersProps {
   filters: TicketFilters;
   updateFilter: <K extends keyof TicketFilters>(key: K, value: string) => void;
-  sortedActiveUsers: User[];
-  sortedTags: Tag[];
+  activeUsers: User[];
+  tags: Tag[];
   variant: 'desktop' | 'mobile';
   onFilterChange?: () => void;
 }
@@ -88,8 +89,8 @@ interface TicketFiltersProps {
 function TicketFiltersComponent({
   filters,
   updateFilter,
-  sortedActiveUsers,
-  sortedTags,
+  activeUsers,
+  tags,
   variant,
   onFilterChange,
 }: TicketFiltersProps) {
@@ -112,13 +113,13 @@ function TicketFiltersComponent({
       {/* Assignee Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Assignee</Label>}
-        <AssigneeFilterSelect value={filters.assigneeFilter} onChange={handleChange('assigneeFilter')} className={triggerClass} users={sortedActiveUsers} />
+        <AssigneeFilterSelect value={filters.assigneeFilter} onChange={handleChange('assigneeFilter')} className={triggerClass} users={activeUsers} />
       </div>
 
       {/* Tag Filter */}
       <div className={isMobile ? '' : undefined}>
         {isMobile && <Label className="text-xs text-muted-foreground mb-1.5 block">Tag</Label>}
-        <TagFilterSelect value={filters.tagFilter} onChange={handleChange('tagFilter')} className={triggerClass} tags={sortedTags} />
+        <TagFilterSelect value={filters.tagFilter} onChange={handleChange('tagFilter')} className={triggerClass} tags={tags} />
       </div>
 
       {/* Follow-up Filter */}
@@ -186,8 +187,6 @@ export function TicketsPage() {
   loadedCountRef.current = allTickets.length;
 
   // Filter state using custom hook
-  const [users, setUsers] = useState<User[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
   const { filters, updateFilter, setFilters } = usePersistedFilters<TicketFilters>(
     `ticketsPageFilters:${user?.id}`,
     DEFAULT_TICKET_FILTERS
@@ -196,16 +195,9 @@ export function TicketsPage() {
   // Destructure for easier access and backwards compatibility
   const { statusFilter, assigneeFilter, tagFilter, followUpFilter, sortOrder } = filters;
 
-  // Memoize sorted lists to avoid re-sorting on every render
-  const sortedActiveUsers = useMemo(() => {
-    return [...users]
-      .filter((u) => u.active && u.id !== user?.id)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [users, user?.id]);
-
-  const sortedTags = useMemo(() => {
-    return [...tags].sort((a, b) => a.name.localeCompare(b.name));
-  }, [tags]);
+  const { data: users = [] } = useUsers();
+  const activeUsers = useActiveUsers();
+  const { data: tags = [] } = useTags();
   const [customerEmails, setCustomerEmails] = useState<string[]>([]);
   const [showNewEmailModal, setShowNewEmailModal] = useState(false);
   const [newEmail, setNewEmail] = useState({
@@ -428,34 +420,6 @@ export function TicketsPage() {
       }
     }
   }, [isLoading, allTickets]);
-
-  // Load users on mount (with caching)
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const data = await fetchWithCache('users', () => usersApi.getAll());
-        setUsers(data);
-      } catch (error) {
-        console.error('Failed to load users:', error);
-      }
-    };
-
-    loadUsers();
-  }, []);
-
-  // Load tags on mount (with caching)
-  useEffect(() => {
-    const loadTags = async () => {
-      try {
-        const data = await fetchWithCache('tags', () => tagsApi.getAll());
-        setTags(data);
-      } catch (error) {
-        console.error('Failed to load tags:', error);
-      }
-    };
-
-    loadTags();
-  }, []);
 
   // Debounced email search (fetches filtered results from server as user types)
   useEffect(() => {
@@ -952,8 +916,8 @@ export function TicketsPage() {
             <TicketFiltersComponent
               filters={filters}
               updateFilter={updateFilter}
-              sortedActiveUsers={sortedActiveUsers}
-              sortedTags={sortedTags}
+              activeUsers={activeUsers}
+              tags={tags}
               variant="desktop"
             />
 
@@ -1000,10 +964,7 @@ export function TicketsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
-                {users
-                  .filter((u) => u.active)
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((u) => (
+                {activeUsers.map((u) => (
                     <SelectItem key={u.id} value={u.id.toString()}>
                       {u.name}
                     </SelectItem>
@@ -1228,8 +1189,8 @@ export function TicketsPage() {
               <TicketFiltersComponent
                 filters={filters}
                 updateFilter={updateFilter}
-                sortedActiveUsers={sortedActiveUsers}
-                sortedTags={sortedTags}
+                activeUsers={activeUsers}
+                tags={tags}
                 variant="mobile"
                 onFilterChange={() => setShowMobileMenu(false)}
               />

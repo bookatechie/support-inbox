@@ -5,18 +5,8 @@
 
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { routingRules as routingRulesApi, users as usersApi } from '@/lib/api';
-import type {
-  RoutingRule,
-  RuleCondition,
-  RuleConditionGroup,
-  RuleActions,
-  RuleEvaluationResult,
-  CreateRoutingRuleRequest,
-  TicketStatus,
-  TicketPriority,
-  User,
-} from '@/types';
+import { routingRules as routingRulesApi } from '@/lib/api';
+import type { RoutingRule, RuleCondition, RuleConditionGroup, RuleActions, RuleEvaluationResult, CreateRoutingRuleRequest, TicketStatus, TicketPriority } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -48,6 +38,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { PageLoader } from '@/components/PageLoader';
 import { EmptyState } from '@/components/EmptyState';
+import { useUsers } from '@/hooks/useUsers';
 
 const FIELD_OPTIONS = [
   'subject',
@@ -133,7 +124,8 @@ export function RoutingRulesPage() {
   const [formTags, setFormTags] = useState('');
 
   // Users for dropdown
-  const [users, setUsers] = useState<User[]>([]);
+  // Every user, inactive included: an existing rule may still point at a deactivated agent
+  const { data: users = [] } = useUsers();
 
   // Form submission states
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -163,9 +155,8 @@ export function RoutingRulesPage() {
     }
   };
 
-  // Load users (for the assignment dropdown) and rules
+  // Load rules
   useEffect(() => {
-    usersApi.getAll().then(setUsers).catch(() => setUsers([]));
     loadRules(true);
   }, []);
 

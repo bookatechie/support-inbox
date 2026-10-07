@@ -5,9 +5,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { tickets as ticketsApi, users as usersApi, tags as tagsApi } from '@/lib/api';
+import { tickets as ticketsApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Ticket, User, Tag } from '@/types';
+import type { Ticket } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,12 +15,13 @@ import { Loader2, Search, X } from 'lucide-react';
 import { formatNumber } from '@/lib/formatters';
 import { Avatar } from '@/components/Avatar';
 import { toast } from 'sonner';
-import { fetchWithCache } from '@/lib/cache';
 import { AppHeader } from '@/components/AppHeader';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { TicketRow } from '@/components/TicketRow';
 import { StatusFilterSelect, AssigneeFilterSelect, TagFilterSelect } from '@/components/TicketFilterSelects';
+import { useUsers, useActiveUsers } from '@/hooks/useUsers';
+import { useTags } from '@/hooks/useTags';
 
 const MAX_RECENT_SEARCHES = 5;
 
@@ -36,8 +37,9 @@ export function SearchPage() {
   const [hasMore, setHasMore] = useState(false);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [totalCount, setTotalCount] = useState(0);
-  const [users, setUsers] = useState<User[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
+  const { data: users = [] } = useUsers();
+  const activeUsers = useActiveUsers();
+  const { data: tags = [] } = useTags();
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Advanced filters
@@ -92,25 +94,6 @@ export function SearchPage() {
     // Trigger the search
     setDebouncedSearchQuery(query);
   };
-
-  // Load users and tags on mount (with caching)
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [usersData, tagsData] = await Promise.all([
-          fetchWithCache('users', () => usersApi.getAll()),
-          fetchWithCache('tags', () => tagsApi.getAll()),
-        ]);
-
-        setUsers(usersData);
-        setTags(tagsData);
-      } catch (error) {
-        console.error('Failed to load data:', error);
-      }
-    };
-
-    loadData();
-  }, []);
 
   const performSearch = async (offset?: number) => {
     if (!debouncedSearchQuery.trim()) return;
@@ -339,7 +322,7 @@ export function SearchPage() {
                 </div>
 
                 <div>
-                  <AssigneeFilterSelect value={assigneeFilter} onChange={setAssigneeFilter} users={users} />
+                  <AssigneeFilterSelect value={assigneeFilter} onChange={setAssigneeFilter} users={activeUsers} />
                 </div>
 
                 <div>

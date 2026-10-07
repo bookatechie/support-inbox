@@ -26,6 +26,7 @@ import type {
   CreateRoutingRuleRequest,
   UpdateRoutingRuleRequest,
   RuleEvaluationResult,
+  UploadedFile,
 } from '@/types';
 
 // Authentication
@@ -220,6 +221,15 @@ export const users = {
 };
 
 // Tags
+// Store a file for a ticket's next reply; returns where it was saved
+export const uploadFile = (ticketId: number, file: Blob, filename?: string) => {
+  const formData = new FormData();
+  if (filename) formData.append('file', file, filename);
+  else formData.append('file', file);
+  formData.append('ticketId', String(ticketId));
+  return request<UploadedFile>('/upload', { method: 'POST', body: formData });
+};
+
 export const tags = {
   getAll: () => request<Tag[]>('/tags'),
 };

@@ -4,9 +4,9 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { tickets as ticketsApi, users as usersApi } from '@/lib/api';
+import { tickets as ticketsApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { ReportData, User } from '@/types';
+import type { ReportData } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -37,6 +37,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { PageHeader } from '@/components/PageHeader';
 import { PageLoader } from '@/components/PageLoader';
 import { formatDay } from '@/lib/formatters';
+import { useActiveUsers } from '@/hooks/useUsers';
 
 // ============================================================================
 // Constants
@@ -122,7 +123,7 @@ export function ReportsPage() {
   const { user } = useAuth();
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [users, setUsers] = useState<User[]>([]);
+  const activeUsers = useActiveUsers();
 
   // Filters
   const [dateRange, setDateRange] = useState('30');
@@ -141,27 +142,9 @@ export function ReportsPage() {
 
   // Sorted active users (current user first)
   const sortedActiveUsers = useMemo(() => {
-    return [...users]
-      .filter(u => u.active)
-      .sort((a, b) => {
-        if (a.id === user?.id) return -1;
-        if (b.id === user?.id) return 1;
-        return a.name.localeCompare(b.name);
-      });
-  }, [users, user?.id]);
-
-  // Load users on mount
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const data = await usersApi.getAll();
-        setUsers(data);
-      } catch (error) {
-        console.error('Failed to load users:', error);
-      }
-    };
-    loadUsers();
-  }, []);
+    // Already sorted by name: move yourself to the top
+    return [...activeUsers].sort((a, b) => Number(b.id === user?.id) - Number(a.id === user?.id));
+  }, [activeUsers, user?.id]);
 
   // Load report data when filters change
   useEffect(() => {

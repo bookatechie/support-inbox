@@ -219,14 +219,18 @@ export interface CreateTicketRequest {
   assignee_email?: string;
 }
 
+/** A file stored by POST /upload, waiting to be attached to a reply */
+export interface UploadedFile {
+  filename: string;
+  filePath: string;
+  size: number;
+  mimeType: string;
+}
+
 export interface ReplyToTicketRequest {
   body: string;
   type?: MessageType;
-  uploadedFiles?: Array<{
-    filename: string;
-    filePath: string;
-    size: number;
-    mimeType: string;
+  uploadedFiles?: Array<UploadedFile & {
     cid?: string; // Content-ID for inline images
   }>;
   to_emails?: string[]; // Additional To recipients
