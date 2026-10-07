@@ -24,6 +24,9 @@ export function CustomerInfo({
   isLoadingAdditionalInfo,
   additionalInfoError,
 }: CustomerInfoProps) {
+  // The count includes the ticket being viewed
+  const previousCount = Math.max(0, (customerTicketCount ?? 0) - 1);
+
   const handleCopyEmail = async () => {
     try {
       await navigator.clipboard.writeText(customerEmail);
@@ -49,12 +52,16 @@ export function CustomerInfo({
         </button>
       </div>
       <div>
-        <Link
-          to={`/search?query=${encodeURIComponent(customerEmail)}`}
-          className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-        >
-          {customerTicketCount || 0} previous conversation{customerTicketCount !== 1 ? 's' : ''}
-        </Link>
+        {previousCount > 0 ? (
+          <Link
+            to={`/search?query=${encodeURIComponent(customerEmail)}`}
+            className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            {previousCount} previous conversation{previousCount !== 1 ? 's' : ''}
+          </Link>
+        ) : (
+          <span className="text-sm text-muted-foreground">No previous conversations</span>
+        )}
       </div>
 
       {/* Additional Customer Information from Webhook */}

@@ -298,8 +298,9 @@ export const ticketQueries = {
 
 
   async countByCustomerEmail(email: string): Promise<number> {
-    const result = await queryOne<{ count: number }>('SELECT COUNT(*) as count FROM tickets WHERE customer_email = $1', [email]);
-    return result?.count || 0;
+    const result = await queryOne<{ count: string }>('SELECT COUNT(*) as count FROM tickets WHERE customer_email = $1', [email]);
+    // COUNT(*) is bigint, which pg returns as a string
+    return Number(result?.count ?? 0);
   },
 
   async delete(id: number): Promise<void> {

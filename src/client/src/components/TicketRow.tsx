@@ -18,6 +18,8 @@ interface TicketRowProps {
 // One ticket in a list (inbox, search). Left: customer, badges, subject, meta. Right: last message.
 export function TicketRow({ ticket, assigneeName, avatar, onOpen, className = '' }: TicketRowProps) {
   const preview = ticket.last_message_preview?.replace(/<[^>]*>/g, '').trim();
+  // The server cuts previews at 250 characters; only mark the ones that were cut
+  const isCut = (ticket.last_message_preview?.length ?? 0) >= 250;
 
   return (
     <Card className={`hover:bg-accent/50 transition-colors ${className}`}>
@@ -63,7 +65,7 @@ export function TicketRow({ ticket, assigneeName, avatar, onOpen, className = ''
               </div>
             )}
             {preview ? (
-              <div className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{preview}...</div>
+              <div className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{preview}{isCut && '…'}</div>
             ) : (
               <div className="text-xs sm:text-sm text-muted-foreground/50 italic">No messages yet</div>
             )}
