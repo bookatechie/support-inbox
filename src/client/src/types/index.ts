@@ -371,6 +371,8 @@ export interface PaginationInfo {
   hasMore: boolean;
   nextOffset: number | null;
   total: number;
+  /** total is only a lower bound: a common search term, listed newest-first without a full count */
+  totalCapped?: boolean;
 }
 
 export interface PaginatedTicketsResponse {

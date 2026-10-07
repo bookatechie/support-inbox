@@ -37,6 +37,7 @@ export function SearchPage() {
   const [hasMore, setHasMore] = useState(false);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [totalCapped, setTotalCapped] = useState(false);
   const { data: users = [] } = useUsers();
   const activeUsers = useActiveUsers();
   const { data: tags = [] } = useTags();
@@ -148,6 +149,7 @@ export function SearchPage() {
       setHasMore(response.pagination.hasMore);
       setNextOffset(response.pagination.nextOffset);
       setTotalCount(response.pagination.total);
+      setTotalCapped(!!response.pagination.totalCapped);
 
       // Save to recent searches (only on initial search, not load more)
       if (!isLoadingMore) {
@@ -339,7 +341,7 @@ export function SearchPage() {
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 {isSearching && <Loader2 className="h-5 w-5 animate-spin" />}
                 {isSearching ? 'Searching...' : totalCount > 0
-                  ? `Showing ${formatNumber(tickets.length)} of ${formatNumber(totalCount)} result${totalCount !== 1 ? 's' : ''}`
+                  ? `Showing ${formatNumber(tickets.length)} of ${formatNumber(totalCount)}${totalCapped ? '+' : ''} result${totalCount !== 1 ? 's' : ''}`
                   : `${formatNumber(tickets.length)} result${tickets.length !== 1 ? 's' : ''} found`
                 }
               </h2>

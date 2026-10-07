@@ -349,7 +349,7 @@ export default async function routes(fastify: FastifyInstance) {
     const searchTerm = search?.trim() || '';
     const queryStartTime = Date.now();
 
-    const tickets = await ticketQueries.searchWithFilters(searchTerm, {
+    const { tickets, total: totalCount, totalCapped, hasMore } = await ticketQueries.searchWithFilters(searchTerm, {
       status: filters.statuses,
       assigneeId: filters.assigneeId,
       customerEmail: filters.customerEmail,
@@ -361,9 +361,6 @@ export default async function routes(fastify: FastifyInstance) {
     });
 
     const queryDuration = Date.now() - queryStartTime;
-
-    // Get total count from first result (window function embeds it in each row)
-    const totalCount = tickets.length > 0 ? tickets[0].total_count : 0;
 
     // Load tags and normalize timestamps
     await attachTagsToTickets(tickets);
@@ -378,18 +375,18 @@ export default async function routes(fastify: FastifyInstance) {
         searchTerm: searchTerm || undefined,
         filters,
         resultCount: tickets.length,
-        totalCount
+        totalCount,
+        totalCapped
       }, `Slow ${queryType} query detected`);
     } else {
       request.log.info({
         duration: queryDuration,
         query: queryType,
         resultCount: tickets.length,
-        totalCount
+        totalCount,
+        totalCapped
       }, `${queryType} query completed`);
     }
-
-    const hasMore = pageOffset + pageLimit < totalCount;
 
     return reply.send({
       tickets,
@@ -397,6 +394,9 @@ export default async function routes(fastify: FastifyInstance) {
         hasMore,
         nextOffset: hasMore ? pageOffset + pageLimit : null,
         total: totalCount,
+        // Common search terms are listed newest-first without counting every match:
+        // total is then only a lower bound ("1,000+")
+        totalCapped,
       },
     });
   });

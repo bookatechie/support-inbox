@@ -174,6 +174,17 @@ export interface CustomerAggregateFacet {
   exclude_tag?: string;
 }
 
+// Search: at this many raw matches a term counts as common and is walked newest-first
+const SEARCH_EXACT_CAP = 1000;
+
+/** One page of the ticket list; totalCapped means total is only a lower bound */
+export interface TicketListPage {
+  tickets: (Ticket & { message_count: number; last_message_preview: string | null; attachment_count: number; last_message_sender_email: string | null; last_message_sender_name: string | null; last_message_at: string | null })[];
+  total: number;
+  totalCapped: boolean;
+  hasMore: boolean;
+}
+
 /**
  * The outer SELECT shared by the ticket list queries (inbox filters and search): takes a
  * `paginated_tickets` CTE (one page of tickets) and adds message count, last message
@@ -318,6 +329,19 @@ export const ticketQueries = {
     return [];
   },
 
+  /**
+   * Ticket list for the inbox (no search term) and search, newest activity first.
+   *
+   * Search picks a strategy by how common the term is (measured on production, 2026-10-07):
+   * - A cheap probe collects up to SEARCH_EXACT_CAP raw matches. Under the cap the term is rare:
+   *   collect every match, sort, and return an exact total (an email address: ~0.1 s).
+   * - At the cap the term is common: walk tickets newest-first and stop once the page is full
+   *   ("refund", 15k tickets: 25 s -> 0.8 s; "gmail.com", 170k: timeout -> 0.4 s). The total is
+   *   then only known to be at least the cap (totalCapped).
+   * - Matching uses the full-text indexes, addresses, subject, ticket id, Message-ID and tag names.
+   *   A substring match on message bodies (the slowest part: 11-16 s for a common word, and it
+   *   added 0.2% more tickets) runs only when nothing else matched.
+   */
   async searchWithFilters(
     searchTerm: string,
     options: {
@@ -330,146 +354,155 @@ export const ticketQueries = {
       offset?: number;
       sortOrder?: 'asc' | 'desc';
     }
-  ): Promise<(Ticket & { message_count: number; last_message_preview: string | null; attachment_count: number; last_message_sender_email: string | null; last_message_sender_name: string | null; last_message_at: string | null; total_count: number })[]> {
-    const { status, assigneeId, customerEmail, tagId, followUp, limit = 50, offset = 0, sortOrder = 'desc' } = options;
+  ): Promise<TicketListPage> {
+    const { status, assigneeId, customerEmail, tagId, limit = 50, offset = 0, sortOrder = 'desc' } = options;
 
-    // Build WHERE clause for filters
-    const whereClauses: string[] = [];
-    const params: any[] = [];
-    let paramIndex = 1;
+    // No search term: plain filtered list
+    if (!searchTerm) {
+      const tickets = await getTicketsFiltered(options);
+      const total = tickets.length > 0 ? Number(tickets[0].total_count) : 0;
+      return { tickets, total, totalCapped: false, hasMore: offset + limit < total };
+    }
 
-    // Build JOIN clause for tag filtering
+    // Values by name; each query is written with {{name}} and numbered by bind(), which passes
+    // only the values that query uses (Postgres rejects parameters a query never references)
+    const ticketIdNum = parseInt(searchTerm, 10);
+    const isNumericSearch = !isNaN(ticketIdNum) && ticketIdNum.toString() === searchTerm && ticketIdNum <= 2147483647;
+    const values: Record<string, unknown> = {
+      term: searchTerm,
+      pattern: `%${searchTerm}%`,
+      ticketId: isNumericSearch ? ticketIdNum : 0, // 0 = not a ticket id
+      limit,
+      walkLimit: limit + 1,
+      offset,
+    };
+
+    // Filters over tickets (+ tag join)
+    const filters: string[] = [];
     let tagJoin = '';
     if (tagId !== undefined) {
       tagJoin = 'INNER JOIN ticket_tags ON tickets.id = ticket_tags.ticket_id';
-      whereClauses.push(`ticket_tags.tag_id = $${paramIndex++}`);
-      params.push(tagId);
+      filters.push('ticket_tags.tag_id = {{tagId}}');
+      values.tagId = tagId;
     }
-
     if (status && status.length > 0) {
-      whereClauses.push(`tickets.status = ANY($${paramIndex++})`);
-      params.push(status);
+      filters.push('tickets.status = ANY({{status}})');
+      values.status = status;
     }
-
     if (assigneeId !== undefined) {
       if (assigneeId === null) {
-        whereClauses.push('tickets.assignee_id IS NULL');
+        filters.push('tickets.assignee_id IS NULL');
       } else {
-        whereClauses.push(`tickets.assignee_id = $${paramIndex++}`);
-        params.push(assigneeId);
+        filters.push('tickets.assignee_id = {{assigneeId}}');
+        values.assigneeId = assigneeId;
       }
     }
-
     if (customerEmail) {
-      whereClauses.push(`tickets.customer_email = $${paramIndex++}`);
-      params.push(customerEmail);
+      filters.push('tickets.customer_email = {{customerEmail}}');
+      values.customerEmail = customerEmail;
     }
-
-    const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const filterWhere = filters.map((f) => `AND ${f}`).join(' ');
     const sortDirection = sortOrder === 'asc' ? 'ASC' : 'DESC';
 
-    // Empty search term - return all tickets matching filters
-    if (!searchTerm) {
-      // No search term: plain filtered list
-      return getTicketsFiltered(options);
+    const bind = (sql: string): [string, unknown[]] => {
+      const names: string[] = [];
+      const text = sql.replace(/\{\{(\w+)\}\}/g, (_, name: string) => {
+        if (!names.includes(name)) names.push(name);
+        return `$${names.indexOf(name) + 1}`;
+      });
+      return [text, names.map((name) => values[name])];
+    };
+    const tsq = "plainto_tsquery('english', {{term}})";
+
+    // Every way a ticket can match, each a list of ticket ids (the body substring match is separate)
+    const matchSources = [
+      'SELECT id FROM tickets WHERE id = {{ticketId}} AND {{ticketId}} != 0',
+      `SELECT id FROM tickets WHERE search_vector @@ ${tsq}`,
+      `SELECT ticket_id FROM messages WHERE search_vector @@ ${tsq}`,
+      'SELECT id FROM tickets WHERE customer_email ILIKE {{pattern}} OR subject ILIKE {{pattern}}',
+      // Message-ID: exact match (with or without <>) via its btree index
+      "SELECT id FROM tickets WHERE message_id = {{term}} OR message_id = '<' || {{term}} || '>'",
+      'SELECT ticket_id FROM messages WHERE sender_email ILIKE {{pattern}} OR to_emails ILIKE {{pattern}} OR cc_emails ILIKE {{pattern}}',
+      'SELECT ticket_tags.ticket_id FROM tags JOIN ticket_tags ON tags.id = ticket_tags.tag_id WHERE tags.name ILIKE {{pattern}}',
+    ];
+    const bodySource = 'SELECT ticket_id AS id FROM messages WHERE body ILIKE {{pattern}}';
+
+    // Probe: UNION ALL streams, so LIMIT stops it early for a common term (15-330 ms on prod).
+    // Duplicates count too, which at worst sends a borderline term down the walk.
+    const probe = await queryOne<{ hits: number }>(...bind(`
+      SELECT COUNT(*)::int AS hits FROM (
+        SELECT 1 FROM (${matchSources.join('\n UNION ALL ')}) s LIMIT ${SEARCH_EXACT_CAP}
+      ) capped
+    `));
+
+    if ((probe?.hits ?? 0) >= SEARCH_EXACT_CAP) {
+      // Common term: walk newest-first and stop at the page (+1 row to know whether there is more)
+      const rows = await query<any>(...bind(`
+        WITH paginated_tickets AS (
+          SELECT ${TICKET_COLUMNS}
+          FROM tickets
+          ${tagJoin}
+          WHERE (
+            tickets.id = {{ticketId}}
+            OR tickets.search_vector @@ ${tsq}
+            OR tickets.customer_email ILIKE {{pattern}} OR tickets.subject ILIKE {{pattern}}
+            OR tickets.message_id = {{term}} OR tickets.message_id = '<' || {{term}} || '>'
+            -- Postgres runs these as one up-front lookup of matching ids, not per ticket: per-ticket
+            -- checks (forced with OFFSET 0) won for the commonest words but timed out on mid-frequency
+            -- ones like "paypal", whose matches go back months
+            OR EXISTS (
+              SELECT 1 FROM messages
+              WHERE messages.ticket_id = tickets.id
+                AND (messages.search_vector @@ ${tsq} OR messages.sender_email ILIKE {{pattern}}
+                     OR messages.to_emails ILIKE {{pattern}} OR messages.cc_emails ILIKE {{pattern}})
+            )
+            OR EXISTS (
+              SELECT 1 FROM ticket_tags tt JOIN tags ON tags.id = tt.tag_id
+              WHERE tt.ticket_id = tickets.id AND tags.name ILIKE {{pattern}}
+            )
+          ) ${filterWhere}
+          ORDER BY COALESCE(tickets.last_message_at, tickets.created_at) ${sortDirection}, tickets.id ${sortDirection}
+          LIMIT {{walkLimit}} OFFSET {{offset}}
+        )
+        ${ticketListStatsSql(sortDirection)}
+      `));
+      const tickets = rows.slice(0, limit);
+      const hasMore = rows.length > limit;
+      // Reached the end (e.g. filters narrowed it down): the count is exact after all
+      if (!hasMore) return { tickets, total: offset + tickets.length, totalCapped: false, hasMore };
+      return { tickets, total: Math.max(SEARCH_EXACT_CAP, offset + tickets.length), totalCapped: true, hasMore };
     }
 
-    // Check if search term is a number (ticket ID search)
-    // Must be within PostgreSQL INTEGER range (max 2,147,483,647)
-    const ticketIdNum = parseInt(searchTerm, 10);
-    const isNumericSearch = !isNaN(ticketIdNum) && ticketIdNum.toString() === searchTerm && ticketIdNum <= 2147483647;
-
-    // Simplified PostgreSQL full-text search with 3 strategies:
-    // 1. Exact ticket ID match (highest priority)
-    // 2. Full-text search via tsvector (tickets + messages combined)
-    // 3. Fallback ILIKE search (emails, tags, message-IDs)
-    const searchQueryText = `
-      WITH search_tickets_raw AS (
-        -- Strategy 1: Direct ticket ID match (rank: 100)
-        SELECT id, 100 as rank FROM tickets
-        WHERE id = $${paramIndex + 1} AND $${paramIndex + 1} != 0
-
-        UNION
-
-        -- Strategy 2: Full-text search across tickets and messages (rank: 90). No ts_rank:
-        -- results are ordered by last activity, and ranking every match was the costliest part
-        SELECT DISTINCT ticket_id as id, 90 as rank
-        FROM (
-          SELECT id as ticket_id, search_vector FROM tickets
-          UNION ALL
-          SELECT ticket_id, search_vector FROM messages
-        ) combined_search
-        WHERE search_vector @@ plainto_tsquery('english', $${paramIndex})
-
-        UNION
-
-        -- Strategy 3: Fallback pattern matching for emails, subject, tags, message-IDs (rank: 50-70)
-        SELECT DISTINCT id, 70 as rank FROM tickets
-        WHERE customer_email ILIKE $${paramIndex + 2} OR subject ILIKE $${paramIndex + 2}
-
-        UNION
-
-        -- Message-ID: exact match (with or without <>), via its btree index. A substring
-        -- ILIKE here scanned every ticket (~2 s on each search)
-        SELECT id, 70 as rank FROM tickets
-        WHERE message_id = $${paramIndex} OR message_id = '<' || $${paramIndex} || '>'
-
-        UNION
-
-        SELECT DISTINCT ticket_id as id, 65 as rank FROM messages
-        WHERE sender_email ILIKE $${paramIndex + 2}
-           OR to_emails ILIKE $${paramIndex + 2}
-           OR cc_emails ILIKE $${paramIndex + 2}
-
-        UNION
-
-        -- Strategy 4: Message body search (uses trigram index for fast ILIKE)
-        SELECT DISTINCT ticket_id as id, 60 as rank FROM messages
-        WHERE body ILIKE $${paramIndex + 2}
-
-        UNION
-
-        SELECT DISTINCT ticket_tags.ticket_id as id, 50 as rank
-        FROM tags
-        JOIN ticket_tags ON tags.id = ticket_tags.tag_id
-        WHERE tags.name ILIKE $${paramIndex + 2}
-      ),
-      search_tickets AS (
-        -- Deduplicate by ticket ID, taking the highest rank
-        SELECT id, MAX(rank) as rank
-        FROM search_tickets_raw
-        GROUP BY id
+    // Rare term: collect every match, sort, exact total
+    const exact = (sources: string[]) => query<any>(...bind(`
+      WITH search_tickets AS (
+        ${sources.join('\n UNION ')}
       ),
       filtered_tickets AS (
-        SELECT ${TICKET_COLUMNS}, search_tickets.rank
+        SELECT ${TICKET_COLUMNS}
         FROM tickets
         INNER JOIN search_tickets ON tickets.id = search_tickets.id
         ${tagJoin}
-        ${whereClause}
-      ),
-      total_count_cte AS (
-        SELECT COUNT(*) as total_count FROM filtered_tickets
+        WHERE TRUE ${filterWhere}
       ),
       paginated_tickets AS (
-        SELECT filtered_tickets.*, (SELECT total_count FROM total_count_cte) as total_count
+        SELECT filtered_tickets.*, (SELECT COUNT(*) FROM filtered_tickets) AS total_count
         FROM filtered_tickets
-        ORDER BY COALESCE(filtered_tickets.last_message_at, filtered_tickets.created_at) ${sortDirection}
-        LIMIT $${paramIndex + 3} OFFSET $${paramIndex + 4}
+        ORDER BY COALESCE(filtered_tickets.last_message_at, filtered_tickets.created_at) ${sortDirection}, filtered_tickets.id ${sortDirection}
+        LIMIT {{limit}} OFFSET {{offset}}
       )
       ${ticketListStatsSql(sortDirection)}
-    `;
+    `));
 
-    // Build params array
-    const searchParams = [
-      ...params,
-      searchTerm,                         // $paramIndex: FTS search term
-      isNumericSearch ? ticketIdNum : 0,  // $paramIndex+1: Ticket ID (0 if not numeric)
-      `%${searchTerm}%`,                  // $paramIndex+2: LIKE pattern for fallback searches
-      limit,                              // $paramIndex+3
-      offset                              // $paramIndex+4
-    ];
-
-    return query<any>(searchQueryText, searchParams);
+    // Nothing else matched: try a substring of message bodies ("refun", "cancel/refund"), on
+    // every page. Needs 3+ characters, the shortest pattern the body's trigram index can serve.
+    const bodyOnly = (probe?.hits ?? 0) === 0 && searchTerm.length >= 3;
+    // A long number (a ticket or order number) is rare in bodies, so also find the tickets that
+    // mention it, e.g. "re: ticket #623950" in a later thread
+    const withBody = isNumericSearch && searchTerm.length >= 5;
+    const tickets = await exact(bodyOnly ? [bodySource] : withBody ? [...matchSources, bodySource] : matchSources);
+    const total = tickets.length > 0 ? Number(tickets[0].total_count) : 0;
+    return { tickets, total, totalCapped: false, hasMore: offset + limit < total };
   },
 
 
