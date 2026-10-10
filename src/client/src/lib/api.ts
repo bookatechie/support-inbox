@@ -104,6 +104,12 @@ export const tickets = {
     return request<string[]>(`/tickets/customer-emails${params}`);
   },
 
+  // Clears the ticket's unread (bold) state in the inbox for the current user
+  markRead: (id: number) =>
+    request<void>(`/tickets/${id}/read`, {
+      method: 'POST',
+    }),
+
   // Presence tracking
   markAsViewing: (id: number) =>
     request<void>(`/tickets/${id}/viewing`, {

@@ -177,6 +177,7 @@ export function TicketDetailPage() {
     try {
       const data = await ticketsApi.getById(Number(id));
       setTicket(data);
+      ticketsApi.markRead(data.id).catch(() => {});
     } catch (error) {
       console.error('Failed to load ticket:', error);
     } finally {
@@ -411,6 +412,9 @@ export function TicketDetailPage() {
       if (event.type === 'new-message') {
         const messageEvent = event as NewMessageEvent;
         if (messageEvent.data.ticketId === Number(id)) {
+          // Seen it live, so it shouldn't show as unread when going back to the inbox
+          ticketsApi.markRead(Number(id)).catch(() => {});
+
           // Add new message to the list (check for duplicates first)
           setTicket((prev) => {
             if (!prev) return prev;

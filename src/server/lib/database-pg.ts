@@ -1104,6 +1104,41 @@ export const ticketTagQueries = {
   },
 };
 
+export const ticketReadQueries = {
+  /** Record that a user has just opened (read) a ticket */
+  async markRead(ticketId: number, userId: number): Promise<void> {
+    await execute(
+      `INSERT INTO ticket_reads (user_id, ticket_id, last_read_at) VALUES ($1, $2, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id, ticket_id) DO UPDATE SET last_read_at = EXCLUDED.last_read_at`,
+      [userId, ticketId]
+    );
+  },
+
+  /**
+   * Of these tickets, the ones unread for this user: they have a customer email (type 'email',
+   * sender not one of ourAddresses) newer than the user's last read and their unread_since.
+   * GREATEST skips the NULL last_read_at of a never-opened ticket.
+   */
+  async getUnreadTicketIds(ticketIds: number[], userId: number, ourAddresses: string[]): Promise<Set<number>> {
+    if (ticketIds.length === 0) return new Set();
+    const rows = await query<{ id: number }>(
+      `SELECT t.id
+       FROM unnest($1::int[]) AS t(id)
+       JOIN users u ON u.id = $2
+       LEFT JOIN ticket_reads r ON r.ticket_id = t.id AND r.user_id = $2
+       WHERE EXISTS (
+         SELECT 1 FROM messages m
+         WHERE m.ticket_id = t.id
+           AND m.type = 'email'
+           AND m.created_at > GREATEST(r.last_read_at, u.unread_since)
+           AND LOWER(TRIM(COALESCE(SUBSTRING(m.sender_email FROM '<([^>]+)>'), m.sender_email))) <> ALL($3::text[])
+       )`,
+      [ticketIds, userId, ourAddresses]
+    );
+    return new Set(rows.map(r => r.id));
+  },
+};
+
 export const ticketHistoryQueries = {
   /**
    * Create a new history entry

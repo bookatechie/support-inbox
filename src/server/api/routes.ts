@@ -22,6 +22,7 @@ import {
   tagQueries,
   ticketTagQueries,
   ticketHistoryQueries,
+  ticketReadQueries,
   type CustomerAggregateFacet,
   DEFAULT_ADMIN_USER_ID,
 } from '../lib/database-pg.js';
@@ -32,6 +33,7 @@ import {
   replyToTicket,
   getTicketWithMessages,
   getTicketStats,
+  getOurAddresses,
   setLogger,
 } from '../lib/ticket.js';
 import { checkEmailsNow } from '../workers/email-daemon.js';
@@ -146,6 +148,20 @@ function toISOString(timestamp: string | Date | null): string | null {
   // Convert to ISO format: "2025-11-20T14:38:08.192Z"
   // Replace space with 'T' and append 'Z' to indicate UTC
   return timestamp.replace(' ', 'T') + 'Z';
+}
+
+/**
+ * Mark which tickets have a customer email this user hasn't seen yet (is_unread), for the
+ * bold rows in the inbox and search
+ */
+async function attachUnreadToTickets(tickets: any[], userId: number) {
+  if (tickets.length === 0) return;
+  const unread = await ticketReadQueries.getUnreadTicketIds(
+    tickets.map(t => t.id),
+    userId,
+    [...await getOurAddresses()]
+  );
+  for (const ticket of tickets) ticket.is_unread = unread.has(ticket.id);
 }
 
 /**
@@ -362,8 +378,8 @@ export default async function routes(fastify: FastifyInstance) {
 
     const queryDuration = Date.now() - queryStartTime;
 
-    // Load tags and normalize timestamps
-    await attachTagsToTickets(tickets);
+    // Load tags and unread state, normalize timestamps
+    await Promise.all([attachTagsToTickets(tickets), attachUnreadToTickets(tickets, request.user!.id)]);
     normalizeTimestamps(tickets);
 
     // Log performance
@@ -999,6 +1015,26 @@ export default async function routes(fastify: FastifyInstance) {
       userName: user.name,
     });
 
+    return reply.send({ success: true });
+  });
+
+  /**
+   * POST /tickets/:id/read
+   * Mark the ticket read for the current user (clears its bold row in the inbox). The ticket
+   * page calls this when it opens and when a new message arrives while it's open; API-key
+   * automations don't, so they never mark tickets read for anyone.
+   */
+  fastify.post<{ Params: { id: string } }>('/tickets/:id/read', {
+    onRequest: [fastify.authenticate],
+  }, async (request, reply) => {
+    const ticketId = parseInt(request.params.id);
+    if (isNaN(ticketId)) {
+      return reply.status(400).send({ error: 'Invalid ticket ID' });
+    }
+    if (!(await getTicketById(ticketId))) {
+      return reply.status(404).send({ error: 'Ticket not found' });
+    }
+    await ticketReadQueries.markRead(ticketId, request.user!.id);
     return reply.send({ success: true });
   });
 

@@ -1042,7 +1042,7 @@ const addressOf = (value: string) => (value.match(/<([^>]+)>/)?.[1] ?? value).tr
  * Our own addresses: the support mailbox (SMTP_FROM, SMTP_USER, IMAP_USER) and every user's
  * login and agent email. A message from one of these was sent by us, not by the customer.
  */
-async function getOurAddresses(): Promise<Set<string>> {
+export async function getOurAddresses(): Promise<Set<string>> {
   const users = await userQueries.getAll();
   return new Set(
     [config.smtp.from, config.smtp.user, config.imap.user, ...users.flatMap(u => [u.email, u.agent_email])]

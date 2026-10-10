@@ -89,6 +89,8 @@ export interface Ticket {
   last_message_preview: string | null;
   attachment_count: number;
   tags?: Tag[];
+  /** A customer email arrived that the current user hasn't opened yet (inbox and search lists) */
+  is_unread?: boolean;
 }
 
 export interface EmailMetadata {

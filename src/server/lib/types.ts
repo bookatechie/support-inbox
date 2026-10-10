@@ -77,6 +77,7 @@ export interface User {
   ai_profile: string | null;
   active: boolean; // PostgreSQL: true = active, false = inactive
   created_at: string;
+  unread_since: string; // Customer emails older than this never count as unread for this user
 }
 
 export interface CannedResponse {
@@ -232,7 +233,7 @@ export interface MessageWithAttachments extends Message {
 }
 
 // Safe user type (without password_hash)
-export type UserSafe = Omit<User, 'password_hash'>;
+export type UserSafe = Omit<User, 'password_hash' | 'unread_since'>;
 
 // API Request/Response Types
 export interface CreateTicketRequest {
