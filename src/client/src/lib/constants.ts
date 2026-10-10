@@ -6,23 +6,26 @@
 import type { TicketStatus, TicketPriority } from '@/types';
 
 /**
- * Status badge colors
+ * Status badge colors: tinted background + dark text of the same hue (readable at badge size).
+ * Hue follows urgency, Zendesk-style: needs action = warm, waiting on the customer = calm blue,
+ * done = grey.
  */
 export const STATUS_COLORS: Record<TicketStatus, string> = {
-  new: 'bg-blue-500',
-  open: 'bg-yellow-500',
-  awaiting_customer: 'bg-orange-500',
-  resolved: 'bg-green-500',
+  new: 'bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300',
+  open: 'bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300',
+  awaiting_customer: 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300',
+  resolved: 'bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-400',
 } as const;
 
 /**
- * Priority badge colors
+ * Priority text colors. Priority is an outlined badge with an icon, so it never reads as a status;
+ * only Urgent gets a color of its own.
  */
 export const PRIORITY_COLORS: Record<TicketPriority, string> = {
-  low: 'bg-gray-500',
-  normal: 'bg-blue-500',
-  high: 'bg-orange-500',
-  urgent: 'bg-red-500',
+  low: 'text-muted-foreground',
+  normal: 'text-muted-foreground',
+  high: 'text-foreground',
+  urgent: 'text-red-700 border-red-300 dark:text-red-400 dark:border-red-500/40',
 } as const;
 
 /**
