@@ -40,6 +40,8 @@ Support Inbox is a modern, lightweight email-based customer support system with 
 - **Types**: Server types in `src/server/lib/types.ts`, client types in `src/client/src/types/index.ts`
 - **UI Components**: shadcn/ui components in `src/client/src/components/ui/`
 - **Process Flows**: [`FLOW.md`](FLOW.md) - Mermaid diagrams of all system flows (email ingestion, replies, webhooks, SSE, status transitions, threading, etc.)
+- **Workflows & Routing Rules**: [`ROUTING_RULES.md`](ROUTING_RULES.md) - step-by-step workflows, rule conditions/actions, assignment logic
+- **Migrations**: `migrations/NNN_*.sql` - the database schema and every change to it
 
 ## Development Commands
 
@@ -74,11 +76,14 @@ npm run clean            # Remove dist directory
 
 | File | Purpose |
 |------|---------|
-| `src/server/api/routes.ts` | All REST API endpoints (~1700 lines) |
-| `src/server/lib/database-pg.ts` | Database schema, queries, and migrations |
+| `src/server/api/routes.ts` | All REST API endpoints (~2100 lines), registered under `/api` |
+| `src/server/lib/database-pg.ts` | Queries grouped per table (`ticketQueries`, `messageQueries`, …), filtered ticket lists and search |
 | `src/server/lib/ticket.ts` | Core ticket operations (create, reply, update) |
 | `src/server/lib/config.ts` | Environment variable loading and validation |
 | `src/server/workers/email-daemon.ts` | IMAP polling for incoming emails |
+| `src/server/workers/scheduled-email-worker.ts` | Sends scheduled replies when due |
+| `src/server/lib/rules-engine.ts` | Routing rules: evaluates conditions on new tickets, applies actions |
+| `src/server/lib/rule-webhook.ts` | Webhook actions fired by routing rules |
 | `src/server/lib/email-sender.ts` | SMTP email sending |
 | `src/server/lib/webhook.ts` | Outgoing webhook notifications |
 | `src/server/lib/errors.ts` | Custom error classes |
@@ -92,10 +97,14 @@ npm run clean            # Remove dist directory
 | `src/client/src/components/RichTextEditor.tsx` | TipTap-based rich text editor |
 | `src/client/src/hooks/useSSE.ts` | Real-time updates via SSE |
 | `src/client/src/lib/api.ts` | API client with all endpoints |
+| `src/client/src/index.css` | Theme tokens (light/dark CSS variables) |
+| `src/client/src/lib/constants.ts` | Status/priority colors and labels |
+| `src/client/src/components/TicketBadges.tsx` | Status, priority and tag badges used on every screen |
+| `src/client/src/components/TicketRow.tsx` | Ticket row shared by the inbox and search |
 
 ## Database Schema
 
-The PostgreSQL schema is defined in `src/server/lib/database-pg.ts`. Key tables:
+The PostgreSQL schema lives in `migrations/` (`001_initial_schema.sql` plus numbered changes). The server does not run migrations; apply new ones by hand (e.g. `psql -f migrations/NNN_….sql`) before deploying code that needs them. Key tables:
 
 - **tickets**: Support tickets with status, priority, assignee
 - **messages**: Threaded messages (customer, agent, internal notes)
@@ -105,6 +114,8 @@ The PostgreSQL schema is defined in `src/server/lib/database-pg.ts`. Key tables:
 - **canned_responses**: Template responses
 - **drafts**: Auto-saved reply drafts
 - **email_opens**: Email open tracking
+- **ticket_history**: Audit trail of ticket changes (agents, routing rules, system)
+- **routing_rules**: Ordered rules with condition groups and actions
 
 ## Process Flow Diagrams
 
@@ -114,8 +125,8 @@ For detailed Mermaid diagrams of all system flows (email processing, agent repli
 
 ### Incoming Messages (Customer → Support)
 1. Customer sends email to your support address (e.g., `support@yourcompany.com`)
-2. Support Inbox polls your email via IMAP every 30 seconds
-3. New emails automatically become tickets in the system
+2. Support Inbox polls your email via IMAP every minute (`IMAP_POLL_INTERVAL`, in minutes)
+3. New emails automatically become tickets in the system; routing rules then run on them (assign, prioritize, tag, resolve, webhooks)
 4. Replies to existing tickets add messages to the conversation thread
 5. Attachments are uploaded to S3/local storage and linked to messages
 6. Team members see new tickets instantly via real-time updates
@@ -145,14 +156,25 @@ INTERNAL_API_KEY=sk_internal_your-secure-random-key
 
 ## REST API Endpoints
 
+All routes are under `/api`. Main ones:
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/tickets` | List tickets with filters |
-| `POST` | `/tickets` | Create new ticket |
-| `GET` | `/tickets/:id` | Get ticket details |
-| `PATCH` | `/tickets/:id` | Update ticket (status, priority, assignee) |
-| `POST` | `/tickets/:id/reply` | Send reply to customer |
-| `POST` | `/tickets/:id/internal-note` | Add internal note |
+| `GET` | `/api/tickets` | List tickets with filters and search |
+| `POST` | `/api/tickets` | Create new ticket |
+| `GET` | `/api/tickets/:id` | Get ticket with messages |
+| `PATCH` | `/api/tickets/:id` | Update ticket (status, priority, assignee, follow-up) |
+| `POST` | `/api/tickets/bulk-update` | Update several tickets |
+| `POST` | `/api/tickets/:id/reply` | Reply to customer; `type: "note"` adds an internal note |
+| `GET` | `/api/tickets/:id/history` | Ticket change history |
+| `GET/POST/DELETE` | `/api/tickets/:id/draft` | Auto-saved reply draft |
+| `GET/POST/DELETE` | `/api/tickets/:id/tags` | Ticket tags |
+| `GET` | `/api/tickets/stats`, `/api/tickets/reports`, `/api/tickets/calendar` | Counts, reports, follow-up calendar |
+| `GET/POST/PATCH/DELETE` | `/api/routing-rules[/:id]` | Routing rules (`POST /api/routing-rules/dry-run` to test) |
+| `GET/POST/PATCH/DELETE` | `/api/canned-responses[/:id]`, `/api/users[/:id]`, `/api/tags[/:id]` | Admin data |
+| `GET` | `/api/events` | SSE stream |
+
+See `src/server/api/routes.ts` for the rest (messages, attachments, uploads, tracking, AI response, customer info).
 
 ## Webhook Events
 
@@ -247,6 +269,9 @@ The default admin account is created automatically when the database is empty.
 
 - **shadcn/ui components** in `src/client/src/components/ui/`
 - **Use Tailwind CSS** utility classes, avoid custom CSS
+- **Use theme tokens, not raw palette colors**: `bg-card`, `text-muted-foreground`, `border-border`, `text-primary`, `text-destructive`, and the semantic families `success`, `warning`, `info`, `note` (internal notes), each with `DEFAULT` (text), `-subtle` (background) and `-border`, e.g. `bg-warning-subtle text-warning border-warning-border`. They're defined in `index.css` for both light and dark mode. Raw colors are fine only for categorical palettes (avatars, editor text colors, charts)
+- **Status and priority**: render with `StatusBadge` / `PriorityBadge`; colors live in `STATUS_COLORS` / `PRIORITY_COLORS` in `lib/constants.ts`. Status hue follows urgency (New orange, Open red, Awaiting Customer blue, Resolved grey); priority is an outlined badge with an icon, colored only when Urgent
+- **Chrome stays near-neutral**: the brand violet (`primary`) is for primary actions, selection, focus and our-reply markers, not backgrounds or borders
 - **React Query** for server state management
 - **Use existing hooks** - Check `src/client/src/hooks/` before creating new ones
 
@@ -287,9 +312,9 @@ The default admin account is created automatically when the database is empty.
 
 ### Modifying the database schema
 
-1. Update schema in `initializeDatabase()` in `database-pg.ts`
-2. Add migration SQL in `migrations/` folder
-3. Update TypeScript types to match
+1. Add a numbered migration in `migrations/` (`NNN_description.sql`, wrapped in `BEGIN; … COMMIT;`)
+2. Apply it to the database by hand (it is not run on startup)
+3. Update queries in `database-pg.ts` and the TypeScript types to match
 
 ## Automation Use Cases
 

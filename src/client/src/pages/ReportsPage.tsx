@@ -47,16 +47,18 @@ const CHART_COLORS = {
   primary: '#8884d8',
   secondary: '#c084fc',
   status: {
-    new: '#a855f7',        // purple-500
-    open: '#d946ef',       // fuchsia-500
-    awaiting_customer: '#ec4899', // pink-500
-    resolved: '#7c3aed',   // violet-600
+    // Same hues as the status badges (lib/constants.ts STATUS_COLORS)
+    new: '#f97316',        // orange-500
+    open: '#ef4444',       // red-500
+    awaiting_customer: '#3b82f6', // blue-500
+    resolved: '#94a3b8',   // slate-400
   },
   priority: {
-    low: '#c4b5fd',        // violet-300
-    normal: '#8884d8',     // purple (primary)
-    high: '#d946ef',       // fuchsia-500
-    urgent: '#be185d',     // pink-700
+    // Greys rising with priority; only Urgent is colored, like the priority badge
+    low: '#cbd5e1',        // slate-300
+    normal: '#94a3b8',     // slate-400
+    high: '#475569',       // slate-600
+    urgent: '#dc2626',     // red-600
   },
   messageType: {
     email: '#8884d8',      // purple

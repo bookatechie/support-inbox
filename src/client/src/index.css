@@ -3,72 +3,89 @@
 @tailwind utilities;
 
 @layer base {
-  /* "Violet mist" neutrals: greys tinted toward the primary purple (Radix-style natural
-     pairing), muted text darker than before for contrast. */
+  /* Near-neutral chrome with only a hint of violet; the brand violet itself is kept for primary
+     actions, selection, focus rings and the "our reply" marker, so status colors stand out.
+     Semantic families (success/warning/info/note): DEFAULT = text/icon, subtle = background,
+     border = outline. */
   :root {
-    --background: 260 33% 97.6%;
-    --foreground: 252 35% 9%;
+    --background: 250 12% 98%;
+    --foreground: 250 15% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 252 35% 9%;
+    --card-foreground: 250 15% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 252 35% 9%;
+    --popover-foreground: 250 15% 9%;
     --primary: 262.1 83.3% 57.8%;
     --primary-foreground: 210 20% 98%;
-    --secondary: 258 30% 95.2%;
-    --secondary-foreground: 252 35% 12%;
-    --muted: 258 30% 95.2%;
-    --muted-foreground: 255 12% 38%;
-    --accent: 258 30% 95.2%;
-    --accent-foreground: 252 35% 12%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 258 24% 89%;
-    --input: 258 24% 89%;
+    --secondary: 250 10% 95.5%;
+    --secondary-foreground: 250 15% 12%;
+    --muted: 250 10% 95.5%;
+    --muted-foreground: 250 6% 38%;
+    --accent: 250 10% 95.5%;
+    --accent-foreground: 250 15% 12%;
+    --destructive: 0 72.2% 50.6%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 250 9% 89.5%;
+    --input: 250 9% 89.5%;
     --ring: 262.1 83.3% 57.8%;
-    /* App header bars (incl. the inbox filter bar): soft lavender, like a tinted sidebar */
-    --header: 259 40% 96%;
+    /* App header bars (incl. the inbox filter bar) */
+    --header: 250 12% 97%;
     /* Our own replies in a thread: faint purple tint + left rail (customer emails stay white) */
     --reply: 262 70% 98.4%;
     --reply-border: 262 45% 88%;
     --reply-rail: 262 70% 68%;
+    --success: 142 72% 29%;
+    --success-subtle: 138 76% 97%;
+    --success-border: 141 79% 85%;
+    --warning: 26 90% 37%;
+    --warning-subtle: 48 100% 96%;
+    --warning-border: 48 97% 77%;
+    --info: 224 76% 48%;
+    --info-subtle: 214 100% 97%;
+    --info-border: 213 97% 87%;
+    /* Internal notes: yellow paper */
+    --note: 32 81% 29%;
+    --note-subtle: 55 92% 95%;
+    --note-border: 53 98% 77%;
     --radius: 0.65rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
   }
 
-  /* Dark: ink-violet instead of flat grey, surfaces stepping up evenly (canvas < cards < muted) */
+  /* Dark: near-neutral ink, surfaces stepping up evenly (canvas < cards < muted) */
   .dark {
-    --background: 255 22% 8%;
-    --foreground: 250 25% 97%;
-    --card: 255 18% 11.5%;
-    --card-foreground: 250 25% 97%;
-    --popover: 255 18% 11.5%;
-    --popover-foreground: 250 25% 97%;
+    --background: 250 8% 8%;
+    --foreground: 250 10% 97%;
+    --card: 250 7% 11%;
+    --card-foreground: 250 10% 97%;
+    --popover: 250 7% 11%;
+    --popover-foreground: 250 10% 97%;
     --primary: 263.4 70% 50.4%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 255 16% 14.5%;
-    --secondary-foreground: 250 25% 97%;
-    --muted: 255 16% 14.5%;
-    --muted-foreground: 255 12% 71%;
-    --accent: 255 16% 16%;
-    --accent-foreground: 250 25% 97%;
-    --destructive: 0 62.8% 30.6%;
+    --secondary: 250 6% 14.5%;
+    --secondary-foreground: 250 10% 97%;
+    --muted: 250 6% 14.5%;
+    --muted-foreground: 250 6% 70%;
+    --accent: 250 6% 16%;
+    --accent-foreground: 250 10% 97%;
+    --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 255 14% 18.5%;
-    --input: 255 14% 20%;
+    --border: 250 6% 18.5%;
+    --input: 250 6% 20%;
     --ring: 263.4 70% 50.4%;
-    --header: 255 22% 10%;
+    --header: 250 8% 10%;
     --reply: 262 28% 14.5%;
     --reply-border: 262 22% 24%;
     --reply-rail: 262 60% 58%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --success: 142 69% 58%;
+    --success-subtle: 142 60% 12%;
+    --success-border: 142 50% 22%;
+    --warning: 43 96% 56%;
+    --warning-subtle: 35 60% 10%;
+    --warning-border: 35 60% 22%;
+    --info: 213 94% 68%;
+    --info-subtle: 220 50% 13%;
+    --info-border: 220 50% 25%;
+    --note: 53 98% 77%;
+    --note-subtle: 45 50% 10%;
+    --note-border: 45 55% 25%;
   }
 }
 

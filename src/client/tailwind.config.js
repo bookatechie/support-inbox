@@ -7,6 +7,9 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Inter Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
@@ -25,33 +28,11 @@ export default {
           '0%': { opacity: '0', transform: 'translateX(-10px)' },
           '100%': { opacity: '1', transform: 'translateX(0)' },
         },
-        'scale-in': {
-          '0%': { opacity: '0', transform: 'scale(0.95)' },
-          '100%': { opacity: '1', transform: 'scale(1)' },
-        },
-        'gradient-shift': {
-          '0%, 100%': { backgroundPosition: '0% 50%' },
-          '50%': { backgroundPosition: '100% 50%' },
-        },
-        'blob': {
-          '0%, 100%': {
-            transform: 'translate(0px, 0px) scale(1)',
-          },
-          '33%': {
-            transform: 'translate(150px, -150px) scale(1.3)',
-          },
-          '66%': {
-            transform: 'translate(-120px, 120px) scale(0.7)',
-          },
-        },
       },
       animation: {
         'fade-in': 'fade-in 0.2s ease-out',
         'fade-in-up': 'fade-in-up 0.3s ease-out',
         'slide-in-right': 'slide-in-right 0.2s ease-out',
-        'scale-in': 'scale-in 0.2s ease-out',
-        'gradient-shift': 'gradient-shift 15s ease infinite',
-        'blob': 'blob 10s ease-in-out infinite',
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -89,6 +70,26 @@ export default {
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))'
+        },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          subtle: 'hsl(var(--success-subtle))',
+          border: 'hsl(var(--success-border))'
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          subtle: 'hsl(var(--warning-subtle))',
+          border: 'hsl(var(--warning-border))'
+        },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          subtle: 'hsl(var(--info-subtle))',
+          border: 'hsl(var(--info-border))'
+        },
+        note: {
+          DEFAULT: 'hsl(var(--note))',
+          subtle: 'hsl(var(--note-subtle))',
+          border: 'hsl(var(--note-border))'
         },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',

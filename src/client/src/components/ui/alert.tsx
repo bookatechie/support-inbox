@@ -14,9 +14,9 @@ const alertVariants = cva(
       variant: {
         default: 'bg-background text-foreground',
         destructive: 'border-destructive/50 text-destructive bg-destructive/10',
-        warning: 'border-yellow-500/50 text-yellow-900 dark:text-yellow-100 bg-yellow-50 dark:bg-yellow-900/10',
-        info: 'border-blue-500/50 text-blue-900 dark:text-blue-100 bg-blue-50 dark:bg-blue-900/10',
-        success: 'border-green-500/50 text-green-900 dark:text-green-100 bg-green-50 dark:bg-green-900/10',
+        warning: 'border-warning-border text-warning bg-warning-subtle',
+        info: 'border-info-border text-info bg-info-subtle',
+        success: 'border-success-border text-success bg-success-subtle',
       },
     },
     defaultVariants: {

@@ -27,6 +27,7 @@ import { Loader2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Menu, Cal
 import { toast } from 'sonner';
 import { AppHeader } from '@/components/AppHeader';
 import { StatusBadge } from '@/components/TicketBadges';
+import { STATUS_COLORS } from '@/lib/constants';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { PageLoader } from '@/components/PageLoader';
@@ -47,13 +48,6 @@ const MONTHS = [
 const CALENDAR_GRID_SIZE = 42; // 6 rows × 7 days
 const MAX_VISIBLE_TICKETS_PER_DAY = 5;
 
-const CALENDAR_TICKET_COLORS = {
-  new: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200',
-  open: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200',
-  awaiting_customer: 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200',
-  resolved: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200',
-  default: 'bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-200',
-} as const;
 
 // Format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
 function formatDateString(date: Date): string {
@@ -435,7 +429,7 @@ export function CalendarPage() {
                         onClick={() => setSelectedDate(dateString === selectedDate ? null : dateString)}
                         className={`
                           min-h-[80px] p-1 rounded-md border text-left transition-colors flex flex-col
-                          ${isCurrentMonth ? 'bg-white dark:bg-zinc-900' : 'bg-muted/30 text-muted-foreground'}
+                          ${isCurrentMonth ? 'bg-card' : 'bg-muted/30 text-muted-foreground'}
                           ${isToday ? 'border-primary border-2' : 'border-border'}
                           ${isSelected ? 'ring-2 ring-primary ring-offset-2' : ''}
                           ${dayTickets.length > 0 ? 'cursor-pointer hover:bg-accent' : 'cursor-default'}
@@ -450,8 +444,7 @@ export function CalendarPage() {
                         {dayTickets.length > 0 && (
                           <div className="space-y-0.5 flex-1 overflow-hidden">
                             {dayTickets.slice(0, MAX_VISIBLE_TICKETS_PER_DAY).map(ticket => {
-                              const statusBg = CALENDAR_TICKET_COLORS[ticket.status as keyof typeof CALENDAR_TICKET_COLORS]
-                                || CALENDAR_TICKET_COLORS.default;
+                              const statusBg = STATUS_COLORS[ticket.status] || 'bg-muted text-muted-foreground';
 
                               return (
                                 <div
@@ -484,7 +477,7 @@ export function CalendarPage() {
                     follow-ups this month
                   </span>
                   <span>
-                    <span className="font-medium text-red-600">
+                    <span className="font-medium text-destructive">
                       {calendarStats.overdueCount}
                     </span>{' '}
                     overdue

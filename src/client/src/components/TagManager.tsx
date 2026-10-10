@@ -74,7 +74,7 @@ export function TagManager({ ticketId, showTags = true, showAddButton = true, ic
             onClick={() => setIsAdding(true)}
             className={iconOnly
               ? "inline-flex items-center justify-center h-10 w-10 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
-              : "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              : "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border border-input hover:bg-accent hover:text-accent-foreground transition-colors"
             }
             title={iconOnly ? "Add Tag" : undefined}
           >

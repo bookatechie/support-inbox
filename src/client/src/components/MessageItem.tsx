@@ -71,7 +71,7 @@ export function MessageItem({
             </Badge>
           ) : null}
           {message.type === 'note' ? (
-            <Badge className="text-xs bg-yellow-600 hover:bg-yellow-600 text-white">
+            <Badge className="text-xs border-note-border bg-note-subtle text-note hover:bg-note-subtle">
               Internal Note
             </Badge>
           ) : null}
@@ -81,7 +81,7 @@ export function MessageItem({
             </Badge>
           ) : null}
           {message.scheduled_at && !message.sent_at ? (
-            <Badge className="text-xs bg-blue-600 text-white flex items-center gap-1">
+            <Badge className="text-xs border-info-border bg-info-subtle text-info hover:bg-info-subtle flex items-center gap-1">
               <Clock className="h-3 w-3" />
               Scheduled: {formatAbsoluteDate(message.scheduled_at)}
             </Badge>
@@ -173,7 +173,7 @@ export function MessageItem({
               needsCardPadding
                 ? `p-4 ${
                     message.type === 'note'
-                      ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-700/60 dark:text-foreground [&_*]:dark:!text-inherit'
+                      ? 'bg-note-subtle border-note-border dark:text-foreground [&_*]:dark:!text-inherit'
                       : ''
                   }`
                 : 'p-0 overflow-hidden'
@@ -274,7 +274,7 @@ export function MessageItem({
 
         {/* Show read status for agent messages sent to customer */}
         {!isCustomer && message.type !== 'note' && message.first_opened_at && (
-          <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 mt-2">
+          <div className="text-xs text-success flex items-center gap-1 mt-2">
             <Eye className="h-3 w-3" />
             Read {formatRelativeTime(message.first_opened_at)}
           </div>

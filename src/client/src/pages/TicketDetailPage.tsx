@@ -1074,7 +1074,7 @@ export function TicketDetailPage() {
           <div className={isFloating ? "flex flex-col h-full min-h-0 gap-2" : "space-y-4"}>
             {/* Reply-to indicator when replying to a specific message */}
             {replyToMessageId && (
-              <div className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800 flex-shrink-0">
+              <div className="flex items-center gap-2 text-sm bg-info-subtle text-info px-3 py-2 rounded-md border border-info-border flex-shrink-0">
                 <Reply className="h-4 w-4 flex-shrink-0" />
                 <span className="flex-1 truncate">
                   Replying to {(() => {
@@ -1084,7 +1084,7 @@ export function TicketDetailPage() {
                 </span>
                 <button
                   onClick={() => setReplyToMessageId(null)}
-                  className="hover:text-blue-900 dark:hover:text-blue-100 p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                  className="p-1 rounded hover:bg-info/10"
                   title="Clear reply-to"
                 >
                   <X className="h-4 w-4" />
@@ -1171,8 +1171,8 @@ export function TicketDetailPage() {
                         </>
                       ) : (
                         <>
-                          <Save className="h-4 w-4 text-green-600" />
-                          <span className="text-green-600">Draft saved</span>
+                          <Save className="h-4 w-4 text-success" />
+                          <span className="text-success">Draft saved</span>
                         </>
                       )}
                     </div>
@@ -1273,7 +1273,7 @@ export function TicketDetailPage() {
 
             {/* Composing Indicator */}
             {composingUsers.length > 0 && (
-              <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-md border border-amber-200 dark:border-amber-900 flex-shrink-0">
+              <div className="flex items-center gap-2 text-sm text-warning bg-warning-subtle px-3 py-2 rounded-md border border-warning-border flex-shrink-0">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 <span>
                   {composingUsers.map((u) => u.name).join(', ')} {composingUsers.length === 1 ? 'is' : 'are'} composing a reply...
@@ -1288,7 +1288,7 @@ export function TicketDetailPage() {
                 onChange={setReplyContent}
                 placeholder="Type your reply here... (Press / for templates)"
                 disabled={isSending}
-                className={isInternal ? 'border-yellow-300 bg-yellow-50 dark:border-yellow-700/60 dark:bg-yellow-950/30' : ''}
+                className={isInternal ? 'border-note-border bg-note-subtle' : ''}
                 cannedResponses={cannedResponses}
                 variables={{
                   customer_name: ticket.customer_name || ticket.customer_email || 'Customer',

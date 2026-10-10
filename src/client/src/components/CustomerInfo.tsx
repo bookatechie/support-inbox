@@ -55,7 +55,7 @@ export function CustomerInfo({
         {previousCount > 0 ? (
           <Link
             to={`/search?query=${encodeURIComponent(customerEmail)}`}
-            className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+            className="text-sm text-primary hover:underline"
           >
             {previousCount} previous conversation{previousCount !== 1 ? 's' : ''}
           </Link>
@@ -75,7 +75,7 @@ export function CustomerInfo({
 
       {!isLoadingAdditionalInfo && additionalInfoError && (
         <div className="pt-3">
-          <p className="text-xs text-red-600">{additionalInfoError}</p>
+          <p className="text-xs text-destructive">{additionalInfoError}</p>
         </div>
       )}
 
