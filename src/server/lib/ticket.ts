@@ -700,6 +700,7 @@ export async function replyToTicket(
     if (emailMessageId) {
       await messageQueries.updateMessageId(emailMessageId, messageId);
     }
+    await messageQueries.markSent(messageId);
 
     // Update ticket status to resolved after team member reply
     await ticketQueries.updateStatus('resolved', ticketId);

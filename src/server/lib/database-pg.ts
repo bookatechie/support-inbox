@@ -800,6 +800,11 @@ export const messageQueries = {
     await execute('UPDATE messages SET message_id = $1 WHERE id = $2', [messageId, id]);
   },
 
+  /** Stamp an immediately sent reply; scheduled replies get sent_at via claimScheduledForSending */
+  async markSent(id: number): Promise<void> {
+    await execute('UPDATE messages SET sent_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+  },
+
   /**
    * Atomically claim a scheduled message for sending by setting sent_at. Returns false if it
    * was already sent/claimed or cancelled (deleted), so it's sent at most once.
