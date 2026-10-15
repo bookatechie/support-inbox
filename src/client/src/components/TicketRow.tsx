@@ -34,9 +34,6 @@ export function TicketRow({ ticket, assigneeName, avatar, onOpen, className = ''
             {avatar}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
-                {ticket.is_unread && (
-                  <span className="h-2 w-2 flex-shrink-0 rounded-full bg-primary" title="Unread customer reply" aria-label="Unread" />
-                )}
                 <span className={`${ticket.is_unread ? 'font-bold' : 'font-medium'} text-sm sm:text-base truncate`}>{ticket.customer_name || ticket.customer_email}</span>
                 <StatusBadge status={ticket.status} />
                 {ticket.priority !== 'normal' && <PriorityBadge priority={ticket.priority} />}
