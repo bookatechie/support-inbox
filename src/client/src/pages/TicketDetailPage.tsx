@@ -120,7 +120,7 @@ export function TicketDetailPage() {
   const [isLoadingCustomerInfo, setIsLoadingCustomerInfo] = useState(false);
   const [customerInfoError, setCustomerInfoError] = useState<string | null>(null);
   const [customerInfoDrawerOpen, setCustomerInfoDrawerOpen] = useState(false);
-  const customerPanel = useResizablePanel({
+  const customerPanel = useResizablePanel<HTMLDivElement>({
     storageKey: 'customerInfoPanelWidth',
     defaultWidth: 384,
     minWidth: 280,
@@ -1617,7 +1617,7 @@ export function TicketDetailPage() {
         {/* Left Panel: Messages Thread + Floating Composer */}
         <div className="flex-1 min-w-0 flex flex-col h-full">
           {/* Scrollable Messages Area */}
-          <div ref={messagesPanelRef} className={`flex-1 min-w-0 overflow-y-auto lg:overflow-hidden lg:hover:overflow-y-auto ${isResizing ? '[&_iframe]:pointer-events-none select-none' : ''}`}>
+          <div ref={messagesPanelRef} className={`flex-1 min-w-0 overflow-y-auto lg:overflow-hidden lg:hover:overflow-y-auto ${isResizing || customerPanel.isResizing ? '[&_iframe]:pointer-events-none select-none' : ''}`}>
             <div className="px-2 sm:px-4 pt-4 pb-6 space-y-4 sm:space-y-6">
 
           {/* Mobile: Subject and Details - At top of scrollable area */}
@@ -1739,7 +1739,8 @@ export function TicketDetailPage() {
 
         {/* Right Panel: Customer Info Sidebar - Scrollable */}
         <div
-          className="hidden lg:block relative shrink-0 border-l bg-background h-full"
+          ref={customerPanel.panelRef}
+          className={`hidden lg:block relative shrink-0 border-l bg-background h-full ${customerPanel.isResizing ? 'select-none' : ''}`}
           style={{ width: customerPanel.width }}
         >
           {/* Drag handle on the left edge; double-click resets the width */}

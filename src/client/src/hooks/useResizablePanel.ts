@@ -9,12 +9,14 @@ interface ResizablePanelOptions {
   maxWidth: number;
 }
 
-interface ResizablePanel {
+interface ResizablePanel<T extends HTMLElement> {
+  /** Attach to the panel whose width is controlled */
+  panelRef: React.RefObject<T | null>;
   width: number;
   isResizing: boolean;
   /** Attach to the drag handle on the panel's left edge */
   handleProps: {
-    onPointerDown: (e: React.PointerEvent) => void;
+    onPointerDown: (e: React.PointerEvent<HTMLElement>) => void;
     onDoubleClick: () => void;
     onKeyDown: (e: React.KeyboardEvent) => void;
   };
@@ -24,11 +26,20 @@ const KEYBOARD_STEP = 16;
 
 /**
  * Width state for a right-hand side panel that the user resizes by dragging its left edge.
- * The width is persisted to localStorage; double-clicking the handle resets it.
+ * Same approach as the composer resize: pointer capture keeps every move (and the release) on
+ * the handle even when the cursor is over an email iframe, and the panel's DOM width is set
+ * directly while dragging so the page doesn't re-render on every move. The width is committed
+ * to state and localStorage on release; double-clicking the handle resets it.
  */
-export function useResizablePanel({ storageKey, defaultWidth, minWidth, maxWidth }: ResizablePanelOptions): ResizablePanel {
+export function useResizablePanel<T extends HTMLElement = HTMLDivElement>({
+  storageKey,
+  defaultWidth,
+  minWidth,
+  maxWidth,
+}: ResizablePanelOptions): ResizablePanel<T> {
+  const panelRef = useRef<T | null>(null);
   const clamp = useCallback(
-    (value: number): number => Math.min(maxWidth, Math.max(minWidth, value)),
+    (value: number): number => Math.round(Math.min(maxWidth, Math.max(minWidth, value))),
     [minWidth, maxWidth]
   );
 
@@ -42,7 +53,6 @@ export function useResizablePanel({ storageKey, defaultWidth, minWidth, maxWidth
     return defaultWidth;
   });
   const [isResizing, setIsResizing] = useState(false);
-  const dragStart = useRef<{ x: number; width: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -52,43 +62,49 @@ export function useResizablePanel({ storageKey, defaultWidth, minWidth, maxWidth
     }
   }, [storageKey, width]);
 
-  useEffect(() => {
-    if (!isResizing) return;
-
-    const handleMove = (e: PointerEvent) => {
-      if (!dragStart.current) return;
-      // Handle sits on the left edge, so dragging left widens the panel
-      setWidth(clamp(dragStart.current.width + dragStart.current.x - e.clientX));
-    };
-    const handleUp = () => {
-      dragStart.current = null;
-      setIsResizing(false);
-    };
-
-    // Keep the resize cursor and stop text selection while dragging across the page
-    const { cursor, userSelect } = document.body.style;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
-    window.addEventListener('pointercancel', handleUp);
-    return () => {
-      document.body.style.cursor = cursor;
-      document.body.style.userSelect = userSelect;
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
-      window.removeEventListener('pointercancel', handleUp);
-    };
-  }, [isResizing, clamp]);
-
   const onPointerDown = useCallback(
-    (e: React.PointerEvent) => {
+    (e: React.PointerEvent<HTMLElement>) => {
       if (e.button !== 0) return;
       e.preventDefault();
-      dragStart.current = { x: e.clientX, width };
+      const handle = e.currentTarget;
+      handle.setPointerCapture(e.pointerId);
       setIsResizing(true);
+
+      const startX = e.clientX;
+      const startWidth = panelRef.current?.offsetWidth ?? width;
+      let finalWidth = startWidth;
+      let ended = false;
+
+      // Keep the resize cursor everywhere while dragging
+      const previousCursor = document.body.style.cursor;
+      document.body.style.cursor = 'col-resize';
+
+      const handleMove = (moveEvent: PointerEvent) => {
+        // Handle sits on the left edge, so dragging left widens the panel
+        finalWidth = clamp(startWidth + startX - moveEvent.clientX);
+        if (panelRef.current) {
+          panelRef.current.style.width = `${finalWidth}px`;
+        }
+      };
+
+      const handleEnd = () => {
+        if (ended) return;
+        ended = true;
+        handle.removeEventListener('pointermove', handleMove);
+        handle.removeEventListener('pointerup', handleEnd);
+        handle.removeEventListener('pointercancel', handleEnd);
+        handle.removeEventListener('lostpointercapture', handleEnd);
+        document.body.style.cursor = previousCursor;
+        setIsResizing(false);
+        setWidth(finalWidth);
+      };
+
+      handle.addEventListener('pointermove', handleMove);
+      handle.addEventListener('pointerup', handleEnd);
+      handle.addEventListener('pointercancel', handleEnd);
+      handle.addEventListener('lostpointercapture', handleEnd);
     },
-    [width]
+    [width, clamp]
   );
 
   const onDoubleClick = useCallback(() => setWidth(defaultWidth), [defaultWidth]);
@@ -106,5 +122,5 @@ export function useResizablePanel({ storageKey, defaultWidth, minWidth, maxWidth
     [clamp]
   );
 
-  return { width, isResizing, handleProps: { onPointerDown, onDoubleClick, onKeyDown } };
+  return { panelRef, width, isResizing, handleProps: { onPointerDown, onDoubleClick, onKeyDown } };
 }
