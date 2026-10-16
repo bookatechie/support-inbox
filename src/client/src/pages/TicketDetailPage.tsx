@@ -57,6 +57,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { StatusBadge, PriorityBadge } from '@/components/TicketBadges';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useUsers, useActiveUsers } from '@/hooks/useUsers';
+import { useResizablePanel } from '@/hooks/useResizablePanel';
 
 /**
  * TicketSubject component - Reusable subject line display
@@ -119,6 +120,12 @@ export function TicketDetailPage() {
   const [isLoadingCustomerInfo, setIsLoadingCustomerInfo] = useState(false);
   const [customerInfoError, setCustomerInfoError] = useState<string | null>(null);
   const [customerInfoDrawerOpen, setCustomerInfoDrawerOpen] = useState(false);
+  const customerPanel = useResizablePanel({
+    storageKey: 'customerInfoPanelWidth',
+    defaultWidth: 384,
+    minWidth: 280,
+    maxWidth: 720,
+  });
   const [composingUsers, setComposingUsers] = useState<Array<{ email: string; name: string }>>([]);
   const [deletingMessageIds, setDeletingMessageIds] = useState<Set<number>>(new Set());
   const [ticketHistory, setTicketHistory] = useState<TicketHistoryEntry[]>([]);
@@ -1731,45 +1738,61 @@ export function TicketDetailPage() {
         </div>
 
         {/* Right Panel: Customer Info Sidebar - Scrollable */}
-        <div className="hidden lg:block w-80 xl:w-96 border-l bg-background overflow-y-auto lg:overflow-hidden lg:hover:overflow-y-auto h-full">
-          <div className="px-4 pt-4 pb-4 animate-slide-in-right">
-            {/* Customer Information Header */}
-            <div className="flex items-center gap-2 mb-4">
-              <UserIcon className="h-5 w-5 text-muted-foreground" />
-              <h3 className="font-semibold">Customer Information</h3>
-              <div className="ml-auto">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setShowNewEmailModal(true)}>
-                      <Mail className="h-4 w-4 mr-2" />
-                      New Ticket
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleOpenChangeContactDialog}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Change Contact
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+        <div
+          className="hidden lg:block relative shrink-0 border-l bg-background h-full"
+          style={{ width: customerPanel.width }}
+        >
+          {/* Drag handle on the left edge; double-click resets the width */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize customer information panel"
+            aria-valuenow={customerPanel.width}
+            tabIndex={0}
+            title="Drag to resize, double-click to reset"
+            className={`absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none transition-colors hover:bg-primary/30 focus-visible:bg-primary/30 focus-visible:outline-none ${customerPanel.isResizing ? 'bg-primary/30' : ''}`}
+            {...customerPanel.handleProps}
+          />
+          <div className="h-full overflow-y-auto lg:overflow-hidden lg:hover:overflow-y-auto">
+            <div className="px-4 pt-4 pb-4 animate-slide-in-right">
+              {/* Customer Information Header */}
+              <div className="flex items-center gap-2 mb-4">
+                <UserIcon className="h-5 w-5 text-muted-foreground" />
+                <h3 className="font-semibold">Customer Information</h3>
+                <div className="ml-auto">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setShowNewEmailModal(true)}>
+                        <Mail className="h-4 w-4 mr-2" />
+                        New Ticket
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleOpenChangeContactDialog}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Change Contact
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
-            </div>
 
-            <CustomerInfo
-              customerName={ticket.customer_name}
-              customerEmail={ticket.customer_email}
-              customerTicketCount={ticket.customer_ticket_count}
-              additionalInfo={additionalCustomerInfo}
-              isLoadingAdditionalInfo={isLoadingCustomerInfo}
-              additionalInfoError={customerInfoError}
-            />
+              <CustomerInfo
+                customerName={ticket.customer_name}
+                customerEmail={ticket.customer_email}
+                customerTicketCount={ticket.customer_ticket_count}
+                additionalInfo={additionalCustomerInfo}
+                isLoadingAdditionalInfo={isLoadingCustomerInfo}
+                additionalInfoError={customerInfoError}
+              />
+            </div>
           </div>
         </div>
       </div>
