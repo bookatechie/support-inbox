@@ -355,6 +355,43 @@ export interface ReportData {
   resolvedTickets: number;
 }
 
+export interface TeamActivityDay {
+  date: string;
+  first: string;
+  last: string;
+  span_hours: number;
+  active_hours: number;
+  sessions: number;
+  emails: number;
+  notes: number;
+  changes: number;
+}
+
+export interface TeamActivityAgent {
+  user_id: number;
+  name: string;
+  active_days: number;
+  typical_start: string | null;
+  typical_end: string | null;
+  median_span_hours: number | null;
+  median_active_hours: number | null;
+  emails: number;
+  notes: number;
+  status_changes: number;
+  resolved: number;
+  replies: number;
+  median_write_hours: number | null;
+  median_wait_hours: number | null;
+  replies_within_4h_pct: number | null;
+  scheduled_pct: number | null;
+  days: TeamActivityDay[];
+}
+
+export interface TeamActivityReport {
+  timezone: string;
+  agents: TeamActivityAgent[];
+}
+
 // Ticket Filters
 export interface TicketFilters {
   status?: TicketStatus | TicketStatus[];

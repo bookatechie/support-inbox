@@ -469,7 +469,8 @@ export async function createTicket(
       null,  // email_metadata
       null,  // scheduledAt
       isEmail ? [request.customer_email] : null,  // toEmails - only email-type messages have recipients
-      null   // ccEmails
+      null,  // ccEmails
+      user.id  // author: whoever is signed in (the admin user for API-key automations)
     );
 
     // Send the email and capture the real Message-ID (SES replaces Message-ID headers)
@@ -621,7 +622,8 @@ export async function replyToTicket(
     null,  // email_metadata (agent reply, no email metadata)
     isScheduled ? request.scheduled_at! : null,  // scheduled_at
     request.type !== 'note' ? actualToEmails : null,  // toEmails (only for non-notes)
-    request.type !== 'note' ? (request.cc_emails || null) : null  // ccEmails (only for non-notes)
+    request.type !== 'note' ? (request.cc_emails || null) : null,  // ccEmails (only for non-notes)
+    user.id  // author: whoever is signed in (the admin user for API-key automations)
   );
 
   // messageId returned directly

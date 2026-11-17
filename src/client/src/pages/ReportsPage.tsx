@@ -38,6 +38,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { PageLoader } from '@/components/PageLoader';
 import { formatDay } from '@/lib/formatters';
 import { useActiveUsers } from '@/hooks/useUsers';
+import { TeamActivityCard } from '@/components/TeamActivityCard';
 
 // ============================================================================
 // Constants
@@ -324,6 +325,13 @@ export function ReportsPage() {
             description="Time to first reply"
           />
         </div>
+
+        {/* Who works when, and how fast customers hear back */}
+        <TeamActivityCard
+          startDate={startDate}
+          endDate={endDate}
+          userId={agentFilter !== 'all' ? parseInt(agentFilter, 10) : undefined}
+        />
 
         {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

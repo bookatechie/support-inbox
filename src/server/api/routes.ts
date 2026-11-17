@@ -36,6 +36,7 @@ import {
   getOurAddresses,
   setLogger,
 } from '../lib/ticket.js';
+import { getTeamActivity, assertTimeZone } from '../lib/team-activity.js';
 import { checkEmailsNow } from '../workers/email-daemon.js';
 import { handleSSE, sseEmitter, getClientCount } from './sse.js';
 import { evaluateRulesDryRun } from '../lib/rules-engine.js';
@@ -544,6 +545,31 @@ export default async function routes(fastify: FastifyInstance) {
   });
 
   /**
+   * GET /tickets/reports/activity
+   * When each agent works, from their messages and ticket changes (see lib/team-activity.ts)
+   * Query params: ?start=YYYY-MM-DD&end=YYYY-MM-DD&tz=America/Chicago
+   */
+  fastify.get<{
+    Querystring: { start?: string; end?: string; tz?: string };
+  }>('/tickets/reports/activity', {
+    onRequest: [fastify.authenticate],
+  }, async (request, reply) => {
+    const { start, end, tz } = request.query;
+    const isDate = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const endDate = isDate(end) ? end! : new Date().toISOString().split('T')[0];
+    const startDate = isDate(start) ? start! : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const timeZone = tz || 'UTC';
+    try {
+      assertTimeZone(timeZone);
+    } catch {
+      return reply.status(400).send({ error: `Unknown time zone: ${timeZone}` });
+    }
+
+    return reply.send(await getTeamActivity(startDate, endDate, timeZone));
+  });
+
+  /**
    * GET /tickets/customer-emails
    * Get unique customer email addresses and support team from emails
    * Query params: ?search=query (optional filter)
@@ -968,7 +994,8 @@ export default async function routes(fastify: FastifyInstance) {
         null,  // email_metadata
         null,  // scheduledAt
         [to_email],  // toEmails - the forward recipient
-        null   // ccEmails
+        null,  // ccEmails
+        request.user!.id  // author
       );
 
       // Send the email directly (with open tracking, parity with all other sends)

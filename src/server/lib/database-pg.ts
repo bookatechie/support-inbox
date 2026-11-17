@@ -743,6 +743,70 @@ export const ticketQueries = {
 
 };
 
+/** SQL for a sender's bare, lowercased address ("Name <a@b.c>" -> "a@b.c") */
+const ADDRESS_OF = (col: string) => `lower(trim(COALESCE(substring(${col} from '<([^>]+)>'), ${col})))`;
+
+export const teamActivityQueries = {
+  /**
+   * Emails and notes written by signed-in users in the range (excluding the API-key user).
+   * customer_at: for an email that answers a customer, the customer email it answers - the
+   * latest one before it, provided no email from us went out in between (otherwise NULL:
+   * a follow-up, still work but not a reply to time).
+   */
+  async getAuthoredMessages(startDate: string, endDate: string, ourAddresses: string[], excludeUserId: number): Promise<{
+    user_id: number; type: string; at: string; delivered_at: string; scheduled: boolean; customer_at: string | null;
+  }[]> {
+    return query(
+      `SELECT m.author_user_id AS user_id,
+              m.type,
+              (EXTRACT(EPOCH FROM m.created_at) * 1000)::bigint AS at,
+              (EXTRACT(EPOCH FROM COALESCE(m.sent_at, m.scheduled_at, m.created_at)) * 1000)::bigint AS delivered_at,
+              (m.scheduled_at IS NOT NULL) AS scheduled,
+              CASE WHEN NOT EXISTS (
+                     SELECT 1 FROM messages o
+                     WHERE o.ticket_id = m.ticket_id
+                       AND o.type = 'email'
+                       AND o.created_at > cust.created_at AND o.created_at < m.created_at
+                       AND ${ADDRESS_OF('o.sender_email')} = ANY($3::text[]))
+                   THEN (EXTRACT(EPOCH FROM cust.created_at) * 1000)::bigint
+              END AS customer_at
+       FROM messages m
+       LEFT JOIN LATERAL (
+         SELECT c.created_at
+         FROM messages c
+         WHERE m.type = 'email'
+           AND c.ticket_id = m.ticket_id
+           AND c.type = 'email'
+           AND c.created_at < m.created_at
+           AND ${ADDRESS_OF('c.sender_email')} <> ALL($3::text[])
+         ORDER BY c.created_at DESC
+         LIMIT 1
+       ) cust ON true
+       WHERE m.author_user_id IS NOT NULL
+         AND m.author_user_id <> $4
+         AND m.type IN ('email', 'note')
+         AND m.created_at >= $1 AND m.created_at < $2::date + interval '1 day'`,
+      [startDate, endDate, ourAddresses.map(a => a.toLowerCase()), excludeUserId]
+    );
+  },
+
+  /** Ticket changes users made by hand in the range (status, assignee, priority, ...) */
+  async getManualChanges(startDate: string, endDate: string, excludeUserId: number): Promise<{
+    user_id: number; field_name: string; new_value: string | null; at: string;
+  }[]> {
+    return query(
+      `SELECT changed_by_user_id AS user_id, field_name, new_value,
+              (EXTRACT(EPOCH FROM changed_at) * 1000)::bigint AS at
+       FROM ticket_history
+       WHERE change_source = 'manual'
+         AND changed_by_user_id IS NOT NULL
+         AND changed_by_user_id <> $3
+         AND changed_at >= $1 AND changed_at < $2::date + interval '1 day'`,
+      [startDate, endDate, excludeUserId]
+    );
+  },
+};
+
 export const messageQueries = {
 
   async getById(id: number): Promise<Message | undefined> {
@@ -758,12 +822,13 @@ export const messageQueries = {
     return query<Message>(`SELECT ${MESSAGE_COLUMNS} FROM messages WHERE ticket_id = $1 ORDER BY created_at ASC`, [ticketId]);
   },
 
-  async create(ticketId: number, senderEmail: string, senderName: string | null, body: string, type: string, messageId: string | null, bodyHtml: string | null, bodyHtmlStripped: string | null, emailMetadata: string | null, scheduledAt: string | null = null, toEmails: string[] | null = null, ccEmails: string[] | null = null): Promise<number> {
+  /** authorUserId: the signed-in user who wrote it (NULL for inbound email) - see migration 009 */
+  async create(ticketId: number, senderEmail: string, senderName: string | null, body: string, type: string, messageId: string | null, bodyHtml: string | null, bodyHtmlStripped: string | null, emailMetadata: string | null, scheduledAt: string | null = null, toEmails: string[] | null = null, ccEmails: string[] | null = null, authorUserId: number | null = null): Promise<number> {
     const result = await queryOne<{ id: number }>(
-      `INSERT INTO messages (ticket_id, sender_email, sender_name, body, type, message_id, body_html, body_html_stripped, email_metadata, scheduled_at, to_emails, cc_emails)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO messages (ticket_id, sender_email, sender_name, body, type, message_id, body_html, body_html_stripped, email_metadata, scheduled_at, to_emails, cc_emails, author_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING id`,
-      [ticketId, senderEmail, senderName, body, type, messageId, bodyHtml, bodyHtmlStripped, emailMetadata, scheduledAt, toEmails ? JSON.stringify(toEmails) : null, ccEmails ? JSON.stringify(ccEmails) : null]
+      [ticketId, senderEmail, senderName, body, type, messageId, bodyHtml, bodyHtmlStripped, emailMetadata, scheduledAt, toEmails ? JSON.stringify(toEmails) : null, ccEmails ? JSON.stringify(ccEmails) : null, authorUserId]
     );
     return result!.id;
   },

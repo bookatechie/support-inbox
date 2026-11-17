@@ -13,6 +13,7 @@ import type {
   Draft,
   TicketStats,
   ReportData,
+  TeamActivityReport,
   LoginRequest,
   LoginResponse,
   CreateTicketRequest,
@@ -97,6 +98,11 @@ export const tickets = {
     if (assigneeId !== undefined) params.append('assignee_id', assigneeId.toString());
     const query = params.toString();
     return request<ReportData>(`/tickets/reports${query ? `?${query}` : ''}`);
+  },
+
+  getTeamActivity: (start: string, end: string, timeZone: string) => {
+    const params = new URLSearchParams({ start, end, tz: timeZone });
+    return request<TeamActivityReport>(`/tickets/reports/activity?${params}`);
   },
 
   getCustomerEmails: (search?: string) => {
