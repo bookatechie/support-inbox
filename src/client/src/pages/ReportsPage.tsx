@@ -35,23 +35,12 @@ import { PageLoader } from '@/components/PageLoader';
 import { formatDay } from '@/lib/formatters';
 import { useActiveUsers } from '@/hooks/useUsers';
 import { TeamActivityCard } from '@/components/TeamActivityCard';
+import { useChartColors } from '@/lib/chart-colors';
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-const COLORS = {
-  received: '#8884d8',   // purple
-  team: '#22c55e',       // green-500
-  automated: '#94a3b8',  // slate-400
-  wait: '#f97316',       // orange-500
-  age: {
-    under_1d: '#22c55e', // green-500
-    '1_3d': '#eab308',   // yellow-500
-    '3_7d': '#f97316',   // orange-500
-    over_7d: '#dc2626',  // red-600
-  },
-};
 
 const DATE_RANGE_OPTIONS = [
   { value: '7', label: 'Last 7 days' },
@@ -136,6 +125,7 @@ export function ReportsPage() {
   const [insights, setInsights] = useState<ReportInsights | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const activeUsers = useActiveUsers();
+  const colors = useChartColors();
 
   // Filters
   const [dateRange, setDateRange] = useState('30');
@@ -300,9 +290,9 @@ export function ReportsPage() {
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Legend />
-                  <Line type="monotone" dataKey="received" stroke={COLORS.received} strokeWidth={2} dot={false} name="Incoming" />
-                  <Line type="monotone" dataKey="team" stroke={COLORS.team} strokeWidth={2} dot={false} name="Written by team" />
-                  <Line type="monotone" dataKey="automated" stroke={COLORS.automated} strokeWidth={2} dot={false} strokeDasharray="4 3" name="Automated" />
+                  <Line type="monotone" dataKey="received" stroke={colors.incoming} strokeWidth={2} dot={false} name="Incoming" />
+                  <Line type="monotone" dataKey="team" stroke={colors.team} strokeWidth={2} dot={false} name="Written by team" />
+                  <Line type="monotone" dataKey="automated" stroke={colors.automated} strokeWidth={2} dot={false} strokeDasharray="4 3" name="Automated" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -320,10 +310,10 @@ export function ReportsPage() {
                   <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Legend />
-                  <Bar dataKey="under_1d" stackId="age" fill={COLORS.age.under_1d} name="Under 1 day" />
-                  <Bar dataKey="1_3d" stackId="age" fill={COLORS.age['1_3d']} name="1-3 days" />
-                  <Bar dataKey="3_7d" stackId="age" fill={COLORS.age['3_7d']} name="3-7 days" />
-                  <Bar dataKey="over_7d" stackId="age" fill={COLORS.age.over_7d} name="Over 7 days" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="under_1d" stackId="age" fill={colors.age[0]} name="Under 1 day" />
+                  <Bar dataKey="1_3d" stackId="age" fill={colors.age[1]} name="1-3 days" />
+                  <Bar dataKey="3_7d" stackId="age" fill={colors.age[2]} name="3-7 days" />
+                  <Bar dataKey="over_7d" stackId="age" fill={colors.age[3]} name="Over 7 days" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -347,7 +337,7 @@ export function ReportsPage() {
                       return [`${formatWait(value as number)} (${p.replies} replies, ${p.within_4h_pct ?? 0}% within 4 h)`, 'Median wait'];
                     }}
                   />
-                  <Line type="monotone" dataKey="median_wait_hours" stroke={COLORS.wait} strokeWidth={2} dot={{ fill: COLORS.wait }} name="Median wait" />
+                  <Line type="monotone" dataKey="median_wait_hours" stroke={colors.team} strokeWidth={2} dot={{ fill: colors.team, r: 4 }} name="Median wait" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -366,8 +356,8 @@ export function ReportsPage() {
                   <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Legend />
-                  <Bar dataKey="customer_emails" fill={COLORS.received} name="Emails in" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="replies" fill={COLORS.team} name="Replies written" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="customer_emails" fill={colors.incoming} name="Emails in" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="replies" fill={colors.team} name="Replies written" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

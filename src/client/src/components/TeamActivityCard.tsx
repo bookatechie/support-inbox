@@ -4,7 +4,7 @@
  */
 
 import { Fragment, useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Users } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { tickets as ticketsApi } from '@/lib/api';
 import type { TeamActivityAgent, TeamActivityReport } from '@/types';
 import { Card } from '@/components/ui/card';
@@ -36,12 +36,8 @@ function wait(h: number | null): string {
   return h >= 48 ? `${(h / 24).toFixed(1)} d` : `${h.toFixed(1)} h`;
 }
 
-function waitTone(h: number | null): string {
-  if (h == null) return '';
-  if (h > 24) return 'text-red-600 dark:text-red-400 font-medium';
-  if (h <= 8) return 'text-green-700 dark:text-green-400';
-  return '';
-}
+/** Over a day is flagged (icon + color), everything else stays in normal text */
+const isSlow = (h: number | null) => h != null && h > 24;
 
 function weekday(date: string): string {
   return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
@@ -168,9 +164,10 @@ export function TeamActivityCard({ startDate, endDate, userId }: TeamActivityCar
                       <td className="py-2 pr-3 text-right">{perDay(a.notes, a.active_days)}</td>
                       <td className="py-2 pr-3 text-right">{a.resolved}</td>
                       <td
-                        className={cn('py-2 pr-3 text-right whitespace-nowrap', waitTone(a.median_wait_hours))}
+                        className={cn('py-2 pr-3 text-right whitespace-nowrap', isSlow(a.median_wait_hours) && 'text-red-700 dark:text-red-400 font-medium')}
                         title={a.median_write_hours != null ? `Reply written after ${wait(a.median_write_hours)} (median), ${a.replies} replies` : undefined}
                       >
+                        {isSlow(a.median_wait_hours) && <AlertTriangle className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-label="Over a day" />}
                         {wait(a.median_wait_hours)}
                       </td>
                       <td className="py-2 pr-3 text-right">{pct(a.replies_within_4h_pct)}</td>
