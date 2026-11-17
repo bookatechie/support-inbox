@@ -259,7 +259,7 @@ export function ReportsPage() {
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
-            title="Customer emails"
+            title="Incoming emails"
             value={summary?.customer_emails ?? 0}
             icon={<Inbox className="h-5 w-5" />}
             description={`${summary?.replies ?? 0} answered by the team`}
@@ -290,7 +290,7 @@ export function ReportsPage() {
           <ChartCard
             wide
             title="Emails per day"
-            description="Emails in from customers, replies written by the team, and emails sent by automations."
+            description="Incoming emails (customers, suppliers, notifications), replies written by the team, and emails sent by automations."
           >
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -300,7 +300,7 @@ export function ReportsPage() {
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Legend />
-                  <Line type="monotone" dataKey="received" stroke={COLORS.received} strokeWidth={2} dot={false} name="From customers" />
+                  <Line type="monotone" dataKey="received" stroke={COLORS.received} strokeWidth={2} dot={false} name="Incoming" />
                   <Line type="monotone" dataKey="team" stroke={COLORS.team} strokeWidth={2} dot={false} name="Written by team" />
                   <Line type="monotone" dataKey="automated" stroke={COLORS.automated} strokeWidth={2} dot={false} strokeDasharray="4 3" name="Automated" />
                 </LineChart>
@@ -355,8 +355,8 @@ export function ReportsPage() {
 
           <ChartCard
             wide
-            title="Customer emails vs replies"
-            description="Customer emails that came in on each person's tickets, and the replies each person wrote."
+            title="Incoming emails vs replies"
+            description="Emails that came in on each person's tickets (customers and suppliers), and the replies each person wrote."
           >
             <div style={{ height: workloadHeight }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -366,7 +366,7 @@ export function ReportsPage() {
                   <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Legend />
-                  <Bar dataKey="customer_emails" fill={COLORS.received} name="Customer emails in" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="customer_emails" fill={COLORS.received} name="Emails in" radius={[0, 4, 4, 0]} />
                   <Bar dataKey="replies" fill={COLORS.team} name="Replies written" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
