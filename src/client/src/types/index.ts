@@ -343,16 +343,20 @@ export interface TicketStats {
 }
 
 // Report Data
-export interface ReportData {
-  messagesOverTime: { date: string; sent: number; received: number }[];
-  ticketsByStatus: { status: string; count: number }[];
-  ticketsByPriority: { priority: string; count: number }[];
-  ticketsByAgent: { agent_id: number | null; agent_name: string; count: number }[];
-  messagesByType: { type: string; count: number }[];
-  avgResponseTime: { avg_hours: number | null };
-  totalTickets: number;
-  totalMessages: number;
-  resolvedTickets: number;
+export interface ReportInsights {
+  timezone: string;
+  summary: {
+    customer_emails: number;
+    replies: number;
+    median_wait_hours: number | null;
+    replies_within_4h_pct: number | null;
+    open_backlog: number;
+    open_backlog_over_3d: number;
+  };
+  backlog: { user_id: number | null; name: string; under_1d: number; '1_3d': number; '3_7d': number; over_7d: number }[];
+  waitByWeek: { week: string; median_wait_hours: number | null; replies: number; within_4h_pct: number | null }[];
+  workload: { user_id: number | null; name: string; customer_emails: number; replies: number; emails_written: number }[];
+  daily: { date: string; received: number; team: number; automated: number }[];
 }
 
 export interface TeamActivityDay {

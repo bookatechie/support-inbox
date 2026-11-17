@@ -170,7 +170,8 @@ All routes are under `/api`. Main ones:
 | `GET` | `/api/tickets/:id/history` | Ticket change history |
 | `GET/POST/DELETE` | `/api/tickets/:id/draft` | Auto-saved reply draft |
 | `GET/POST/DELETE` | `/api/tickets/:id/tags` | Ticket tags |
-| `GET` | `/api/tickets/stats`, `/api/tickets/reports`, `/api/tickets/calendar` | Counts, reports, follow-up calendar |
+| `GET` | `/api/tickets/stats`, `/api/tickets/calendar` | Counts, follow-up calendar |
+| `GET` | `/api/tickets/reports/insights?start&end&tz&user_id` | Reports page: open backlog by age, customer wait by week, workload, emails per day |
 | `GET` | `/api/tickets/reports/activity?start&end&tz` | Team activity: working hours, active time and reply speed per agent (`lib/team-activity.ts`) |
 | `GET/POST/PATCH/DELETE` | `/api/routing-rules[/:id]` | Routing rules (`POST /api/routing-rules/dry-run` to test) |
 | `GET/POST/PATCH/DELETE` | `/api/canned-responses[/:id]`, `/api/users[/:id]`, `/api/tags[/:id]` | Admin data |

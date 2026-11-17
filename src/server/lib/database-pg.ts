@@ -624,123 +624,6 @@ export const ticketQueries = {
 
     return results;
   },
-
-  // Get report data for analytics dashboard
-  async getReportData(startDate: string, endDate: string, assigneeId?: number): Promise<{
-    messagesOverTime: { date: string; sent: number; received: number }[];
-    ticketsByStatus: { status: string; count: number }[];
-    ticketsByPriority: { priority: string; count: number }[];
-    ticketsByAgent: { agent_id: number | null; agent_name: string; count: number }[];
-    messagesByType: { type: string; count: number }[];
-    avgResponseTime: { avg_hours: number | null };
-    totalTickets: number;
-    totalMessages: number;
-    resolvedTickets: number;
-  }> {
-    const params: any[] = [startDate, endDate];
-    let assigneeFilter = '';
-    if (assigneeId !== undefined) {
-      assigneeFilter = ' AND t.assignee_id = $3';
-      params.push(assigneeId);
-    }
-
-    // Messages over time (sent vs received)
-    const messagesOverTime = await query<{ date: string; sent: number; received: number }>(
-      `SELECT
-         DATE(m.created_at) as date,
-         COUNT(*) FILTER (WHERE m.sender_email != t.customer_email AND m.type = 'email')::integer as sent,
-         COUNT(*) FILTER (WHERE m.sender_email = t.customer_email AND m.type = 'email')::integer as received
-       FROM messages m
-       JOIN tickets t ON m.ticket_id = t.id
-       WHERE m.created_at >= $1 AND m.created_at < $2::date + interval '1 day'${assigneeFilter.replace(/t\./g, 't.')}
-       GROUP BY DATE(m.created_at)
-       ORDER BY date ASC`,
-      params
-    );
-
-    // Tickets by status (current status for tickets created in range)
-    const ticketsByStatus = await query<{ status: string; count: number }>(
-      `SELECT t.status, COUNT(*)::integer as count
-       FROM tickets t
-       WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}
-       GROUP BY t.status
-       ORDER BY count DESC`,
-      params
-    );
-
-    // Tickets by priority
-    const ticketsByPriority = await query<{ priority: string; count: number }>(
-      `SELECT t.priority, COUNT(*)::integer as count
-       FROM tickets t
-       WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}
-       GROUP BY t.priority
-       ORDER BY count DESC`,
-      params
-    );
-
-    // Tickets by agent
-    const ticketsByAgent = await query<{ agent_id: number | null; agent_name: string; count: number }>(
-      `SELECT t.assignee_id as agent_id,
-              COALESCE(u.name, 'Unassigned') as agent_name,
-              COUNT(*)::integer as count
-       FROM tickets t
-       LEFT JOIN users u ON t.assignee_id = u.id
-       WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}
-       GROUP BY t.assignee_id, u.name
-       ORDER BY count DESC`,
-      params
-    );
-
-    // Messages by type (email, note, etc.)
-    const messagesByType = await query<{ type: string; count: number }>(
-      `SELECT m.type, COUNT(*)::integer as count
-       FROM messages m
-       JOIN tickets t ON m.ticket_id = t.id
-       WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}
-       GROUP BY m.type
-       ORDER BY count DESC`,
-      params
-    );
-
-    // Average response time (time from ticket creation to first agent reply)
-    const avgResponseTimeResult = await query<{ avg_hours: number | null }>(
-      `SELECT AVG(EXTRACT(EPOCH FROM (first_reply.created_at - t.created_at)) / 3600)::numeric(10,2) as avg_hours
-       FROM tickets t
-       INNER JOIN LATERAL (
-         SELECT m.created_at
-         FROM messages m
-         WHERE m.ticket_id = t.id
-           AND m.type = 'email'
-           AND m.sender_email != t.customer_email
-         ORDER BY m.created_at ASC
-         LIMIT 1
-       ) first_reply ON true
-       WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}`,
-      params
-    );
-
-    // Total counts
-    const totalsResult = await query<{ total_tickets: number; total_messages: number; resolved_tickets: number }>(
-      `SELECT
-         (SELECT COUNT(*)::integer FROM tickets t WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}) as total_tickets,
-         (SELECT COUNT(*)::integer FROM messages m JOIN tickets t ON m.ticket_id = t.id WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day'${assigneeFilter}) as total_messages,
-         (SELECT COUNT(*)::integer FROM tickets t WHERE t.created_at >= $1 AND t.created_at < $2::date + interval '1 day' AND t.status = 'resolved'${assigneeFilter}) as resolved_tickets`,
-      params
-    );
-
-    return {
-      messagesOverTime,
-      ticketsByStatus,
-      ticketsByPriority,
-      ticketsByAgent,
-      messagesByType,
-      avgResponseTime: avgResponseTimeResult[0] || { avg_hours: null },
-      totalTickets: totalsResult[0]?.total_tickets || 0,
-      totalMessages: totalsResult[0]?.total_messages || 0,
-      resolvedTickets: totalsResult[0]?.resolved_tickets || 0,
-    };
-  },
-
 };
 
 /** SQL for a sender's bare, lowercased address ("Name <a@b.c>" -> "a@b.c") */
@@ -803,6 +686,83 @@ export const teamActivityQueries = {
          AND changed_by_user_id <> $3
          AND changed_at >= $1 AND changed_at < $2::date + interval '1 day'`,
       [startDate, endDate, excludeUserId]
+    );
+  },
+
+  /**
+   * Tickets waiting on us right now (new/open), per assignee, by how long the customer has
+   * been waiting: since their latest email, or since the ticket was created if it has none.
+   */
+  async getOpenBacklog(ourAddresses: string[]): Promise<{
+    user_id: number | null; name: string; bucket: string; count: number;
+  }[]> {
+    return query(
+      `SELECT t.assignee_id AS user_id,
+              COALESCE(u.name, 'Unassigned') AS name,
+              CASE
+                WHEN now() AT TIME ZONE 'UTC' - COALESCE(cust.created_at, t.created_at) < interval '1 day' THEN 'under_1d'
+                WHEN now() AT TIME ZONE 'UTC' - COALESCE(cust.created_at, t.created_at) < interval '3 days' THEN '1_3d'
+                WHEN now() AT TIME ZONE 'UTC' - COALESCE(cust.created_at, t.created_at) < interval '7 days' THEN '3_7d'
+                ELSE 'over_7d'
+              END AS bucket,
+              COUNT(*)::integer AS count
+       FROM tickets t
+       LEFT JOIN users u ON u.id = t.assignee_id
+       LEFT JOIN LATERAL (
+         SELECT c.created_at FROM messages c
+         WHERE c.ticket_id = t.id AND c.type = 'email'
+           AND ${ADDRESS_OF('c.sender_email')} <> ALL($1::text[])
+         ORDER BY c.created_at DESC
+         LIMIT 1
+       ) cust ON true
+       WHERE t.status IN ('new', 'open')
+       GROUP BY 1, 2, 3`,
+      [ourAddresses.map(a => a.toLowerCase())]
+    );
+  },
+
+  /**
+   * Emails per local day: from customers, written by the team, and sent by automations
+   * (from one of our addresses but not written by a signed-in agent).
+   * userId narrows to that person: their tickets' customer emails and automated sends, and
+   * the emails they wrote.
+   */
+  async getDailyEmails(startDate: string, endDate: string, timeZone: string, ourAddresses: string[], apiUserId: number, userId?: number): Promise<{
+    date: string; received: number; team: number; automated: number;
+  }[]> {
+    return query(
+      `SELECT to_char((m.created_at AT TIME ZONE 'UTC') AT TIME ZONE $3, 'YYYY-MM-DD') AS date,
+              COUNT(*) FILTER (WHERE NOT ours AND ($5::int IS NULL OR t.assignee_id = $5))::integer AS received,
+              COUNT(*) FILTER (WHERE ours AND m.author_user_id IS NOT NULL AND m.author_user_id <> $4
+                               AND ($5::int IS NULL OR m.author_user_id = $5))::integer AS team,
+              COUNT(*) FILTER (WHERE ours AND (m.author_user_id IS NULL OR m.author_user_id = $4)
+                               AND ($5::int IS NULL OR t.assignee_id = $5))::integer AS automated
+       FROM (
+         SELECT m.*, ${ADDRESS_OF('m.sender_email')} = ANY($6::text[]) AS ours
+         FROM messages m
+         WHERE m.type = 'email'
+           AND m.created_at >= $1 AND m.created_at < $2::date + interval '1 day'
+       ) m
+       JOIN tickets t ON t.id = m.ticket_id
+       GROUP BY 1
+       ORDER BY 1`,
+      [startDate, endDate, timeZone, apiUserId, userId ?? null, ourAddresses.map(a => a.toLowerCase())]
+    );
+  },
+
+  /** Customer emails received in the range, by the ticket's current assignee */
+  async getCustomerEmailsByAssignee(startDate: string, endDate: string, ourAddresses: string[]): Promise<{
+    user_id: number | null; count: number;
+  }[]> {
+    return query(
+      `SELECT t.assignee_id AS user_id, COUNT(*)::integer AS count
+       FROM messages c
+       JOIN tickets t ON t.id = c.ticket_id
+       WHERE c.type = 'email'
+         AND c.created_at >= $1 AND c.created_at < $2::date + interval '1 day'
+         AND ${ADDRESS_OF('c.sender_email')} <> ALL($3::text[])
+       GROUP BY 1`,
+      [startDate, endDate, ourAddresses.map(a => a.toLowerCase())]
     );
   },
 };

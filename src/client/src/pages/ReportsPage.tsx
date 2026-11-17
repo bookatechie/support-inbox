@@ -1,12 +1,12 @@
 /**
- * Reports page for analytics dashboard
- * Shows charts and statistics for ticket/email data
+ * Reports: how fast customers hear back, what is waiting on whom, and when the team works.
+ * Data: /tickets/reports/insights and /tickets/reports/activity (server: lib/team-activity.ts)
  */
 
 import { useState, useEffect, useMemo } from 'react';
 import { tickets as ticketsApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { ReportData } from '@/types';
+import type { ReportInsights } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -16,16 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight, BarChart3, Ticket, MessageSquare, Clock, CheckCircle } from 'lucide-react';
-import { STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
+import { ChevronLeft, ChevronRight, BarChart3, Inbox, Clock, Timer, Hourglass } from 'lucide-react';
 import {
   BarChart,
   Bar,
   LineChart,
   Line,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -44,27 +40,16 @@ import { TeamActivityCard } from '@/components/TeamActivityCard';
 // Constants
 // ============================================================================
 
-const CHART_COLORS = {
-  primary: '#8884d8',
-  secondary: '#c084fc',
-  status: {
-    // Same hues as the status badges (lib/constants.ts STATUS_COLORS)
-    new: '#f97316',        // orange-500
-    open: '#ef4444',       // red-500
-    awaiting_customer: '#3b82f6', // blue-500
-    resolved: '#94a3b8',   // slate-400
-  },
-  priority: {
-    // Greys rising with priority; only Urgent is colored, like the priority badge
-    low: '#cbd5e1',        // slate-300
-    normal: '#94a3b8',     // slate-400
-    high: '#475569',       // slate-600
-    urgent: '#dc2626',     // red-600
-  },
-  messageType: {
-    email: '#8884d8',      // purple
-    note: '#c084fc',       // purple-400
-    system: '#f0abfc',     // fuchsia-300
+const COLORS = {
+  received: '#8884d8',   // purple
+  team: '#22c55e',       // green-500
+  automated: '#94a3b8',  // slate-400
+  wait: '#f97316',       // orange-500
+  age: {
+    under_1d: '#22c55e', // green-500
+    '1_3d': '#eab308',   // yellow-500
+    '3_7d': '#f97316',   // orange-500
+    over_7d: '#dc2626',  // red-600
   },
 };
 
@@ -76,6 +61,14 @@ const DATE_RANGE_OPTIONS = [
   { value: '90', label: 'Last 90 days' },
 ];
 
+const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const TOOLTIP_STYLE = {
+  backgroundColor: 'hsl(var(--card))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: '6px',
+};
+
 // Format date as YYYY-MM-DD in local timezone
 function formatDateString(date: Date): string {
   const year = date.getFullYear();
@@ -84,10 +77,16 @@ function formatDateString(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-// Format date for display (shorter format)
+// "2026-11-09" -> "11/9" (parsed as a calendar date, not shifted by time zone)
 function formatDisplayDate(dateString: string): string {
-  const date = new Date(dateString);
-  return `${date.getMonth() + 1}/${date.getDate()}`;
+  const [, month, day] = dateString.split('-').map(Number);
+  return `${month}/${day}`;
+}
+
+/** Long waits read better in days */
+function formatWait(hours: number | null | undefined): string {
+  if (hours == null) return 'N/A';
+  return hours >= 48 ? `${(hours / 24).toFixed(1)} d` : `${hours.toFixed(1)} h`;
 }
 
 // ============================================================================
@@ -118,19 +117,30 @@ function StatCard({ title, value, icon, description }: StatCardProps) {
   );
 }
 
+function ChartCard({ title, description, children, wide }: { title: string; description: string; children: React.ReactNode; wide?: boolean }) {
+  return (
+    <Card className={wide ? 'p-4 lg:col-span-2' : 'p-4'}>
+      <h3 className="text-lg font-semibold">{title}</h3>
+      <p className="text-xs text-muted-foreground mb-4">{description}</p>
+      {children}
+    </Card>
+  );
+}
+
 // ============================================================================
 // Main Component
 // ============================================================================
 
 export function ReportsPage() {
   const { user } = useAuth();
-  const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [insights, setInsights] = useState<ReportInsights | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const activeUsers = useActiveUsers();
 
   // Filters
   const [dateRange, setDateRange] = useState('30');
   const [agentFilter, setAgentFilter] = useState('all');
+  const userId = agentFilter !== 'all' ? parseInt(agentFilter, 10) : undefined;
 
   // Calculate date range
   const { startDate, endDate } = useMemo(() => {
@@ -145,84 +155,42 @@ export function ReportsPage() {
 
   // Sorted active users (current user first)
   const sortedActiveUsers = useMemo(() => {
-    // Already sorted by name: move yourself to the top
     return [...activeUsers].sort((a, b) => Number(b.id === user?.id) - Number(a.id === user?.id));
   }, [activeUsers, user?.id]);
 
-  // Load report data when filters change
   useEffect(() => {
-    const loadReportData = async () => {
-      try {
-        const assigneeId = agentFilter !== 'all' ? parseInt(agentFilter, 10) : undefined;
-        const data = await ticketsApi.getReports(startDate, endDate, assigneeId);
-        setReportData(data);
-      } catch (error) {
-        console.error('Failed to load report data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadReportData();
-  }, [startDate, endDate, agentFilter]);
+    let cancelled = false;
+    ticketsApi.getReportInsights(startDate, endDate, timeZone, userId)
+      .then(data => { if (!cancelled) setInsights(data); })
+      .catch(error => console.error('Failed to load report data:', error))
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
+  }, [startDate, endDate, userId]);
 
-  // Format chart data
-  const messagesOverTimeData = useMemo(() => {
-    if (!reportData) return [];
-    return reportData.messagesOverTime.map(item => ({
-      ...item,
-      displayDate: formatDisplayDate(item.date),
-    }));
-  }, [reportData]);
+  const dailyData = useMemo(
+    () => (insights?.daily ?? []).map(d => ({ ...d, displayDate: formatDisplayDate(d.date) })),
+    [insights]
+  );
 
-  const statusChartData = useMemo(() => {
-    if (!reportData) return [];
-    return reportData.ticketsByStatus.map(item => ({
-      ...item,
-      name: STATUS_LABELS[item.status as keyof typeof STATUS_LABELS] || item.status,
-      fill: CHART_COLORS.status[item.status as keyof typeof CHART_COLORS.status] || CHART_COLORS.primary,
-    }));
-  }, [reportData]);
+  const weekData = useMemo(
+    () => (insights?.waitByWeek ?? []).map(w => ({ ...w, displayWeek: formatDisplayDate(w.week) })),
+    [insights]
+  );
 
-  const priorityChartData = useMemo(() => {
-    if (!reportData) return [];
-    return reportData.ticketsByPriority.map(item => ({
-      ...item,
-      name: PRIORITY_LABELS[item.priority as keyof typeof PRIORITY_LABELS] || item.priority,
-      fill: CHART_COLORS.priority[item.priority as keyof typeof CHART_COLORS.priority] || CHART_COLORS.primary,
-    }));
-  }, [reportData]);
+  // Horizontal bar charts need a height that fits their rows
+  const backlogHeight = Math.max(160, (insights?.backlog.length ?? 0) * 32 + 60);
+  const workloadHeight = Math.max(160, (insights?.workload.length ?? 0) * 40 + 60);
 
-  const agentChartData = useMemo(() => {
-    if (!reportData) return [];
-    return reportData.ticketsByAgent.map(item => ({
-      ...item,
-      name: item.agent_name,
-    }));
-  }, [reportData]);
+  const displayDateRange = `${formatDay(startDate)} - ${formatDay(endDate)}`;
+  const summary = insights?.summary;
 
-  const messageTypeData = useMemo(() => {
-    if (!reportData) return [];
-    return reportData.messagesByType.map(item => ({
-      ...item,
-      name: item.type.charAt(0).toUpperCase() + item.type.slice(1),
-      fill: CHART_COLORS.messageType[item.type as keyof typeof CHART_COLORS.messageType] || CHART_COLORS.primary,
-    }));
-  }, [reportData]);
-
-  // Get display date range
-  const displayDateRange = useMemo(() => {
-    return `${formatDay(startDate)} - ${formatDay(endDate)}`;
-  }, [startDate, endDate]);
-
-  // Only show full page loader on initial load
-  // Header is shared by the loading and loaded views, so it doesn't vanish while data loads
   const header = (
     <AppHeader>
-      <PageHeader icon={BarChart3} title="Reports" subtitle="Ticket volume, response times and workload" />
+      <PageHeader icon={BarChart3} title="Reports" subtitle="Reply speed, backlog and team activity" />
     </AppHeader>
   );
 
-  if (isLoading && !reportData) {
+  if (isLoading && !insights) {
     return (
       <div className="min-h-screen bg-muted/20">
         {header}
@@ -231,30 +199,23 @@ export function ReportsPage() {
     );
   }
 
-  // Navigation functions for date range
   const goToPreviousRange = () => {
     const currentIndex = DATE_RANGE_OPTIONS.findIndex(o => o.value === dateRange);
-    if (currentIndex > 0) {
-      setDateRange(DATE_RANGE_OPTIONS[currentIndex - 1].value);
-    }
+    if (currentIndex > 0) setDateRange(DATE_RANGE_OPTIONS[currentIndex - 1].value);
   };
 
   const goToNextRange = () => {
     const currentIndex = DATE_RANGE_OPTIONS.findIndex(o => o.value === dateRange);
-    if (currentIndex < DATE_RANGE_OPTIONS.length - 1) {
-      setDateRange(DATE_RANGE_OPTIONS[currentIndex + 1].value);
-    }
+    if (currentIndex < DATE_RANGE_OPTIONS.length - 1) setDateRange(DATE_RANGE_OPTIONS[currentIndex + 1].value);
   };
 
   return (
     <div className="min-h-screen bg-muted/20">
       {header}
 
-      {/* Main Content */}
       <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
         {/* Filters Row */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
-          {/* Date Range Selector */}
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={goToPreviousRange} disabled={dateRange === '7'}>
               <ChevronLeft className="h-4 w-4" />
@@ -276,7 +237,6 @@ export function ReportsPage() {
             </Button>
           </div>
 
-          {/* Agent Filter */}
           <Select value={agentFilter} onValueChange={setAgentFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Agent" />
@@ -291,243 +251,129 @@ export function ReportsPage() {
             </SelectContent>
           </Select>
 
-          {/* Date Range Display */}
           <span className="text-sm text-muted-foreground ml-auto hidden sm:block">{displayDateRange}</span>
         </div>
 
-        {/* Date Range Display - Mobile */}
         <p className="text-sm text-muted-foreground text-center mb-4 sm:hidden">{displayDateRange}</p>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
-            title="Total Tickets"
-            value={reportData?.totalTickets || 0}
-            icon={<Ticket className="h-5 w-5" />}
+            title="Customer emails"
+            value={summary?.customer_emails ?? 0}
+            icon={<Inbox className="h-5 w-5" />}
+            description={`${summary?.replies ?? 0} answered by the team`}
           />
           <StatCard
-            title="Messages"
-            value={reportData?.totalMessages || 0}
-            icon={<MessageSquare className="h-5 w-5" />}
-          />
-          <StatCard
-            title="Resolved"
-            value={reportData?.resolvedTickets || 0}
-            icon={<CheckCircle className="h-5 w-5" />}
-          />
-          <StatCard
-            title="Avg Response"
-            value={reportData?.avgResponseTime.avg_hours != null
-              ? `${Number(reportData.avgResponseTime.avg_hours).toFixed(1)}h`
-              : 'N/A'
-            }
+            title="Customer waits"
+            value={formatWait(summary?.median_wait_hours)}
             icon={<Clock className="h-5 w-5" />}
-            description="Time to first reply"
+            description="Median, email to reply sent"
+          />
+          <StatCard
+            title="Answered within 4 h"
+            value={summary?.replies_within_4h_pct != null ? `${summary.replies_within_4h_pct}%` : 'N/A'}
+            icon={<Timer className="h-5 w-5" />}
+            description="Share of replies"
+          />
+          <StatCard
+            title="Waiting on us now"
+            value={summary?.open_backlog ?? 0}
+            icon={<Hourglass className="h-5 w-5" />}
+            description={`${summary?.open_backlog_over_3d ?? 0} waiting over 3 days`}
           />
         </div>
 
-        {/* Who works when, and how fast customers hear back */}
-        <TeamActivityCard
-          startDate={startDate}
-          endDate={endDate}
-          userId={agentFilter !== 'all' ? parseInt(agentFilter, 10) : undefined}
-        />
+        <TeamActivityCard startDate={startDate} endDate={endDate} userId={userId} />
 
-        {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Messages Over Time - Full Width */}
-          <Card className="p-4 lg:col-span-2">
-            <h3 className="text-lg font-semibold mb-4">Messages Over Time</h3>
+          <ChartCard
+            wide
+            title="Emails per day"
+            description="Emails in from customers, replies written by the team, and emails sent by automations."
+          >
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={messagesOverTimeData}>
+                <LineChart data={dailyData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis
-                    dataKey="displayDate"
-                    tick={{ fontSize: 12 }}
-                    className="fill-muted-foreground"
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 12 }}
-                    className="fill-muted-foreground"
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
-                    }}
-                  />
+                  <XAxis dataKey="displayDate" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="received"
-                    stroke={CHART_COLORS.primary}
-                    strokeWidth={2}
-                    dot={{ fill: CHART_COLORS.primary }}
-                    name="Received"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="sent"
-                    stroke={CHART_COLORS.secondary}
-                    strokeWidth={2}
-                    dot={{ fill: CHART_COLORS.secondary }}
-                    name="Sent"
-                  />
+                  <Line type="monotone" dataKey="received" stroke={COLORS.received} strokeWidth={2} dot={false} name="From customers" />
+                  <Line type="monotone" dataKey="team" stroke={COLORS.team} strokeWidth={2} dot={false} name="Written by team" />
+                  <Line type="monotone" dataKey="automated" stroke={COLORS.automated} strokeWidth={2} dot={false} strokeDasharray="4 3" name="Automated" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </Card>
+          </ChartCard>
 
-          {/* Tickets by Status */}
-          <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4">Tickets by Status</h3>
-            <div className="h-[300px]">
+          <ChartCard
+            title="Waiting on us now"
+            description="New and open tickets by assignee, by how long since the customer last wrote."
+          >
+            <div style={{ height: backlogHeight }}>
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={statusChartData}
-                    dataKey="count"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} (${((percent ?? 0) * 100).toFixed(0)}%)`}
-                  >
-                    {statusChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          {/* Tickets by Agent */}
-          <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4">Tickets by Agent</h3>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={agentChartData} layout="vertical">
+                <BarChart data={insights?.backlog ?? []} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis
-                    type="number"
-                    allowDecimals={false}
-                    tick={{ fontSize: 12 }}
-                    className="fill-muted-foreground"
-                  />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    width={100}
-                    tick={{ fontSize: 12 }}
-                    className="fill-muted-foreground"
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
-                    }}
-                  />
-                  <Bar
-                    dataKey="count"
-                    fill={CHART_COLORS.primary}
-                    radius={[0, 4, 4, 0]}
-                    name="Tickets"
-                  />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+                  <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Legend />
+                  <Bar dataKey="under_1d" stackId="age" fill={COLORS.age.under_1d} name="Under 1 day" />
+                  <Bar dataKey="1_3d" stackId="age" fill={COLORS.age['1_3d']} name="1-3 days" />
+                  <Bar dataKey="3_7d" stackId="age" fill={COLORS.age['3_7d']} name="3-7 days" />
+                  <Bar dataKey="over_7d" stackId="age" fill={COLORS.age.over_7d} name="Over 7 days" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </Card>
+          </ChartCard>
 
-          {/* Tickets by Priority */}
-          <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4">Tickets by Priority</h3>
+          <ChartCard
+            title="Customer wait by week"
+            description="Median time from a customer's email to the reply being sent. Scheduled replies count from their send time."
+          >
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={priorityChartData}>
+                <LineChart data={weekData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 12 }}
-                    className="fill-muted-foreground"
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 12 }}
-                    className="fill-muted-foreground"
-                  />
+                  <XAxis dataKey="displayWeek" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+                  <YAxis unit=" h" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
+                    contentStyle={TOOLTIP_STYLE}
+                    labelFormatter={(label) => `Week of ${label}`}
+                    formatter={(value, _name, item) => {
+                      const p = item.payload as ReportInsights['waitByWeek'][number];
+                      return [`${formatWait(value as number)} (${p.replies} replies, ${p.within_4h_pct ?? 0}% within 4 h)`, 'Median wait'];
                     }}
                   />
-                  <Bar
-                    dataKey="count"
-                    radius={[4, 4, 0, 0]}
-                    name="Tickets"
-                  >
-                    {priorityChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
+                  <Line type="monotone" dataKey="median_wait_hours" stroke={COLORS.wait} strokeWidth={2} dot={{ fill: COLORS.wait }} name="Median wait" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
+
+          <ChartCard
+            wide
+            title="Customer emails vs replies"
+            description="Customer emails that came in on each person's tickets, and the replies each person wrote."
+          >
+            <div style={{ height: workloadHeight }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={insights?.workload ?? []} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+                  <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Legend />
+                  <Bar dataKey="customer_emails" fill={COLORS.received} name="Customer emails in" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="replies" fill={COLORS.team} name="Replies written" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </Card>
-
-          {/* Messages by Type */}
-          <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4">Messages by Type</h3>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={messageTypeData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 12 }}
-                    className="fill-muted-foreground"
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 12 }}
-                    className="fill-muted-foreground"
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
-                    }}
-                  />
-                  <Bar
-                    dataKey="count"
-                    radius={[4, 4, 0, 0]}
-                    name="Messages"
-                  >
-                    {messageTypeData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+          </ChartCard>
         </div>
       </main>
-
     </div>
   );
 }

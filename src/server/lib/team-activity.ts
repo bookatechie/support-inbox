@@ -198,3 +198,121 @@ export async function getTeamActivity(startDate: string, endDate: string, timeZo
   agents.sort((a, b) => b.active_days - a.active_days || (b.median_active_hours ?? 0) - (a.median_active_hours ?? 0));
   return { timezone: timeZone, agents };
 }
+
+// ============================================================================
+// Report insights: backlog, reply speed, workload
+// ============================================================================
+
+export interface ReportInsights {
+  timezone: string;
+  summary: {
+    customer_emails: number;
+    replies: number;
+    median_wait_hours: number | null;
+    replies_within_4h_pct: number | null;
+    open_backlog: number;
+    open_backlog_over_3d: number;
+  };
+  /** Waiting on us now, by how long the customer has waited */
+  backlog: { user_id: number | null; name: string; under_1d: number; '1_3d': number; '3_7d': number; over_7d: number }[];
+  /** Median customer wait per week (weeks start Monday, local time) */
+  waitByWeek: { week: string; median_wait_hours: number | null; replies: number; within_4h_pct: number | null }[];
+  /** Customer emails that came in on each person's tickets vs replies they sent */
+  workload: { user_id: number | null; name: string; customer_emails: number; replies: number; emails_written: number }[];
+  daily: { date: string; received: number; team: number; automated: number }[];
+}
+
+/** Monday (YYYY-MM-DD) of the local week containing a YYYY-MM-DD date */
+function weekOf(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
+export async function getReportInsights(startDate: string, endDate: string, timeZone: string, userId?: number): Promise<ReportInsights> {
+  const ours = [...await getOurAddresses()];
+  const [authored, backlogRows, customerByAssignee, daily, users] = await Promise.all([
+    teamActivityQueries.getAuthoredMessages(startDate, endDate, ours, DEFAULT_ADMIN_USER_ID),
+    teamActivityQueries.getOpenBacklog(ours),
+    teamActivityQueries.getCustomerEmailsByAssignee(startDate, endDate, ours),
+    teamActivityQueries.getDailyEmails(startDate, endDate, timeZone, ours, DEFAULT_ADMIN_USER_ID, userId),
+    userQueries.getAll(),
+  ]);
+  const nameOf = (id: number | null) => (id == null ? 'Unassigned' : users.find(u => u.id === id)?.name ?? `User ${id}`);
+  const mine = <T extends { user_id: number | null }>(rows: T[]) => (userId === undefined ? rows : rows.filter(r => r.user_id === userId));
+
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
+
+  // Replies to customers, timed from the customer's email to when the reply went out
+  const replies = mine(authored).filter(m => m.type === 'email' && m.customer_at != null).map(m => ({
+    user_id: m.user_id,
+    waitHours: (Number(m.delivered_at) - Number(m.customer_at!)) / HOUR_MS,
+    week: weekOf(fmt.format(new Date(Number(m.delivered_at)))),
+  }));
+  const pctWithin = (waits: number[]) => (waits.length ? Math.round(100 * waits.filter(w => w <= FAST_REPLY_HOURS).length / waits.length) : null);
+
+  const weeks = new Map<string, number[]>();
+  for (const r of replies) {
+    const list = weeks.get(r.week);
+    if (list) list.push(r.waitHours); else weeks.set(r.week, [r.waitHours]);
+  }
+  const waitByWeek = [...weeks].sort(([a], [b]) => a.localeCompare(b)).map(([week, waits]) => ({
+    week,
+    median_wait_hours: round1(median(waits)),
+    replies: waits.length,
+    within_4h_pct: pctWithin(waits),
+  }));
+
+  // Backlog per person
+  const backlogMap = new Map<number | null, ReportInsights['backlog'][number]>();
+  for (const r of mine(backlogRows)) {
+    let row = backlogMap.get(r.user_id);
+    if (!row) {
+      row = { user_id: r.user_id, name: r.name, under_1d: 0, '1_3d': 0, '3_7d': 0, over_7d: 0 };
+      backlogMap.set(r.user_id, row);
+    }
+    row[r.bucket as 'under_1d' | '1_3d' | '3_7d' | 'over_7d'] += r.count;
+  }
+  const total = (b: ReportInsights['backlog'][number]) => b.under_1d + b['1_3d'] + b['3_7d'] + b.over_7d;
+  const backlog = [...backlogMap.values()].sort((a, b) => total(b) - total(a));
+
+  // Workload: customer emails on their tickets vs replies they wrote
+  const workloadMap = new Map<number | null, ReportInsights['workload'][number]>();
+  const work = (id: number | null) => {
+    let row = workloadMap.get(id);
+    if (!row) {
+      row = { user_id: id, name: nameOf(id), customer_emails: 0, replies: 0, emails_written: 0 };
+      workloadMap.set(id, row);
+    }
+    return row;
+  };
+  for (const r of mine(customerByAssignee)) {
+    if (r.user_id !== DEFAULT_ADMIN_USER_ID) work(r.user_id).customer_emails += r.count;
+  }
+  for (const m of mine(authored)) {
+    if (m.type !== 'email') continue;
+    const row = work(m.user_id);
+    row.emails_written++;
+    if (m.customer_at != null) row.replies++;
+  }
+  const workload = [...workloadMap.values()]
+    .filter(w => w.customer_emails + w.emails_written > 0)
+    .sort((a, b) => b.customer_emails - a.customer_emails || b.replies - a.replies);
+
+  const waits = replies.map(r => r.waitHours);
+  return {
+    timezone: timeZone,
+    summary: {
+      customer_emails: daily.reduce((n, d) => n + d.received, 0),
+      replies: replies.length,
+      median_wait_hours: round1(median(waits)),
+      replies_within_4h_pct: pctWithin(waits),
+      open_backlog: backlog.reduce((n, b) => n + total(b), 0),
+      open_backlog_over_3d: backlog.reduce((n, b) => n + b['3_7d'] + b.over_7d, 0),
+    },
+    backlog,
+    waitByWeek,
+    workload,
+    daily,
+  };
+}

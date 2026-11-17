@@ -12,8 +12,8 @@ import type {
   CannedResponse,
   Draft,
   TicketStats,
-  ReportData,
   TeamActivityReport,
+  ReportInsights,
   LoginRequest,
   LoginResponse,
   CreateTicketRequest,
@@ -91,13 +91,10 @@ export const tickets = {
     return request<Ticket[]>(`/tickets/calendar${query ? `?${query}` : ''}`);
   },
 
-  getReports: (start?: string, end?: string, assigneeId?: number) => {
-    const params = new URLSearchParams();
-    if (start) params.append('start', start);
-    if (end) params.append('end', end);
-    if (assigneeId !== undefined) params.append('assignee_id', assigneeId.toString());
-    const query = params.toString();
-    return request<ReportData>(`/tickets/reports${query ? `?${query}` : ''}`);
+  getReportInsights: (start: string, end: string, timeZone: string, userId?: number) => {
+    const params = new URLSearchParams({ start, end, tz: timeZone });
+    if (userId !== undefined) params.append('user_id', userId.toString());
+    return request<ReportInsights>(`/tickets/reports/insights?${params}`);
   },
 
   getTeamActivity: (start: string, end: string, timeZone: string) => {
