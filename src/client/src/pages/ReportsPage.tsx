@@ -58,6 +58,13 @@ const TOOLTIP_STYLE = {
   borderRadius: '6px',
 };
 
+// Text stays in the app's text colors; only the marks carry the series color
+const TOOLTIP_TEXT = {
+  labelStyle: { color: 'hsl(var(--foreground))', fontWeight: 600 },
+  itemStyle: { color: 'hsl(var(--muted-foreground))' },
+};
+const legendText = (value: string) => <span className="text-sm text-muted-foreground">{value}</span>;
+
 // Format date as YYYY-MM-DD in local timezone
 function formatDateString(date: Date): string {
   const year = date.getFullYear();
@@ -288,8 +295,8 @@ export function ReportsPage() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="displayDate" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Legend />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} {...TOOLTIP_TEXT} />
+                  <Legend formatter={legendText} />
                   <Line type="monotone" dataKey="received" stroke={colors.incoming} strokeWidth={2} dot={false} name="Incoming" />
                   <Line type="monotone" dataKey="team" stroke={colors.team} strokeWidth={2} dot={false} name="Written by team" />
                   <Line type="monotone" dataKey="automated" stroke={colors.automated} strokeWidth={2} dot={false} strokeDasharray="4 3" name="Automated" />
@@ -308,8 +315,8 @@ export function ReportsPage() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Legend />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} {...TOOLTIP_TEXT} />
+                  <Legend formatter={legendText} />
                   <Bar dataKey="under_1d" stackId="age" fill={colors.age[0]} name="Under 1 day" />
                   <Bar dataKey="1_3d" stackId="age" fill={colors.age[1]} name="1-3 days" />
                   <Bar dataKey="3_7d" stackId="age" fill={colors.age[2]} name="3-7 days" />
@@ -331,6 +338,7 @@ export function ReportsPage() {
                   <YAxis unit=" h" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <Tooltip
                     contentStyle={TOOLTIP_STYLE}
+                    {...TOOLTIP_TEXT}
                     labelFormatter={(label) => `Week of ${label}`}
                     formatter={(value, _name, item) => {
                       const p = item.payload as ReportInsights['waitByWeek'][number];
@@ -354,8 +362,8 @@ export function ReportsPage() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Legend />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} {...TOOLTIP_TEXT} />
+                  <Legend formatter={legendText} />
                   <Bar dataKey="customer_emails" fill={colors.incoming} name="Emails in" radius={[0, 4, 4, 0]} />
                   <Bar dataKey="replies" fill={colors.team} name="Replies written" radius={[0, 4, 4, 0]} />
                 </BarChart>

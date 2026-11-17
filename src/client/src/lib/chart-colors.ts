@@ -1,7 +1,10 @@
 /**
- * Chart colors for the reports page, one meaning per color on every chart:
- * blue = incoming, orange = the team, gray = automated. Backlog age is a single blue
- * ramp (light = new, dark = old), not traffic lights.
+ * Chart colors for the reports page, drawn from the colors the app already uses, with
+ * one meaning per color on every chart:
+ *   violet (brand primary, also the "our reply" marker) = the team
+ *   orange (the "New" status badge)                    = incoming
+ *   slate  (the "Resolved" badge)                      = automated
+ * Backlog age is a single violet ramp (light = new, dark = old), not traffic lights.
  *
  * Validated (OKLab CVD separation, normal-vision floor, contrast) against the card
  * surface in each mode. Recharts writes colors as SVG attributes, which can't read CSS
@@ -11,19 +14,19 @@
 import { useEffect, useState } from 'react';
 
 const LIGHT = {
-  incoming: '#2a78d6',
-  team: '#eb6834',
-  automated: '#8a8996',
+  team: '#7c3aed',      // violet-600 = --primary
+  incoming: '#ea580c',  // orange-600
+  automated: '#94a3b8', // slate-400
   /** under 1 day -> over 7 days */
-  age: ['#86b6ef', '#3987e5', '#1c5cab', '#0d366b'],
+  age: ['#a78bfa', '#7c3aed', '#5b21b6', '#2e1065'],
 };
 
 const DARK: typeof LIGHT = {
-  incoming: '#3987e5',
-  team: '#d95926',
-  automated: '#8a8996',
+  team: '#8b5cf6',      // violet-500
+  incoming: '#ea580c',  // orange-600
+  automated: '#94a3b8', // slate-400
   /** under 1 day -> over 7 days: on dark, older is brighter */
-  age: ['#184f95', '#2a78d6', '#6da7ec', '#b7d3f6'],
+  age: ['#6d28d9', '#8b5cf6', '#c4b5fd', '#ede9fe'],
 };
 
 export type ChartColors = typeof LIGHT;
