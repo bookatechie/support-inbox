@@ -167,20 +167,37 @@ async function saveMessageAttachments(
   }
 }
 
+async function isTeamAddress(address: string | null | undefined): Promise<boolean> {
+  const a = (address || '').trim().toLowerCase();
+  if (!a) return false;
+  return !!(await userQueries.getByAgentEmail(a) || await userQueries.getByEmail(a));
+}
+
+/**
+ * Credit a forwarded email to the original sender only when a teammate forwarded a
+ * customer's email into the inbox. A customer forwarding our own thread back to us
+ * ("From: Allie ..." inside the body) stays the customer's message.
+ */
+async function isTeamForward(email: ParsedEmail): Promise<boolean> {
+  if (!email.isForwarded || !email.forwardedFrom) return false;
+  return await isTeamAddress(email.from) && !(await isTeamAddress(email.forwardedFrom));
+}
+
 /**
  * Create a new ticket from parsed email
  */
 export async function createTicketFromEmail(email: ParsedEmail, logger?: Logger, assigneeId?: number): Promise<void> {
-  // For forwarded emails, use the original sender as customer (if extracted)
+  // A teammate forwarding a customer's email: the customer is the original sender.
   // Otherwise use Reply-To if set (for automated emails), or From
-  const customerEmail = (email.isForwarded && email.forwardedFrom)
-    ? email.forwardedFrom
+  const useForwarded = await isTeamForward(email);
+  const customerEmail = useForwarded
+    ? email.forwardedFrom!
     : (email.replyTo || email.from);
-  const customerName = (email.isForwarded && email.forwardedFrom)
+  const customerName = useForwarded
     ? (email.forwardedFromName || email.fromName)
     : email.fromName;
 
-  if (email.isForwarded && email.forwardedFrom) {
+  if (useForwarded) {
     logger?.info({ forwardedFrom: email.forwardedFrom, forwardedFromName: email.forwardedFromName, forwarder: email.from }, 'Detected forwarded email, using original sender as customer');
   }
 
@@ -319,9 +336,10 @@ async function logAutoReplyChange(ticketId: number, fieldName: string, oldValue:
  * Add message to existing ticket (customer reply)
  */
 export async function addMessageToTicket(ticketId: number, email: ParsedEmail): Promise<Message> {
-  // For forwarded emails, use the original sender; otherwise Reply-To or From
-  const senderEmail = (email.isForwarded && email.forwardedFrom)
-    ? email.forwardedFrom
+  // A teammate forwarding a customer's email: use the original sender; otherwise Reply-To or From
+  const useForwarded = await isTeamForward(email);
+  const senderEmail = useForwarded
+    ? email.forwardedFrom!
     : (email.replyTo || email.from);
 
   const emailMetadata = JSON.stringify({
@@ -338,7 +356,7 @@ export async function addMessageToTicket(ticketId: number, email: ParsedEmail): 
     headers: email.headers,
   });
 
-  const senderName = (email.isForwarded && email.forwardedFrom)
+  const senderName = useForwarded
     ? (email.forwardedFromName || email.fromName)
     : email.fromName;
 
