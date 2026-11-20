@@ -48,31 +48,10 @@ let inFlightCheck: Promise<void> | null = null;
 const CHECK_TIMEOUT_MS = 10 * 60 * 1000;
 let activeConnection: ImapSimple | null = null;
 
-// Import health for /api/status: a check that finished, and the last time one started
-let lastCheckStartedAt: Date | null = null;
-let lastCheckSucceededAt: Date | null = null;
-
-export function getEmailDaemonStatus(): {
-  running: boolean;
-  last_check_started_at: string | null;
-  last_check_succeeded_at: string | null;
-  check_in_progress: boolean;
-} {
-  return {
-    running: isRunning,
-    last_check_started_at: lastCheckStartedAt?.toISOString() ?? null,
-    last_check_succeeded_at: lastCheckSucceededAt?.toISOString() ?? null,
-    check_in_progress: inFlightCheck !== null,
-  };
-}
-
 function runCheck(config: ImapConfig): Promise<void> {
   if (!inFlightCheck) {
-    lastCheckStartedAt = new Date();
     let timer: NodeJS.Timeout | undefined;
-    const check = checkEmails(config).then(() => {
-      lastCheckSucceededAt = new Date();
-    });
+    const check = checkEmails(config);
     const deadline = new Promise<void>((_, reject) => {
       timer = setTimeout(() => {
         logger.error({ timeoutMs: CHECK_TIMEOUT_MS }, 'Email check timed out - dropping the IMAP connection');
