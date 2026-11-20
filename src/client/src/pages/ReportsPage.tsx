@@ -281,6 +281,44 @@ export function ReportsPage() {
           />
         </div>
 
+        {(insights?.openByPerson.length ?? 0) > 0 && (
+          <Card className="p-4 mb-6">
+            <h3 className="text-lg font-semibold">Open tickets by person</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Right now, whatever the date range. Waiting on us: the last email on the ticket came from outside
+              (customers and suppliers; notes and no-reply notifications don't count).
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="py-2 pr-4 font-medium">Person</th>
+                    <th className="py-2 px-3 font-medium text-right">Open</th>
+                    <th className="py-2 px-3 font-medium text-right">Waiting on us</th>
+                    <th className="py-2 px-3 font-medium text-right">Waiting over 7 days</th>
+                    <th className="py-2 pl-3 font-medium text-right">Oldest wait</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {insights!.openByPerson.map(r => (
+                    <tr key={r.user_id ?? 'none'} className="border-b last:border-0">
+                      <td className="py-2 pr-4">{r.name}</td>
+                      <td className="py-2 px-3 text-right tabular-nums">{r.open}</td>
+                      <td className="py-2 px-3 text-right tabular-nums">{r.waiting}</td>
+                      <td className={`py-2 px-3 text-right tabular-nums ${r.waiting_over_7d > 0 ? 'font-semibold text-destructive' : ''}`}>
+                        {r.waiting_over_7d}
+                      </td>
+                      <td className="py-2 pl-3 text-right tabular-nums text-muted-foreground">
+                        {r.oldest_wait_days == null ? '-' : `${r.oldest_wait_days} d`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+
         <TeamActivityCard startDate={startDate} endDate={endDate} userId={userId} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

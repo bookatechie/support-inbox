@@ -217,6 +217,8 @@ export interface ReportInsights {
   backlog: { user_id: number | null; name: string; under_1d: number; '1_3d': number; '3_7d': number; over_7d: number }[];
   /** Median customer wait per week (weeks start Monday, local time) */
   waitByWeek: { week: string; median_wait_hours: number | null; replies: number; within_4h_pct: number | null }[];
+  /** Open tickets per person right now, and how many are waiting on a reply from us */
+  openByPerson: { user_id: number | null; name: string; open: number; waiting: number; waiting_over_7d: number; oldest_wait_days: number | null }[];
   /** Customer emails that came in on each person's tickets vs replies they sent */
   workload: { user_id: number | null; name: string; customer_emails: number; replies: number; emails_written: number }[];
   daily: { date: string; received: number; team: number; automated: number }[];
@@ -231,9 +233,10 @@ function weekOf(date: string): string {
 
 export async function getReportInsights(startDate: string, endDate: string, timeZone: string, userId?: number): Promise<ReportInsights> {
   const ours = [...await getOurAddresses()];
-  const [authored, backlogRows, customerByAssignee, daily, users] = await Promise.all([
+  const [authored, backlogRows, openRows, customerByAssignee, daily, users] = await Promise.all([
     teamActivityQueries.getAuthoredMessages(startDate, endDate, ours, DEFAULT_ADMIN_USER_ID),
     teamActivityQueries.getOpenBacklog(ours),
+    teamActivityQueries.getOpenByAssignee(ours),
     teamActivityQueries.getCustomerEmailsByAssignee(startDate, endDate, ours),
     teamActivityQueries.getDailyEmails(startDate, endDate, timeZone, ours, DEFAULT_ADMIN_USER_ID, userId),
     userQueries.getAll(),
@@ -311,6 +314,7 @@ export async function getReportInsights(startDate: string, endDate: string, time
       open_backlog_over_3d: backlog.reduce((n, b) => n + b['3_7d'] + b.over_7d, 0),
     },
     backlog,
+    openByPerson: mine(openRows),
     waitByWeek,
     workload,
     daily,

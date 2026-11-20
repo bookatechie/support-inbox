@@ -722,6 +722,42 @@ export const teamActivityQueries = {
   },
 
   /**
+   * Open (new/open) tickets per assignee, and how many are waiting on us: the last email on
+   * the ticket came from outside (notes don't count), not from an automated no-reply sender.
+   * wait_days is measured from that last outside email.
+   */
+  async getOpenByAssignee(ourAddresses: string[]): Promise<{
+    user_id: number | null; name: string; open: number; waiting: number; waiting_over_7d: number; oldest_wait_days: number | null;
+  }[]> {
+    return query(
+      `SELECT t.assignee_id AS user_id,
+              COALESCE(u.name, 'Unassigned') AS name,
+              COUNT(*)::integer AS open,
+              COUNT(*) FILTER (WHERE w.waiting)::integer AS waiting,
+              COUNT(*) FILTER (WHERE w.waiting AND w.wait_days > 7)::integer AS waiting_over_7d,
+              FLOOR(MAX(w.wait_days) FILTER (WHERE w.waiting))::integer AS oldest_wait_days
+       FROM tickets t
+       LEFT JOIN users u ON u.id = t.assignee_id
+       LEFT JOIN LATERAL (
+         SELECT m.sender_email, m.created_at FROM messages m
+         WHERE m.ticket_id = t.id AND m.type = 'email'
+         ORDER BY m.created_at DESC
+         LIMIT 1
+       ) last ON true
+       CROSS JOIN LATERAL (
+         SELECT last.sender_email IS NOT NULL
+                  AND ${ADDRESS_OF('last.sender_email')} <> ALL($1::text[])
+                  AND ${ADDRESS_OF('last.sender_email')} !~ '^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?|vmnotify)@' AS waiting,
+                EXTRACT(EPOCH FROM (now() AT TIME ZONE 'UTC' - last.created_at)) / 86400 AS wait_days
+       ) w
+       WHERE t.status IN ('new', 'open')
+       GROUP BY 1, 2
+       ORDER BY waiting DESC, open DESC`,
+      [ourAddresses.map(a => a.toLowerCase())]
+    );
+  },
+
+  /**
    * Emails per local day: from customers, written by the team, and sent by automations
    * (from one of our addresses but not written by a signed-in agent).
    * userId narrows to that person: their tickets' customer emails and automated sends, and

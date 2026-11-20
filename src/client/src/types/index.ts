@@ -354,6 +354,7 @@ export interface ReportInsights {
     open_backlog_over_3d: number;
   };
   backlog: { user_id: number | null; name: string; under_1d: number; '1_3d': number; '3_7d': number; over_7d: number }[];
+  openByPerson: { user_id: number | null; name: string; open: number; waiting: number; waiting_over_7d: number; oldest_wait_days: number | null }[];
   waitByWeek: { week: string; median_wait_hours: number | null; replies: number; within_4h_pct: number | null }[];
   workload: { user_id: number | null; name: string; customer_emails: number; replies: number; emails_written: number }[];
   daily: { date: string; received: number; team: number; automated: number }[];
