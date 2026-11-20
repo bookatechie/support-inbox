@@ -37,7 +37,7 @@ import {
   setLogger,
 } from '../lib/ticket.js';
 import { getTeamActivity, getReportInsights, assertTimeZone } from '../lib/team-activity.js';
-import { checkEmailsNow } from '../workers/email-daemon.js';
+import { checkEmailsNow, getEmailDaemonStatus } from '../workers/email-daemon.js';
 import { handleSSE, sseEmitter, getClientCount } from './sse.js';
 import { evaluateRulesDryRun } from '../lib/rules-engine.js';
 import { isValidTicketStatus, isValidTicketPriority } from '../lib/validation.js';
@@ -1690,6 +1690,7 @@ export default async function routes(fastify: FastifyInstance) {
       status: 'ok',
       sse_clients: getClientCount(),
       timestamp: new Date().toISOString(),
+      email_import: getEmailDaemonStatus(),
     });
   });
 

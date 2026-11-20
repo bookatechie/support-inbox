@@ -41,9 +41,52 @@ const oversizedLogged = new Set<number>(); // UIDs already reported as oversized
 // overlapping checks would fetch and process the same UNSEEN emails twice.
 let inFlightCheck: Promise<void> | null = null;
 
+// A stalled IMAP socket can leave a fetch waiting forever with no error. Since checks never
+// overlap, one hung check would stop all email import (this happened: 7 hours, 128 emails).
+// After CHECK_TIMEOUT_MS the check's connection is destroyed and the check is abandoned, so the
+// next poll starts fresh. Emails stay UNSEEN until processed, so nothing is lost.
+const CHECK_TIMEOUT_MS = 10 * 60 * 1000;
+let activeConnection: ImapSimple | null = null;
+
+// Import health for /api/status: a check that finished, and the last time one started
+let lastCheckStartedAt: Date | null = null;
+let lastCheckSucceededAt: Date | null = null;
+
+export function getEmailDaemonStatus(): {
+  running: boolean;
+  last_check_started_at: string | null;
+  last_check_succeeded_at: string | null;
+  check_in_progress: boolean;
+} {
+  return {
+    running: isRunning,
+    last_check_started_at: lastCheckStartedAt?.toISOString() ?? null,
+    last_check_succeeded_at: lastCheckSucceededAt?.toISOString() ?? null,
+    check_in_progress: inFlightCheck !== null,
+  };
+}
+
 function runCheck(config: ImapConfig): Promise<void> {
   if (!inFlightCheck) {
-    inFlightCheck = checkEmails(config).finally(() => {
+    lastCheckStartedAt = new Date();
+    let timer: NodeJS.Timeout | undefined;
+    const check = checkEmails(config).then(() => {
+      lastCheckSucceededAt = new Date();
+    });
+    const deadline = new Promise<void>((_, reject) => {
+      timer = setTimeout(() => {
+        logger.error({ timeoutMs: CHECK_TIMEOUT_MS }, 'Email check timed out - dropping the IMAP connection');
+        try {
+          (activeConnection as any)?.imap?.destroy();
+        } catch {
+          // already closed
+        }
+        reject(new Error(`Email check timed out after ${CHECK_TIMEOUT_MS / 60000} minutes`));
+      }, CHECK_TIMEOUT_MS);
+    });
+    check.catch(() => {}); // an abandoned check may still reject after the deadline
+    inFlightCheck = Promise.race([check, deadline]).finally(() => {
+      clearTimeout(timer);
       inFlightCheck = null;
     });
   }
@@ -153,6 +196,7 @@ async function checkEmails(config: ImapConfig): Promise<void> {
         authTimeout: 30000, // 30 second auth timeout
       },
     });
+    activeConnection = connection;
 
     // Add error handler on underlying IMAP connection to catch Parser errors
     // This fixes a known bug in the imap library where self._curReq can be undefined
@@ -237,6 +281,7 @@ async function checkEmails(config: ImapConfig): Promise<void> {
     }
     throw error;
   } finally {
+    if (activeConnection === connection) activeConnection = null;
     // Safely close connection - MUST destroy underlying imap to prevent memory leak
     // imap-simple's end() doesn't fully clean up event listeners
     if (connection) {
