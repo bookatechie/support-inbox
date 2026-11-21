@@ -153,8 +153,10 @@ export function TicketDetailPage() {
   });
   const [isResizing, setIsResizing] = useState(false);
   // Open/closed is remembered across tickets (like the height): close it once and it stays
-  // closed on the next ticket until reopened
-  const [isComposerMinimized, setIsComposerMinimizedState] = useState(() => localStorage.getItem('composerMinimized') === 'true');
+  // closed on the next ticket until reopened. On phones the open composer covers the whole
+  // screen, so it always starts closed there, letting the conversation be read first
+  const [isComposerMinimized, setIsComposerMinimizedState] = useState(() =>
+    window.matchMedia('(max-width: 639px)').matches || localStorage.getItem('composerMinimized') === 'true');
   const setIsComposerMinimized = (minimized: boolean) => {
     setIsComposerMinimizedState(minimized);
     localStorage.setItem('composerMinimized', String(minimized));
@@ -1692,7 +1694,7 @@ export function TicketDetailPage() {
           {/* Floating Reply Editor at Bottom */}
           <div
             ref={composerRef}
-            className={`flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col ${isResizing ? '' : 'transition-[height] duration-200'} ${isComposerMinimized ? '' : 'max-sm:!h-auto max-sm:max-h-[75vh]'}`}
+            className={`flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col ${isResizing ? '' : 'transition-[height] duration-200'} ${isComposerMinimized ? '' : 'max-sm:fixed max-sm:inset-0 max-sm:z-50 max-sm:!h-[100dvh] max-sm:border-t-0 max-sm:pt-2'}`}
             style={{ height: isComposerMinimized ? 44 : composerHeight }}
           >
             {/* Minimized Bar */}

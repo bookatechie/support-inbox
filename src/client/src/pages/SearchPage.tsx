@@ -247,8 +247,8 @@ export function SearchPage() {
         <Card className="p-6 mb-6">
           <div className="space-y-4">
             {/* Main Search Input */}
-            <div className="flex gap-2">
-              <div className="relative flex-1">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative sm:flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   ref={searchInputRef}
@@ -311,7 +311,7 @@ export function SearchPage() {
               <Button
                 onClick={handleSearch}
                 disabled={!searchQuery.trim() || isSearching}
-                className="h-12 px-6"
+                className="h-12 px-6 w-full sm:w-auto"
               >
                 Search
               </Button>
