@@ -1196,7 +1196,7 @@ export function TicketDetailPage() {
                 ) : (
                   <div />
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-start shrink-0">
                   {(isSavingDraft || draftSaved) && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       {isSavingDraft ? (
