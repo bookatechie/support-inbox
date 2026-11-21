@@ -57,6 +57,8 @@ interface RichTextEditorProps {
   isGeneratingAi?: boolean;
   /** When true, editor fills available height and content scrolls */
   fillHeight?: boolean;
+  /** Put the cursor at the end of the text as soon as the editor mounts */
+  autoFocus?: boolean;
 }
 
 export function RichTextEditor({
@@ -73,6 +75,7 @@ export function RichTextEditor({
   onAiSuggest,
   isGeneratingAi = false,
   fillHeight = false,
+  autoFocus = false,
 }: RichTextEditorProps) {
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -143,6 +146,7 @@ export function RichTextEditor({
     ],
     content,
     editable: !disabled,
+    autofocus: autoFocus ? 'end' : false,
     editorProps: {
       handlePaste: (_view, event) => {
         const items = Array.from(event.clipboardData?.items || []);
@@ -660,8 +664,7 @@ export function RichTextEditor({
       <div
         className={cn(
           'p-4 overflow-hidden cursor-text',
-          // On phones the composer sizes to its content, so give the text area its own height
-          fillHeight ? 'flex-1 overflow-y-auto min-h-0 max-sm:flex-none max-sm:min-h-[7rem] max-sm:max-h-[35vh]' : 'min-h-[200px]',
+          fillHeight ? 'flex-1 overflow-y-auto min-h-0 flex flex-col' : 'min-h-[200px]',
           !showVariablesBar || Object.keys(variables).length === 0 ? 'rounded-b-md' : ''
         )}
         onMouseDown={(e) => {
@@ -674,7 +677,9 @@ export function RichTextEditor({
           editor={editor}
           className={cn(
             'prose prose-sm dark:prose-invert max-w-none focus-visible:outline-none [&_.ProseMirror]:outline-none',
-            fillHeight ? '[&_.ProseMirror]:min-h-full' : '[&_.ProseMirror]:min-h-[150px]'
+            // The editable area itself fills the box, so a tap anywhere in it lands in the text
+            // (phones only raise the keyboard for a tap on the editable element itself)
+            fillHeight ? 'flex-1 flex flex-col [&>.ProseMirror]:flex-1' : '[&_.ProseMirror]:min-h-[150px]'
           )}
         />
       </div>

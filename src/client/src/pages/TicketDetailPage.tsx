@@ -160,6 +160,28 @@ export function TicketDetailPage() {
   const setIsComposerMinimized = (minimized: boolean) => {
     setIsComposerMinimizedState(minimized);
     localStorage.setItem('composerMinimized', String(minimized));
+    if (minimized) setFocusComposerOnOpen(false);
+  };
+  // Opened by the agent (not on page load): put the cursor in the reply box
+  const [focusComposerOnOpen, setFocusComposerOnOpen] = useState(false);
+  const openComposer = () => {
+    if (!isComposerMinimized) {
+      document.querySelector<HTMLElement>('[data-reply-editor] .ProseMirror')?.focus();
+      return;
+    }
+    // Phones (iOS) only raise the keyboard for a focus made during the tap itself, and the editor
+    // doesn't exist until the composer renders. Focus a stand-in input now; the editor takes the
+    // focus (and the open keyboard) from it when it mounts
+    if (window.matchMedia('(max-width: 639px)').matches) {
+      const standIn = document.createElement('input');
+      standIn.setAttribute('aria-hidden', 'true');
+      standIn.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px;';
+      document.body.appendChild(standIn);
+      standIn.focus();
+      setTimeout(() => standIn.remove(), 1000);
+    }
+    setFocusComposerOnOpen(true);
+    setIsComposerMinimized(false);
   };
   const composingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const composingUserTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -967,7 +989,7 @@ export function TicketDetailPage() {
 
     // Set the reply_to_message_id for backend to quote this specific message
     setReplyToMessageId(messageId);
-    setIsComposerMinimized(false); // the reply is written in the composer, so show it
+    openComposer(); // the reply is written in the composer, so show it
 
     const senderName = message.sender_name || message.sender_email;
     toast.success(`Replying to ${senderName}`, {
@@ -1315,6 +1337,7 @@ export function TicketDetailPage() {
                 onAiSuggest={handleGenerateAIResponse}
                 isGeneratingAi={isGeneratingResponse}
                 fillHeight={isFloating}
+                autoFocus={isFloating && focusComposerOnOpen}
               />
             </div>
 
@@ -1701,7 +1724,7 @@ export function TicketDetailPage() {
             {isComposerMinimized ? (
               <div
                 className="h-full flex items-center justify-between px-4 cursor-pointer hover:bg-muted/30 transition-colors"
-                onClick={() => setIsComposerMinimized(false)}
+                onClick={openComposer}
               >
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Mail className="h-4 w-4" />
