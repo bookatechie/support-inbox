@@ -188,6 +188,32 @@ export function TicketDetailPage() {
   const messagesPanelRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
 
+  // On phones the open composer covers the screen. The keyboard doesn't shrink 100dvh on iOS;
+  // Safari scrolls the page instead and drags the composer with it. Pin it to the visual
+  // viewport (the part above the keyboard) and stop the page behind it from scrolling
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const el = composerRef.current;
+    if (isComposerMinimized || !vv || !el || !window.matchMedia('(max-width: 639px)').matches) return;
+    const fit = () => {
+      el.style.setProperty('--vv-top', `${vv.offsetTop}px`);
+      el.style.setProperty('--vv-height', `${vv.height}px`);
+    };
+    fit();
+    vv.addEventListener('resize', fit);
+    vv.addEventListener('scroll', fit);
+    const root = document.documentElement;
+    const prevOverflow = [root.style.overflow, document.body.style.overflow];
+    root.style.overflow = document.body.style.overflow = 'hidden';
+    return () => {
+      vv.removeEventListener('resize', fit);
+      vv.removeEventListener('scroll', fit);
+      el.style.removeProperty('--vv-top');
+      el.style.removeProperty('--vv-height');
+      [root.style.overflow, document.body.style.overflow] = prevOverflow;
+    };
+  }, [isComposerMinimized]);
+
   // Reply-all: pre-fill To/CC with everyone else on the latest incoming email, once per
   // ticket (not on every live update, so recipients the agent removed stay removed)
   const prefilledTicketIdRef = useRef<number | null>(null);
@@ -1717,7 +1743,7 @@ export function TicketDetailPage() {
           {/* Floating Reply Editor at Bottom */}
           <div
             ref={composerRef}
-            className={`flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col ${isResizing ? '' : 'transition-[height] duration-200'} ${isComposerMinimized ? '' : 'max-sm:fixed max-sm:inset-0 max-sm:z-50 max-sm:!h-[100dvh] max-sm:border-t-0 max-sm:pt-2'}`}
+            className={`flex-shrink-0 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col ${isResizing ? '' : 'transition-[height] duration-200'} ${isComposerMinimized ? '' : 'max-sm:fixed max-sm:inset-x-0 max-sm:top-[var(--vv-top,0px)] max-sm:z-50 max-sm:!h-[var(--vv-height,100dvh)] max-sm:!transition-none max-sm:overscroll-contain max-sm:border-t-0 max-sm:pt-2'}`}
             style={{ height: isComposerMinimized ? 44 : composerHeight }}
           >
             {/* Minimized Bar */}
