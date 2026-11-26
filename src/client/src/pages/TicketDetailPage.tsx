@@ -152,6 +152,7 @@ export function TicketDetailPage() {
     return saved ? parseInt(saved, 10) : 250;
   });
   const [isResizing, setIsResizing] = useState(false);
+  const [subjectExpanded, setSubjectExpanded] = useState(false);
   // Open/closed is remembered across tickets (like the height): close it once and it stays
   // closed on the next ticket until reopened. On phones the open composer covers the whole
   // screen, so it always starts closed there, letting the conversation be read first
@@ -1534,7 +1535,10 @@ export function TicketDetailPage() {
 
           {/* Mobile: which ticket this is (status, priority etc. are in the menu drawer) */}
           <div className="lg:hidden px-1 pb-1">
-            <TicketSubject subject={ticket.subject} className="[&_h1]:line-clamp-2" />
+            {/* Clamped to two lines; tap to read a long subject in full */}
+            <button type="button" className="block w-full text-left" onClick={() => setSubjectExpanded(e => !e)}>
+              <TicketSubject subject={ticket.subject} className={subjectExpanded ? '' : '[&_h1]:line-clamp-2'} />
+            </button>
             <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground min-w-0">
               <span className="flex-shrink-0">#{ticket.id}</span>
               <span>•</span>
@@ -1671,13 +1675,8 @@ export function TicketDetailPage() {
           <div ref={messagesPanelRef} className={`flex-1 min-w-0 overflow-y-auto lg:overflow-hidden lg:hover:overflow-y-auto ${isResizing || customerPanel.isResizing ? '[&_iframe]:pointer-events-none select-none' : ''}`}>
             <div className="px-2 sm:px-4 pt-4 pb-6 space-y-4 sm:space-y-6">
 
-          {/* Mobile: Subject and Details - At top of scrollable area */}
+          {/* Mobile: created date and tags at the top of the thread (the subject is in the header) */}
           <div className="lg:hidden mb-4 pb-4 border-b">
-            {/* Subject Line */}
-            <div className="mb-2">
-              <TicketSubject subject={ticket.subject} />
-            </div>
-
             {/* Ticket Details */}
             <div className="space-y-2">
               {/* Ticket ID and Date */}
